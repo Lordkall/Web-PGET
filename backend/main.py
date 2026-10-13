@@ -84,25 +84,31 @@ async def startup_event():
     except Exception as e:
         print(f"Error on startup initializing users: {e}")
 
-# Localizar directorio de archivos estáticos del frontend
-_current_dir = os.path.dirname(os.path.abspath(__file__))
-_candidate_dirs = [
-    os.path.abspath("."),
-    os.path.abspath(".."),
-    os.path.join(_current_dir, ".."),
-    os.path.join(_current_dir, "frontend"),
-    os.path.join(_current_dir, "..", "frontend"),
-]
-frontend_dir = None
-for _d in _candidate_dirs:
-    if os.path.exists(os.path.join(_d, "index.html")):
-        frontend_dir = _d
-        break
+def get_frontend_dir():
+    _cur = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        os.path.join(_cur, "frontend"),
+        os.path.join(_cur, "..", "frontend"),
+        os.path.join(_cur, "..", "api", "frontend"),
+        os.path.join(_cur, ".."),
+        os.path.abspath("."),
+        os.path.join(os.path.abspath("."), "frontend"),
+        os.path.join(os.path.abspath("."), "api", "frontend"),
+        os.path.join(os.path.abspath("."), "backend", "frontend"),
+    ]
+    for c in candidates:
+        if os.path.exists(os.path.join(c, "index.html")):
+            return os.path.abspath(c)
+    return _cur
+
+frontend_dir = get_frontend_dir()
 
 @app.get("/")
 async def serve_index():
-    if frontend_dir and os.path.exists(os.path.join(frontend_dir, "index.html")):
-        return FileResponse(os.path.join(frontend_dir, "index.html"))
+    f_dir = frontend_dir or get_frontend_dir()
+    idx = os.path.join(f_dir, "index.html")
+    if os.path.exists(idx):
+        return FileResponse(idx)
     return {"message": "Portal Web PGET en línea"}
 
 @app.get("/api")
@@ -548,5 +554,21 @@ async def solicitar_constancia(
         "cuerpo": cuerpo
     }
 
-if frontend_dir:
-    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="static")
+@app.get("/{file_path:path}")
+async def serve_static_or_page(file_path: str):
+    if file_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="Endpoint no encontrado")
+        
+    f_dir = frontend_dir or get_frontend_dir()
+    clean_path = file_path.strip("/")
+    if not clean_path:
+        return FileResponse(os.path.join(f_dir, "index.html"))
+        
+    target = os.path.join(f_dir, clean_path)
+    if os.path.isfile(target):
+        return FileResponse(target)
+        
+    if os.path.isfile(target + ".html"):
+        return FileResponse(target + ".html")
+        
+    return FileResponse(os.path.join(f_dir, "index.html"))

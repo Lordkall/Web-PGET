@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estructura Organizativa | Organigrama | PGET</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Navbar -->
+    <header class="navbar" style="background: var(--glass-bg);">
+        <div class="nav-container">
+            <a href="index.html" class="logo-container" style="text-decoration: none;">
+                <img src="assets/logo.png" alt="Logo PGET" class="logo" onerror="this.src='https://via.placeholder.com/60?text=PGET'">
+                <div class="logo-text">
+                    <h1>PROCURADURÍA GENERAL</h1>
+                    <h2>DEL ESTADO TRUJILLO</h2>
+                </div>
+            </a>
+            <nav class="nav-links">
+                <a href="index.html">Inicio</a>
+                <a href="quienes-somos.html">¿Quiénes Somos?</a>
+                <div class="dropdown">
+                    <a href="#" class="dropbtn">Filosofía Institucional <i class="fas fa-chevron-down"></i></a>
+                    <div class="dropdown-content">
+                        <a href="mision-vision.html">Misión y Visión</a>
+                        <a href="valores.html">Valores y Principios</a>
+                    </div>
+                </div>
+                <div class="dropdown">
+                    <a href="#" class="dropbtn">Organización <i class="fas fa-chevron-down"></i></a>
+                    <div class="dropdown-content">
+                        <a href="organigrama.html">Organigrama</a>
+                        <a href="direcciones.html">Direcciones</a>
+                    </div>
+                </div>
+                <a href="bases-juridicas.html">Bases Jurídicas</a>
+                <a href="contacto.html">Contacto</a>
+            </nav>
+            <div class="nav-actions">
+                <button id="loginBtn" class="btn-primary"><i class="fas fa-user"></i> Iniciar Sesión</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Page Banner -->
+    <div style="padding-top: 100px; background: linear-gradient(135deg, var(--primary-color), #0f3d13); color: white; text-align: center; padding-bottom: 45px;">
+        <h1 style="font-size: 2.5rem; margin-top: 35px; text-transform: uppercase; letter-spacing: 1px;">Organigrama Institucional</h1>
+        <p style="opacity: 0.9; font-size: 1.05rem; margin-top: 8px;">Estructura organizativa y funcional de la Procuraduría General del Estado Trujillo</p>
+    </div>
+
+    <!-- Main Content Section -->
+    <section class="info-section" style="padding: 40px 15px;">
+        <div class="org-section-container">
+            
+            <div class="org-header-card">
+                <div class="org-badge">
+                    <i class="fas fa-check-circle"></i> Estructura Oficial Vigente
+                </div>
+                <h2 class="org-title-main" style="margin-top: 12px;">ESTRUCTURA ORGANIZATIVA</h2>
+                <p class="org-subtitle-main">
+                    Representación jerárquica y operativa de las dependencias, direcciones y unidades adscritas. Haz clic sobre cualquier oficina para consultar sus atribuciones y funciones.
+                </p>
+            </div>
+
+            <!-- Toolbar / Controls -->
+            <div class="org-toolbar">
+                <div class="org-view-switcher">
+                    <button id="viewGraphBtn" class="org-tab-btn active" onclick="switchOrgView('graph')">
+                        <i class="fas fa-sitemap"></i> Diagrama Gráfico
+                    </button>
+                    <button id="viewCardsBtn" class="org-tab-btn" onclick="switchOrgView('cards')">
+                        <i class="fas fa-layer-group"></i> Estructura por Niveles
+                    </button>
+                </div>
+
+                <div class="org-tools-group">
+                    <button class="org-tool-btn" onclick="zoomOrg(0.1)" title="Acercar">
+                        <i class="fas fa-search-plus"></i> Acercar
+                    </button>
+                    <button class="org-tool-btn" onclick="zoomOrg(-0.1)" title="Alejar">
+                        <i class="fas fa-search-minus"></i> Alejar
+                    </button>
+                    <button class="org-tool-btn" onclick="resetOrgZoom()" title="Restablecer vista">
+                        <i class="fas fa-undo"></i> Restablecer
+                    </button>
+                    <button class="org-tool-btn" onclick="toggleOrgFullscreen()" title="Pantalla completa">
+                        <i class="fas fa-expand"></i> Pantalla Completa
+                    </button>
+                    <button class="org-tool-btn primary" onclick="downloadOrgSVG()" title="Descargar Diagrama">
+                        <i class="fas fa-download"></i> Descargar SVG
+                    </button>
+                </div>
+            </div>
+
+            <div class="org-scroll-hint">
+                <i class="fas fa-arrows-alt-h"></i> Desliza horizontalmente para explorar el organigrama completo
+            </div>
+
+            <!-- VISTA 1: DIAGRAMA GRÁFICO (SVG) -->
+            <div id="orgGraphView" class="org-chart-viewport">
+                <div id="orgCanvas" class="org-canvas-inner">
+                    <svg id="orgSvgElement" class="org-svg" viewBox="0 0 1200 560" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <filter id="nodeShadow" x="-10%" y="-10%" width="125%" height="130%">
+                                <feDropShadow dx="0" dy="3" stdDeviation="3.5" flood-color="#000000" flood-opacity="0.12" />
+                            </filter>
+                        </defs>
+
+                        <!-- LÍNEAS DE CONEXIÓN -->
+
+                        <!-- Línea de Asesoría / Staff (Línea punteada horizontal entre Atención al Ciudadano y Auditoría Interna) -->
+                        <line x1="240" y1="145" x2="830" y2="145" class="org-connector-dotted" />
+
+                        <!-- Tallo Central Superior (Despacho a Dirección General) -->
+                        <line x1="600" y1="94" x2="600" y2="220" class="org-connector" />
+
+                        <!-- Ramificación Auditoría Interna (a Control Posterior y Determinación de Responsabilidades) -->
+                        <line x1="945" y1="175" x2="945" y2="205" class="org-connector" />
+                        <line x1="840" y1="205" x2="1050" y2="205" class="org-connector" />
+                        <line x1="840" y1="205" x2="840" y2="220" class="org-connector" />
+                        <line x1="1050" y1="205" x2="1050" y2="220" class="org-connector" />
+
+                        <!-- Tallo de Dirección General a las 4 Direcciones -->
+                        <line x1="600" y1="270" x2="600" y2="320" class="org-connector" />
+                        <!-- Barra horizontal distribuidora de las 4 Direcciones -->
+                        <line x1="160" y1="320" x2="1040" y2="320" class="org-connector" />
+                        <!-- Bajadas a las 4 Direcciones -->
+                        <line x1="160" y1="320" x2="160" y2="350" class="org-connector" />
+                        <line x1="453" y1="320" x2="453" y2="350" class="org-connector" />
+                        <line x1="747" y1="320" x2="747" y2="350" class="org-connector" />
+                        <line x1="1040" y1="320" x2="1040" y2="350" class="org-connector" />
+
+                        <!-- Conexión desde Dirección de Bienes y Servicios a las 4 Sub-unidades -->
+                        <line x1="747" y1="402" x2="747" y2="445" class="org-connector" />
+                        <!-- Barra horizontal distribuidora de las 4 Sub-unidades -->
+                        <line x1="175" y1="445" x2="1015" y2="445" class="org-connector" />
+                        <!-- Bajadas a las 4 Sub-unidades -->
+                        <line x1="175" y1="445" x2="175" y2="475" class="org-connector" />
+                        <line x1="455" y1="445" x2="455" y2="475" class="org-connector" />
+                        <line x1="735" y1="445" x2="735" y2="475" class="org-connector" />
+                        <line x1="1015" y1="445" x2="1015" y2="475" class="org-connector" />
+
+
+                        <!-- NODOS / CAJAS DEL ORGANIGRAMA -->
+
+                        <!-- 1. DESPACHO DEL PROCURADOR O PROCURADORA GENERAL -->
+                        <g class="org-node" onclick="openOrgModal('despacho')">
+                            <rect x="380" y="30" width="440" height="64" rx="5" filter="url(#nodeShadow)" />
+                            <text x="600" y="55" font-size="15.5">DESPACHO DEL PROCURADOR</text>
+                            <text x="600" y="77" font-size="15.5">O PROCURADORA GENERAL</text>
+                        </g>
+
+                        <!-- 2. OFICINA DE ATENCIÓN AL CIUDADANO (Lado Izquierdo) -->
+                        <g class="org-node" onclick="openOrgModal('oac')">
+                            <rect x="40" y="115" width="200" height="60" rx="5" filter="url(#nodeShadow)" />
+                            <text x="140" y="141" font-size="13">OFICINA DE ATENCIÓN</text>
+                            <text x="140" y="160" font-size="13">AL CIUDADANO</text>
+                        </g>
+
+                        <!-- 3. UNIDAD DE AUDITORÍA INTERNA (Lado Derecho) -->
+                        <g class="org-node" onclick="openOrgModal('uai')">
+                            <rect x="830" y="115" width="230" height="60" rx="5" filter="url(#nodeShadow)" />
+                            <text x="945" y="141" font-size="13.5">UNIDAD DE AUDITORÍA</text>
+                            <text x="945" y="160" font-size="13.5">INTERNA</text>
+                        </g>
+
+                        <!-- 3.1 OFICINA DE CONTROL POSTERIOR -->
+                        <g class="org-node" onclick="openOrgModal('control_posterior')">
+                            <rect x="750" y="220" width="180" height="64" rx="5" filter="url(#nodeShadow)" />
+                            <text x="840" y="240" font-size="11.5">OFICINA DE</text>
+                            <text x="840" y="256" font-size="11.5">CONTROL</text>
+                            <text x="840" y="272" font-size="11.5">POSTERIOR</text>
+                        </g>
+
+                        <!-- 3.2 OFICINA DE DETERMINACIÓN DE RESPONSABILIDADES -->
+                        <g class="org-node" onclick="openOrgModal('responsabilidades')">
+                            <rect x="950" y="220" width="200" height="64" rx="5" filter="url(#nodeShadow)" />
+                            <text x="1050" y="240" font-size="11">OFICINA DE</text>
+                            <text x="1050" y="256" font-size="11">DETERMINACIÓN DE</text>
+                            <text x="1050" y="272" font-size="11">RESPONSABILIDADES</text>
+                        </g>
+
+                        <!-- 4. DIRECCIÓN GENERAL (Nivel 2) -->
+                        <g class="org-node" onclick="openOrgModal('direccion_general')">
+                            <rect x="475" y="220" width="250" height="50" rx="5" filter="url(#nodeShadow)" />
+                            <text x="600" y="251" font-size="14.5">DIRECCIÓN GENERAL</text>
+                        </g>
+
+                        <!-- 5. DIRECCIÓN ADMINISTRACIÓN (Nivel 3 - Columna 1) -->
+                        <g class="org-node" onclick="openOrgModal('administracion')">
+                            <rect x="45" y="350" width="230" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="160" y="371" font-size="13">DIRECCIÓN</text>
+                            <text x="160" y="390" font-size="13">ADMINISTRACIÓN</text>
+                        </g>
+
+                        <!-- 6. DIRECCIÓN DE ASUNTOS JURÍDICOS (Nivel 3 - Columna 2) -->
+                        <g class="org-node" onclick="openOrgModal('juridico')">
+                            <rect x="338" y="350" width="230" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="453" y="371" font-size="13">DIRECCIÓN DE</text>
+                            <text x="453" y="390" font-size="13">ASUNTOS JURÍDICOS</text>
+                        </g>
+
+                        <!-- 7. DIRECCIÓN DE BIENES Y SERVICIOS (Nivel 3 - Columna 3) -->
+                        <g class="org-node" onclick="openOrgModal('bienes_servicios')">
+                            <rect x="632" y="350" width="230" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="747" y="371" font-size="13">DIRECCIÓN DE</text>
+                            <text x="747" y="390" font-size="13">BIENES Y SERVICIOS</text>
+                        </g>
+
+                        <!-- 8. DIRECCIÓN DE RECURSOS HUMANOS (Nivel 3 - Columna 4) -->
+                        <g class="org-node" onclick="openOrgModal('recursos_humanos')">
+                            <rect x="925" y="350" width="230" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="1040" y="371" font-size="13">DIRECCIÓN DE</text>
+                            <text x="1040" y="390" font-size="13">RECURSOS HUMANOS</text>
+                        </g>
+
+                        <!-- 9. CATASTRO (Nivel 4 - Sub 1) -->
+                        <g class="org-node" onclick="openOrgModal('catastro')">
+                            <rect x="65" y="475" width="220" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="175" y="506" font-size="14">CATASTRO</text>
+                        </g>
+
+                        <!-- 10. COMPUTACIÓN Y SISTEMA (Nivel 4 - Sub 2) -->
+                        <g class="org-node" onclick="openOrgModal('sistemas')">
+                            <rect x="345" y="475" width="220" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="455" y="496" font-size="13">COMPUTACIÓN</text>
+                            <text x="455" y="515" font-size="13">Y SISTEMA</text>
+                        </g>
+
+                        <!-- 11. ARCHIVO (Nivel 4 - Sub 3) -->
+                        <g class="org-node" onclick="openOrgModal('archivo')">
+                            <rect x="625" y="475" width="220" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="735" y="506" font-size="14">ARCHIVO</text>
+                        </g>
+
+                        <!-- 12. EXPROPIACIONES Y AVALÚO (Nivel 4 - Sub 4) -->
+                        <g class="org-node" onclick="openOrgModal('expropiaciones')">
+                            <rect x="905" y="475" width="220" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="1015" y="496" font-size="13">EXPROPIACIONES</text>
+                            <text x="1015" y="515" font-size="13">Y AVALÚO</text>
+                        </g>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- VISTA 2: ESTRUCTURA POR NIVELES (TARJETAS JERÁRQUICAS) -->
+            <div id="orgCardsView" class="org-hierarchy-view">
+                
+                <!-- Nivel 1 -->
+                <div class="org-level-group">
+                    <div class="org-level-title">
+                        <i class="fas fa-landmark"></i> 1. Nivel Superior de Dirección y Representación
+                    </div>
+                    <div class="org-cards-grid">
+                        <div class="org-info-card" onclick="openOrgModal('despacho')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Despacho del Procurador o Procuradora General</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Máxima autoridad jerárquica y representación judicial de los derechos e intereses patrimoniales del Estado Trujillo.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nivel Apoyo y Control -->
+                <div class="org-level-group">
+                    <div class="org-level-title">
+                        <i class="fas fa-shield-alt"></i> 2. Nivel de Apoyo y Control Fiscal Interno
+                    </div>
+                    <div class="org-cards-grid">
+                        <div class="org-info-card" onclick="openOrgModal('oac')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Oficina de Atención al Ciudadano</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Atención directa, orientación, recepción de sugerencias, quejas y denuncias comunitarias.</p>
+                        </div>
+                        <div class="org-info-card" onclick="openOrgModal('uai')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Unidad de Auditoría Interna</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Órgano de control fiscal y evaluación de la legalidad de los actos administrativos y financieros.</p>
+                        </div>
+                        <div class="org-info-card" onclick="openOrgModal('control_posterior')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Oficina de Control Posterior</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Auditorías y evaluaciones periódicas a las operaciones presupuestarias y financieras ejecutadas.</p>
+                        </div>
+                        <div class="org-info-card" onclick="openOrgModal('responsabilidades')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Oficina de Determinación de Responsabilidades</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Sustanciación de expedientes e investigaciones administrativas en materia de control fiscal.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nivel Ejecutivo -->
+                <div class="org-level-group">
+                    <div class="org-level-title">
+                        <i class="fas fa-cogs"></i> 3. Nivel Ejecutivo y de Coordinación
+                    </div>
+                    <div class="org-cards-grid">
+                        <div class="org-info-card" onclick="openOrgModal('direccion_general')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Dirección General</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Coordinación estratégica, seguimiento de metas operativas y articulación entre las diferentes direcciones.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nivel Sustantivo -->
+                <div class="org-level-group">
+                    <div class="org-level-title">
+                        <i class="fas fa-briefcase"></i> 4. Nivel Directivo y Sustantivo
+                    </div>
+                    <div class="org-cards-grid">
+                        <div class="org-info-card" onclick="openOrgModal('administracion')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Dirección Administración</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Gestión de presupuestos, finanzas, contabilidad y suministros de la Procuraduría.</p>
+                        </div>
+                        <div class="org-info-card" onclick="openOrgModal('juridico')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Dirección de Asuntos Jurídicos</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Defensa legal del Estado, emisión de dictámenes y asesoría jurídica integral al poder público estadal.</p>
+                        </div>
+                        <div class="org-info-card" onclick="openOrgModal('bienes_servicios')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Dirección de Bienes y Servicios</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Control patrimonial, servicios generales y supervisión de dependencias técnicas adscritas.</p>
+                        </div>
+                        <div class="org-info-card" onclick="openOrgModal('recursos_humanos')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Dirección de Recursos Humanos</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Administración integral de nómina, desarrollo del talento y bienestar del personal laboral.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nivel Operativo -->
+                <div class="org-level-group">
+                    <div class="org-level-title">
+                        <i class="fas fa-cubes"></i> 5. Nivel Operativo y Técnico (Adscrito a Bienes y Servicios)
+                    </div>
+                    <div class="org-cards-grid">
+                        <div class="org-info-card" onclick="openOrgModal('catastro')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Catastro</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Inventario físico y delimitación técnica de los terrenos y bienes inmuebles del Estado.</p>
+                        </div>
+                        <div class="org-info-card" onclick="openOrgModal('sistemas')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Computación y Sistema</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Infraestructura de telecomunicaciones, servidores, ciberseguridad y plataformas tecnológicas.</p>
+                        </div>
+                        <div class="org-info-card" onclick="openOrgModal('archivo')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Archivo</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Custodia, ordenamiento, foliación y digitalización del acervo documental e histórico institucional.</p>
+                        </div>
+                        <div class="org-info-card" onclick="openOrgModal('expropiaciones')">
+                            <h4 style="color: #006837; font-size: 1.05rem; margin-bottom: 6px;">Expropiaciones y Avalúo</h4>
+                            <p style="font-size: 0.88rem; color: #64748b; line-height: 1.5;">Determinación pericial de valor y sustanciación de expedientes de utilidad pública e interés social.</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Modal de Información de Dependencia / Unidad -->
+    <div id="orgModalOverlay" class="org-modal-overlay" onclick="closeOrgModalOnOutside(event)">
+        <div class="org-detail-card">
+            <div class="org-detail-header">
+                <button class="close-btn-modal" onclick="closeOrgModal()">&times;</button>
+                <div id="modalBadge" class="org-detail-badge" style="background: rgba(255,255,255,0.2); color: white;">NIVEL INSTITUCIONAL</div>
+                <h3 id="modalTitle" style="font-size: 1.35rem; line-height: 1.3; margin: 0;">Título de la Dependencia</h3>
+            </div>
+            <div class="org-detail-body">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 18px; color: #006837;">
+                    <i id="modalIcon" class="fas fa-landmark" style="font-size: 1.6rem;"></i>
+                    <div>
+                        <div style="font-size: 0.82rem; color: #64748b; text-transform: uppercase; font-weight: 700;">Adscripción / Dependencia:</div>
+                        <div id="modalAdscription" style="font-weight: 700; color: #1e293b; font-size: 0.95rem;">Despacho Superior</div>
+                    </div>
+                </div>
+                
+                <h4 style="color: #1e293b; font-size: 1rem; margin-bottom: 8px;">Objetivo y Funciones Principales:</h4>
+                <p id="modalDescription" style="color: #475569; font-size: 0.95rem; line-height: 1.7; margin-bottom: 20px;">
+                    Descripción detallada de la función institucional.
+                </p>
+
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 15px; margin-bottom: 20px;">
+                    <h5 style="color: #006837; margin-bottom: 8px; font-size: 0.9rem;"><i class="fas fa-check-double"></i> Competencias Destacadas:</h5>
+                    <ul id="modalCompetencies" style="color: #475569; font-size: 0.9rem; line-height: 1.6; padding-left: 20px;">
+                        <li>Competencia 1</li>
+                        <li>Competencia 2</li>
+                    </ul>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <a href="direcciones.html" class="org-tool-btn" style="text-decoration: none; padding: 9px 18px;">
+                        <i class="fas fa-list"></i> Ver en Direcciones
+                    </a>
+                    <button class="org-tool-btn primary" onclick="closeOrgModal()" style="padding: 9px 18px;">
+                        Entendido
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Footer -->
+    <footer>
+        <div class="container footer-content">
+            <div class="footer-logo">
+                <h3>P.G.E.T.</h3>
+                <p>Procuraduría General del Estado Trujillo</p>
+                <p style="margin-top: 5px; font-weight: 600; opacity: 0.9;"><i class="fas fa-id-card"></i> RIF: G-20000417-7</p>
+            </div>
+            <div class="footer-contact">
+                <p><i class="fas fa-id-card"></i> <strong>RIF:</strong> G-20000417-7</p>
+                <p><i class="fas fa-map-marker-alt"></i> Palacio de Gobierno, 2do Piso, Av. Independencia</p>
+                <p><i class="fas fa-envelope"></i> procuraduriageneraltrujillo@gmail.com</p>
+                <p><i class="fas fa-phone"></i> 0272-2365126</p>
+                <p><i class="fab fa-instagram"></i> @procuraduria_trujillo</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Procuraduría General del Estado Trujillo &bull; RIF: G-20000417-7 &bull; Todos los derechos reservados.</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/script.js"></script>
+    <script>
+        // Datos informativos para cada dependencia del organigrama
+        const orgData = {
+            despacho: {
+                title: "Despacho del Procurador o Procuradora General",
+                badge: "Nivel Superior de Dirección",
+                icon: "fa-gavel",
+                adscription: "Máxima Autoridad del Poder Público Estadal",
+                desc: "Es el órgano directriz superior encargado de la representación, asesoría, custodia y defensa de los derechos, bienes e intereses patrimoniales del Estado Trujillo tanto en sede judicial como extrajudicial.",
+                competencies: [
+                    "Representación judicial y extrajudicial del Estado Trujillo.",
+                    "Asesoría jurídica de alto nivel al Gobernador y entes públicos.",
+                    "Defensa del patrimonio histórico, ambiental y material de la región.",
+                    "Fijación de directrices institucionales y normativas estadales."
+                ]
+            },
+            oac: {
+                title: "Oficina de Atención al Ciudadano",
+                badge: "Nivel de Asesoría y Apoyo",
+                icon: "fa-users",
+                adscription: "Despacho del Procurador",
+                desc: "Garantiza el derecho a la participación ciudadana, orientando al pueblo en materia legal y canalizando quejas, reclamos, denuncias y sugerencias comunitarias de forma ágil y transparente.",
+                competencies: [
+                    "Recepción y tramitación de solicitudes y denuncias ciudadanas.",
+                    "Orientación y asesoría legal básica a comunidades organizadas.",
+                    "Promoción de la transparencia y rendición de cuentas pública."
+                ]
+            },
+            uai: {
+                title: "Unidad de Auditoría Interna",
+                badge: "Nivel de Control Fiscal Interno",
+                icon: "fa-shield-halved",
+                adscription: "Despacho del Procurador (Autonomía Funcional)",
+                desc: "Órgano rector de fiscalización y vigilancia interna que evalúa la eficacia, eficiencia, economía y legalidad de las operaciones financieras, administrativas y técnicas institucionales.",
+                competencies: [
+                    "Examen de los sistemas contables y financieros de la institución.",
+                    "Vigilancia del cumplimiento del marco jurídico en contrataciones.",
+                    "Elaboración de informes de control interno e inspecciones."
+                ]
+            },
+            control_posterior: {
+                title: "Oficina de Control Posterior",
+                badge: "Unidad Adscrita a Auditoría Interna",
+                icon: "fa-file-invoice-dollar",
+                adscription: "Unidad de Auditoría Interna",
+                desc: "Encargada de ejecutar auditorías, revisiones fiscales y exámenes exhaustivos una vez consumadas las operaciones presupuestarias y financieras para certificar su apego a la ley.",
+                competencies: [
+                    "Auditorías financieras y presupuestarias posteriores.",
+                    "Verificación de soportes contables y comprobantes de pago.",
+                    "Emisión de observaciones y recomendaciones de control preventivo."
+                ]
+            },
+            responsabilidades: {
+                title: "Oficina de Determinación de Responsabilidades",
+                badge: "Unidad Adscrita a Auditoría Interna",
+                icon: "fa-scale-balanced",
+                adscription: "Unidad de Auditoría Interna",
+                desc: "Instruye y sustancia los procedimientos administrativos sancionatorios para corroborar la existencia de actos u omisiones generadores de responsabilidad administrativa y daño patrimonial.",
+                competencies: [
+                    "Apertura y sustanciación de averiguaciones administrativas.",
+                    "Garantía del debido proceso y derecho a la defensa de los involucrados.",
+                    "Remisión de expedientes a la Contraloría y órganos jurisdiccionales competentes."
+                ]
+            },
+            direccion_general: {
+                title: "Dirección General",
+                badge: "Nivel Ejecutivo",
+                icon: "fa-sitemap",
+                adscription: "Despacho del Procurador General",
+                desc: "Coordina, articula y supervisa el funcionamiento operativo de todas las direcciones sustantivas y operativas, garantizando el cumplimiento de los planes estratégicos institucionales.",
+                competencies: [
+                    "Planificación y coordinación operativa de las direcciones.",
+                    "Seguimiento y evaluación de los planes de gestión anual.",
+                    "Articulación interinstitucional con órganos del Poder Público."
+                ]
+            },
+            administracion: {
+                title: "Dirección Administración",
+                badge: "Nivel Sustantivo / Administrativo",
+                icon: "fa-calculator",
+                adscription: "Dirección General",
+                desc: "Planifica, ejecuta y controla las actividades financieras, contables, presupuestarias y de adquisiciones requeridas para el funcionamiento óptimo de la institución.",
+                competencies: [
+                    "Elaboración y ejecución del presupuesto institucional anual.",
+                    "Contabilidad general, tesorería y gestión de pagos a proveedores.",
+                    "Coordinación de compras, contrataciones y rendición de cuentas."
+                ]
+            },
+            juridico: {
+                title: "Dirección de Asuntos Jurídicos",
+                badge: "Nivel Sustantivo Jurídico",
+                icon: "fa-scale-unbalanced",
+                adscription: "Dirección General",
+                desc: "Ejerce la defensa jurídica, judicial y extrajudicial del Estado Trujillo en litigios, elaborando además dictámenes técnicos sobre proyectos de leyes, decretos y contratos oficiales.",
+                competencies: [
+                    "Sustanciación y defensa en juicios y demandas del Estado.",
+                    "Emisión de dictámenes y opiniones legales vinculantes.",
+                    "Revisión de contratos, convenios y proyectos normativos estadales."
+                ]
+            },
+            bienes_servicios: {
+                title: "Dirección de Bienes y Servicios",
+                badge: "Nivel Sustantivo y Patrimonial",
+                icon: "fa-building",
+                adscription: "Dirección General",
+                desc: "Responsable del registro, resguardo, conservación y administración de los bienes muebles e inmuebles pertenecientes al Estado Trujillo, además de supervisar los servicios técnicos y de soporte.",
+                competencies: [
+                    "Registro e inventario patrimonial de bienes del Estado Trujillo.",
+                    "Supervisión directa de Catastro, Sistemas, Archivo y Avalúos.",
+                    "Mantenimiento de infraestructura y dotación de servicios generales."
+                ]
+            },
+            recursos_humanos: {
+                title: "Dirección de Recursos Humanos",
+                badge: "Nivel Sustantivo de Gestión Humana",
+                icon: "fa-user-tie",
+                adscription: "Dirección General",
+                desc: "Planifica, dirige y ejecuta las políticas de selección, ingreso, remuneración, formación integral y bienestar sociolaboral de los servidores públicos de la institución.",
+                competencies: [
+                    "Administración del sistema de nómina y beneficios sociales.",
+                    "Evaluación del desempeño, capacitación y desarrollo del personal.",
+                    "Gestión del clima organizacional y relaciones laborales."
+                ]
+            },
+            catastro: {
+                title: "Catastro",
+                badge: "Nivel Operativo y Territorial",
+                icon: "fa-map-marked-alt",
+                adscription: "Dirección de Bienes y Servicios",
+                desc: "Efectúa el censo, registro técnico, levantamiento topográfico y delimitación física y jurídica de las tierras, ejidos y propiedades inmobiliarias del Estado Trujillo.",
+                competencies: [
+                    "Levantamiento cartográfico y georreferenciación de tierras estadales.",
+                    "Actualización de la base catastral y fichas técnicas de inmuebles.",
+                    "Inspecciones oculares y deslindes territoriales oficiales."
+                ]
+            },
+            sistemas: {
+                title: "Computación y Sistema",
+                badge: "Nivel Operativo y Tecnológico",
+                icon: "fa-laptop-code",
+                adscription: "Dirección de Bienes y Servicios",
+                desc: "Desarrolla, gestiona y mantiene las tecnologías de la información, plataformas digitales, bases de datos y seguridad informática de la Procuraduría.",
+                competencies: [
+                    "Administración de servidores, redes locales y ciberseguridad.",
+                    "Desarrollo e implementación de software y portales institucionales.",
+                    "Soporte técnico integral y mantenimiento preventivo de equipos."
+                ]
+            },
+            archivo: {
+                title: "Archivo",
+                badge: "Nivel Operativo Documental",
+                icon: "fa-box-archive",
+                adscription: "Dirección de Bienes y Servicios",
+                desc: "Custodia, cataloga, resguarda y preserva el acervo documental e histórico institucional, facilitando la consulta ágil y su progresiva digitalización.",
+                competencies: [
+                    "Clasificación, foliación y ordenamiento del fondo documental.",
+                    "Digitalización y preservación de documentos históricos y jurídicos.",
+                    "Servicio de consulta y préstamo controlado de expedientes."
+                ]
+            },
+            expropiaciones: {
+                title: "Expropiaciones y Avalúo",
+                badge: "Nivel Operativo Técnico-Jurídico",
+                icon: "fa-chart-pie",
+                adscription: "Dirección de Bienes y Servicios",
+                desc: "Realiza las valoraciones periciales, justiprecios y trámites técnicos en procedimientos de expropiación por causa de utilidad pública o interés general para el desarrollo del estado.",
+                competencies: [
+                    "Elaboración de informes de avalúo y justiprecio pericial.",
+                    "Sustanciación técnica de expedientes expropiatorios de utilidad pública.",
+                    "Inspecciones de campo para la determinación de valores comerciales y de reposición."
+                ]
+            }
+        };
+
+        // Modal Functionality
+        function openOrgModal(key) {
+            const data = orgData[key];
+            if (!data) return;
+
+            document.getElementById('modalTitle').textContent = data.title;
+            document.getElementById('modalBadge').textContent = data.badge;
+            document.getElementById('modalAdscription').textContent = data.adscription;
+            document.getElementById('modalDescription').textContent = data.desc;
+            
+            const iconElem = document.getElementById('modalIcon');
+            iconElem.className = 'fas ' + data.icon;
+
+            const compList = document.getElementById('modalCompetencies');
+            compList.innerHTML = '';
+            data.competencies.forEach(comp => {
+                const li = document.createElement('li');
+                li.textContent = comp;
+                compList.appendChild(li);
+            });
+
+            const overlay = document.getElementById('orgModalOverlay');
+            overlay.classList.add('active');
+        }
+
+        function closeOrgModal() {
+            document.getElementById('orgModalOverlay').classList.remove('active');
+        }
+
+        function closeOrgModalOnOutside(e) {
+            if (e.target === document.getElementById('orgModalOverlay')) {
+                closeOrgModal();
+            }
+        }
+
+        // View Switcher (Diagram vs Cards)
+        function switchOrgView(viewType) {
+            const graphView = document.getElementById('orgGraphView');
+            const cardsView = document.getElementById('orgCardsView');
+            const graphBtn = document.getElementById('viewGraphBtn');
+            const cardsBtn = document.getElementById('viewCardsBtn');
+
+            if (viewType === 'graph') {
+                graphView.style.display = 'flex';
+                cardsView.style.display = 'none';
+                graphBtn.classList.add('active');
+                cardsBtn.classList.remove('active');
+            } else {
+                graphView.style.display = 'none';
+                cardsView.style.display = 'flex';
+                graphBtn.classList.remove('active');
+                cardsBtn.classList.add('active');
+            }
+        }
+
+        // Zoom & Transform Controls
+        let currentZoom = 1;
+        const orgCanvas = document.getElementById('orgCanvas');
+
+        function zoomOrg(delta) {
+            currentZoom = Math.min(Math.max(currentZoom + delta, 0.6), 1.8);
+            orgCanvas.style.transform = `scale(${currentZoom})`;
+        }
+
+        function resetOrgZoom() {
+            currentZoom = 1;
+            orgCanvas.style.transform = 'scale(1)';
+        }
+
+        function toggleOrgFullscreen() {
+            const container = document.querySelector('.org-section-container');
+            if (!document.fullscreenElement) {
+                if (container.requestFullscreen) {
+                    container.requestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        // Download SVG
+        function downloadOrgSVG() {
+            const svg = document.getElementById('orgSvgElement');
+            const serializer = new XMLSerializer();
+            let source = serializer.serializeToString(svg);
+
+            // Add xml namespace if missing
+            if(!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)){
+                source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+            }
+
+            const preface = '<?xml version="1.0" standalone="no"?>\r\n';
+            const svgBlob = new Blob([preface, source], {type: "image/svg+xml;charset=utf-8"});
+            const svgUrl = URL.createObjectURL(svgBlob);
+            const downloadLink = document.createElement("a");
+            downloadLink.href = svgUrl;
+            downloadLink.download = "Organigrama_PGET_Estructura_Organizativa.svg";
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+
+        // Close modal on Escape
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeOrgModal();
+            }
+        });
+    </script>
+</body>
+</html>
