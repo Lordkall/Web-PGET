@@ -599,9 +599,11 @@ h1, h2, h3 {
 }
 
 .admin-table-container {
-    padding: 20px 25px;
-    max-height: 52vh;
+    padding: 18px 25px;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
+    overflow-x: auto;
 }
 
 .admin-users-table {
@@ -1958,8 +1960,10 @@ footer {
     
     .admin-table-container {
         padding: 12px;
-        max-height: 60vh;
+        flex: 1;
+        min-height: 0;
         overflow-x: auto;
+        overflow-y: auto;
         -webkit-overflow-scrolling: touch;
     }
     

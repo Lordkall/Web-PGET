@@ -531,7 +531,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
 
                     <!-- 3. VISTA DE ADMINISTRADOR (PANTALLA COMPLETA - GESTIÓN TOTAL DE PERSONAL) -->
-                    <div id="adminView" style="display: none; background: #f8fafc; height: 100%; flex-direction: column;">
+                    <div id="adminView" style="display: none; background: #f8fafc; height: 100%; flex: 1; min-height: 0; flex-direction: column;">
                         <div class="admin-header">
                             <div>
                                 <h3 style="margin: 0; font-size: 1.3rem;"><i class="fas fa-user-shield"></i> Panel de Administración PGET</h3>
@@ -576,8 +576,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             </button>
                         </div>
 
-                        <!-- Tabla de Usuarios -->
-                        <div class="admin-table-container" style="flex: 1; overflow-y: auto; padding: 25px 30px;">
+                        <!-- Tabla de Usuarios (Aprovecha 100% de la altura disponible) -->
+                        <div class="admin-table-container" style="flex: 1; min-height: 0; overflow-y: auto; padding: 20px 30px;">
                             <table class="admin-users-table" id="adminUsersTable">
                                 <thead>
                                     <tr>
@@ -598,8 +598,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             </table>
                         </div>
 
-                        <!-- Aviso Legal Administrador -->
-                        <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 12px 30px; font-size: 0.85rem; color: #64748b; display: flex; justify-content: space-between; align-items: center;">
+                        <!-- Aviso Legal Administrador (Barra Compacta Elegante) -->
+                        <div style="background: #f1f5f9; border-top: 1px solid #cbd5e1; padding: 9px 30px; font-size: 0.8rem; color: #475569; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
                             <span><i class="fas fa-lock"></i> Modo Administrador activo: El administrador gestiona el personal y no emite constancias individuales.</span>
                             <span style="font-weight: 700; color: #6A0D25;">Procuraduría General del Estado Trujillo</span>
                         </div>
@@ -1490,16 +1490,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     response = null;
                 }
 
-                // Fallback a ruta parametrizada si fuera necesario
+                // Fallback 1: POST /users/{username}/update
                 if (!response || !response.ok) {
                     try {
                         const fallbackRes = await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}/update`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(userData)
+                            body: JSON.stringify({ ...userData, username: editingUsername })
                         });
                         if (fallbackRes.ok || !response) response = fallbackRes;
                     } catch (e2) {}
+                }
+
+                // Fallback 2: PUT /users/{username}
+                if (!response || !response.ok) {
+                    try {
+                        const fallbackRes2 = await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(userData)
+                        });
+                        if (fallbackRes2.ok || !response) response = fallbackRes2;
+                    } catch (e3) {}
                 }
             } else {
                 // Crear nuevo usuario
@@ -1512,12 +1524,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (response && response.ok) {
                 alert(editingUsername ? '¡Usuario actualizado exitosamente!' : '¡Usuario creado exitosamente!');
+                if (editingUsername) {
+                    const idx = allUsersCache.findIndex(u => u.username.toLowerCase() === editingUsername.toLowerCase());
+                    if (idx !== -1) {
+                        allUsersCache[idx] = { ...allUsersCache[idx], ...userData };
+                    }
+                } else {
+                    allUsersCache.push(userData);
+                }
                 window.backToAdminView();
+                renderAdminUsersTable(allUsersCache);
                 loadAdminUsers();
             } else {
                 const data = response ? await response.json().catch(() => ({})) : {};
                 errDiv.style.display = 'block';
                 errDiv.textContent = data.detail || 'Error al guardar los datos del usuario en el servidor.';
+                alert(data.detail || 'Error al guardar los datos del usuario en el servidor.');
             }
         } catch (error) {
             // Guardado en memoria si la API estuviera offline
@@ -1556,18 +1578,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 res = null;
             }
 
-            // Fallback a ruta parametrizada si fuera necesario
+            // Fallback 1: POST /users/{username}/delete
             if (!res || !res.ok) {
                 try {
                     const fallbackRes = await fetch(`${API_URL}/users/${encodeURIComponent(username)}/delete`, {
-                        method: 'POST'
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: username })
                     });
                     if (fallbackRes.ok || !res) res = fallbackRes;
                 } catch (e2) {}
             }
 
+            // Fallback 2: DELETE /users/{username}
+            if (!res || !res.ok) {
+                try {
+                    const fallbackRes2 = await fetch(`${API_URL}/users/${encodeURIComponent(username)}`, {
+                        method: 'DELETE'
+                    });
+                    if (fallbackRes2.ok || !res) res = fallbackRes2;
+                } catch (e3) {}
+            }
+
             if (res && res.ok) {
                 alert(`El usuario ${username} ha sido eliminado.`);
+                allUsersCache = allUsersCache.filter(u => u.username.toLowerCase() !== username.toLowerCase());
+                renderAdminUsersTable(allUsersCache);
                 loadAdminUsers();
             } else {
                 const data = res ? await res.json().catch(() => ({})) : {};

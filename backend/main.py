@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, status, Query
+from fastapi import FastAPI, HTTPException, status, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -28,6 +28,7 @@ from urllib.parse import unquote
 app = FastAPI(
     title="API Procuraduría General del Estado Trujillo",
     version="2.0",
+    redirect_slashes=False,
     docs_url=None if os.getenv("VERCEL") else "/docs",
     redoc_url=None if os.getenv("VERCEL") else "/redoc",
     openapi_url=None if os.getenv("VERCEL") else "/openapi.json"
@@ -40,6 +41,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def vercel_path_rewrite_middleware(request: Request, call_next):
+    # Restaurar la ruta cuando Vercel reescribe hacia /api/index.py?__p=/api/...
+    query_p = request.query_params.get("__p")
+    if query_p:
+        request.scope["path"] = query_p
+        request.scope["raw_path"] = query_p.encode("utf-8")
+    elif request.url.path.endswith("index.py") or request.url.path in ["/api", "/api/"]:
+        matched = request.headers.get("x-matched-path") or request.headers.get("x-forwarded-uri")
+        if matched and not matched.endswith(".py"):
+            clean_m = matched.split("?")[0]
+            request.scope["path"] = clean_m
+            request.scope["raw_path"] = clean_m.encode("utf-8")
+    return await call_next(request)
 
 class LoginRequest(BaseModel):
     username: str
@@ -133,6 +149,7 @@ async def health():
     return {"status": "ok"}
 
 @app.post("/api/login")
+@app.post("/login")
 async def login(request: LoginRequest):
     user = await authenticate_user(request.username.strip(), request.password.strip())
     if not user:
@@ -155,6 +172,7 @@ async def login(request: LoginRequest):
     }
 
 @app.get("/api/users")
+@app.get("/users")
 async def list_users(condicion: Optional[str] = None):
     users = await get_all_users()
     safe_users = []
@@ -169,6 +187,7 @@ async def list_users(condicion: Optional[str] = None):
     return safe_users
 
 @app.post("/api/users")
+@app.post("/users")
 async def create_user(request: UserCreateRequest):
     user_dict = request.dict()
     user_dict["username"] = user_dict["username"].strip().lower()
@@ -186,14 +205,38 @@ async def create_user(request: UserCreateRequest):
     safe_user.pop("_id", None)
     return {"message": "Usuario creado exitosamente", "user": safe_user}
 
-@app.put("/api/users/{username}")
-@app.post("/api/users/{username}/update")
-@app.post("/api/users/{username}")
+# Rutas de Eliminación (definidas antes de rutas parametrizadas para evitar conflictos de enrutamiento)
+@app.post("/api/users/delete")
+@app.post("/users/delete")
+@app.delete("/api/users/{username}")
+@app.delete("/users/{username}")
+@app.post("/api/users/{username}/delete")
+@app.post("/users/{username}/delete")
+async def delete_user(request: Optional[UserDeleteRequest] = None, username: Optional[str] = None):
+    target = username or (request.username if request else None) or ""
+    clean_username = unquote(str(target)).strip().lower()
+    if not clean_username:
+        raise HTTPException(status_code=400, detail="Debe especificar el usuario a eliminar")
+        
+    if clean_username in ["admin@pget.gob.ve", "admin"]:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar la cuenta principal del Administrador del Sistema"
+        )
+    
+    success = await delete_user_record(clean_username)
+    if not success:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    return {"message": f"Usuario {clean_username} eliminado exitosamente"}
+
+# Rutas de Actualización y Modificación de Usuarios
 @app.post("/api/users/update")
-@app.put("/users/{username}")
-@app.post("/users/{username}/update")
-@app.post("/users/{username}")
 @app.post("/users/update")
+@app.put("/api/users/{username}")
+@app.put("/users/{username}")
+@app.post("/api/users/{username}/update")
+@app.post("/users/{username}/update")
 async def update_user(request: UserUpdateRequest, username: Optional[str] = None):
     target = username or request.username or ""
     clean_username = unquote(str(target)).strip().lower()
@@ -215,30 +258,6 @@ async def update_user(request: UserUpdateRequest, username: Optional[str] = None
     safe_user.pop("password", None)
     safe_user.pop("_id", None)
     return {"message": "Usuario actualizado exitosamente", "user": safe_user}
-
-@app.delete("/api/users/{username}")
-@app.post("/api/users/{username}/delete")
-@app.post("/api/users/delete")
-@app.delete("/users/{username}")
-@app.post("/users/{username}/delete")
-@app.post("/users/delete")
-async def delete_user(request: Optional[UserDeleteRequest] = None, username: Optional[str] = None):
-    target = username or (request.username if request else None) or ""
-    clean_username = unquote(str(target)).strip().lower()
-    if not clean_username:
-        raise HTTPException(status_code=400, detail="Debe especificar el usuario a eliminar")
-        
-    if clean_username in ["admin@pget.gob.ve", "admin"]:
-        raise HTTPException(
-            status_code=400,
-            detail="No se puede eliminar la cuenta principal del Administrador del Sistema"
-        )
-    
-    success = await delete_user_record(clean_username)
-    if not success:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
-    return {"message": f"Usuario {clean_username} eliminado exitosamente"}
 
 def format_cedula_oficial(cedula: str) -> str:
     if not cedula:
@@ -591,13 +610,17 @@ async def solicitar_constancia(
         "cuerpo": cuerpo
     }
 
+@app.api_route("/api/{subpath:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+async def api_not_found(subpath: str):
+    raise HTTPException(status_code=404, detail=f"Endpoint de API no encontrado: /api/{subpath}")
+
 @app.get("/{file_path:path}")
 async def serve_static_or_page(file_path: str):
-    if file_path.startswith("api/"):
+    clean_path = file_path.strip("/")
+    if clean_path.startswith("api/") or clean_path == "api":
         raise HTTPException(status_code=404, detail="Endpoint no encontrado")
         
     f_dir = frontend_dir or get_frontend_dir()
-    clean_path = file_path.strip("/")
     if not clean_path:
         return FileResponse(os.path.join(f_dir, "index.html"))
         
