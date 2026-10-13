@@ -569,6 +569,12 @@ h1, h2, h3 {
     z-index: 9999 !important;
 }
 
+/* Ocultar la 'X' flotante redundante cuando el portal de administración o trabajador está activo */
+.modal-content.portal-fullscreen #modalCloseBtn,
+.modal-content.admin-modal-size #modalCloseBtn {
+    display: none !important;
+}
+
 .admin-header {
     background: linear-gradient(135deg, #6A0D25, #450614);
     color: white;
@@ -2152,4 +2158,178 @@ footer {
     .no-print {
         display: none !important;
     }
+}
+
+/* ==========================================================================
+   VENTANA FLOTANTE / DIÁLOGO CENTRAL DE NOTIFICACIONES Y CONFIRMACIÓN PGET
+   ========================================================================== */
+.pget-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.70);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    opacity: 0;
+    transition: opacity 0.22s ease-out;
+}
+
+.pget-dialog-overlay.active {
+    opacity: 1;
+}
+
+.pget-dialog-card {
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45), 0 0 0 1.5px rgba(212, 175, 55, 0.45);
+    width: 100%;
+    max-width: 480px;
+    overflow: hidden;
+    transform: scale(0.92) translateY(14px);
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+}
+
+.pget-dialog-overlay.active .pget-dialog-card {
+    transform: scale(1) translateY(0);
+}
+
+.pget-dialog-header {
+    background: linear-gradient(135deg, #6A0D25 0%, #450614 100%);
+    border-bottom: 2px solid #D4AF37;
+    color: #ffffff;
+    padding: 16px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.pget-dialog-title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #ffffff;
+}
+
+.pget-dialog-close {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 1.4rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+}
+
+.pget-dialog-close:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.pget-dialog-body {
+    padding: 26px 26px 18px;
+    color: #1e293b;
+    font-size: 1rem;
+    line-height: 1.55;
+    text-align: center;
+    font-weight: 500;
+}
+
+.pget-dialog-icon-badge {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.85rem;
+}
+
+.pget-dialog-icon-badge.info {
+    background: #eff6ff;
+    color: #0284c7;
+    border: 2px solid #bae6fd;
+}
+
+.pget-dialog-icon-badge.success {
+    background: #ecfdf5;
+    color: #059669;
+    border: 2px solid #a7f3d0;
+}
+
+.pget-dialog-icon-badge.danger,
+.pget-dialog-icon-badge.delete {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 2px solid #fecaca;
+}
+
+.pget-dialog-icon-badge.warning {
+    background: #fffbeb;
+    color: #d97706;
+    border: 2px solid #fde68a;
+}
+
+.pget-dialog-footer {
+    padding: 14px 24px 22px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.pget-dialog-btn-cancel {
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    padding: 11px 22px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.pget-dialog-btn-cancel:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.pget-dialog-btn-confirm {
+    background: linear-gradient(135deg, #6A0D25, #83122F);
+    color: #ffffff;
+    border: 1.5px solid #D4AF37;
+    padding: 11px 28px;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(106, 13, 37, 0.3);
+    transition: all 0.2s;
+}
+
+.pget-dialog-btn-confirm:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(106, 13, 37, 0.4);
+}
+
+.pget-dialog-btn-confirm.danger {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    border: 1.5px solid #ef4444;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+}
+
+.pget-dialog-btn-confirm.danger:hover {
+    box-shadow: 0 6px 16px rgba(220, 38, 38, 0.45);
 }

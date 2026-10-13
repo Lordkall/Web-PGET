@@ -376,6 +376,147 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // =========================================================================
+    // SISTEMA DE VENTANA FLOTANTE CENTRAL DE NOTIFICACIONES Y CONFIRMACIÓN PGET
+    // =========================================================================
+    function showFloatingDialog({
+        title = 'Procuraduría General del Estado Trujillo',
+        message = '',
+        type = 'info', // 'info', 'success', 'danger', 'delete', 'warning'
+        confirmText = 'Aceptar',
+        cancelText = null,
+        isConfirm = false
+    } = {}) {
+        return new Promise((resolve) => {
+            const oldDialog = document.getElementById('pgetFloatingDialogOverlay');
+            if (oldDialog) oldDialog.remove();
+
+            const isDanger = type === 'danger' || type === 'delete';
+            const hasCancel = isConfirm || !!cancelText;
+
+            let iconBadgeClass = type;
+            let badgeIconHtml = '<i class="fas fa-info-circle"></i>';
+            let defaultTitle = 'Notificación Institucional';
+
+            if (type === 'success') {
+                badgeIconHtml = '<i class="fas fa-check-circle"></i>';
+                defaultTitle = 'Operación Exitosa';
+            } else if (isDanger) {
+                badgeIconHtml = '<i class="fas fa-trash-alt"></i>';
+                defaultTitle = 'Confirmar Eliminación';
+            } else if (type === 'warning') {
+                badgeIconHtml = '<i class="fas fa-exclamation-triangle"></i>';
+                defaultTitle = 'Atención';
+            }
+
+            const finalTitle = title || defaultTitle;
+
+            const overlay = document.createElement('div');
+            overlay.id = 'pgetFloatingDialogOverlay';
+            overlay.className = 'pget-dialog-overlay';
+
+            overlay.innerHTML = `
+                <div class="pget-dialog-card" role="dialog" aria-modal="true">
+                    <div class="pget-dialog-header">
+                        <h3 class="pget-dialog-title">
+                            <i class="fas fa-shield-alt" style="color: #D4AF37;"></i>
+                            <span>${escapeHtml(finalTitle)}</span>
+                        </h3>
+                        <button type="button" class="pget-dialog-close" id="pgetDialogCloseBtn" aria-label="Cerrar">&times;</button>
+                    </div>
+                    <div class="pget-dialog-body">
+                        <div class="pget-dialog-icon-badge ${iconBadgeClass}">
+                            ${badgeIconHtml}
+                        </div>
+                        <div style="font-size: 1.02rem; color: #1e293b; line-height: 1.55; white-space: pre-line;">
+                            ${escapeHtml(message)}
+                        </div>
+                    </div>
+                    <div class="pget-dialog-footer">
+                        ${hasCancel ? `
+                            <button type="button" class="pget-dialog-btn-cancel" id="pgetDialogCancelBtn">
+                                ${escapeHtml(cancelText || 'Cancelar')}
+                            </button>
+                        ` : ''}
+                        <button type="button" class="pget-dialog-btn-confirm ${isDanger ? 'danger' : ''}" id="pgetDialogConfirmBtn">
+                            ${escapeHtml(confirmText || 'Aceptar')}
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            requestAnimationFrame(() => {
+                overlay.classList.add('active');
+            });
+
+            const confirmBtn = overlay.querySelector('#pgetDialogConfirmBtn');
+            const cancelBtn = overlay.querySelector('#pgetDialogCancelBtn');
+            const closeBtn = overlay.querySelector('#pgetDialogCloseBtn');
+
+            const cleanup = (result) => {
+                overlay.classList.remove('active');
+                document.removeEventListener('keydown', handleKeyDown);
+                setTimeout(() => {
+                    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                }, 240);
+                resolve(result);
+            };
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cleanup(false);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    cleanup(true);
+                }
+            };
+
+            document.addEventListener('keydown', handleKeyDown);
+
+            if (confirmBtn) {
+                confirmBtn.onclick = () => cleanup(true);
+                confirmBtn.focus();
+            }
+            if (cancelBtn) {
+                cancelBtn.onclick = () => cleanup(false);
+            }
+            if (closeBtn) {
+                closeBtn.onclick = () => cleanup(false);
+            }
+        });
+    }
+
+    window.showFloatingDialog = showFloatingDialog;
+
+    window.pgetAlert = (message, title = 'Notificación Institucional', type = 'info') => {
+        return showFloatingDialog({
+            title,
+            message,
+            type,
+            confirmText: 'Aceptar',
+            isConfirm: false
+        });
+    };
+
+    window.pgetConfirm = (message, title = 'Confirmar Acción', confirmText = 'Aceptar', cancelText = 'Cancelar', type = 'warning') => {
+        return showFloatingDialog({
+            title,
+            message,
+            type,
+            confirmText,
+            cancelText,
+            isConfirm: true
+        });
+    };
+
+    // Redirigir alert estándar a la ventana flotante central
+    window.alert = function(msg) {
+        return window.pgetAlert(msg);
+    };
+
     // Helper to ensure Login & Management Modal exists in the document with all views
     function ensureLoginModal() {
         let modal = document.getElementById('loginModal');
@@ -989,6 +1130,9 @@ document.addEventListener('DOMContentLoaded', () => {
             loginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${user.nombre ? user.nombre.split(' ')[0] : user.username}`;
         }
 
+        const closeBtn = modal.querySelector('#modalCloseBtn');
+        if (closeBtn) closeBtn.style.display = 'none';
+
         if (mainContent) {
             mainContent.classList.add('portal-fullscreen');
         }
@@ -1075,24 +1219,41 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando usuarios desde la base de datos...</td></tr>';
             
-            let users = [];
+            let users = null;
             try {
                 const res = await fetch(`${API_URL}/users`);
                 if (res.ok) {
-                    users = await res.json();
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        users = data.filter(u => u.username.toLowerCase() !== 'admin' && u.username.toLowerCase() !== 'trabajador1');
+                        localStorage.setItem('pget_cached_users', JSON.stringify(users));
+                    }
                 }
             } catch (err) {
-                console.warn('API error, usando cache local');
+                console.warn('API warning al cargar usuarios:', err);
             }
 
+            // Si la API no respondió por fallo de red, usar el cache persistente local
+            if (!users) {
+                const cached = localStorage.getItem('pget_cached_users');
+                if (cached) {
+                    try {
+                        users = JSON.parse(cached);
+                    } catch (e) {}
+                }
+            }
+
+            // Fallback de inicialización exclusiva si no hay datos en BD ni en caché
             if (!users || users.length === 0) {
-                // Default fallback con las 4 cuentas oficiales completas
-                users = defaultAccounts.map(a => {
+                users = defaultAccounts.filter(a => a.username === 'admin@pget.gob.ve').map(a => {
                     const c = { ...a };
                     delete c.password;
                     return c;
                 });
             }
+
+            // Garantizar siempre que no aparezca el duplicado 'admin' o 'trabajador1'
+            users = users.filter(u => u.username.toLowerCase() !== 'admin' && u.username.toLowerCase() !== 'trabajador1');
 
             allUsersCache = users;
             renderAdminUsersTable(users);
@@ -1258,6 +1419,8 @@ document.addEventListener('DOMContentLoaded', () => {
         editingUsername = null;
         const modal = document.getElementById('loginModal');
         const mainContent = document.getElementById('mainModalContent');
+        const closeBtn = modal.querySelector('#modalCloseBtn');
+        if (closeBtn) closeBtn.style.display = 'none';
         if (mainContent) mainContent.classList.add('portal-fullscreen');
 
         modal.querySelector('#adminView').style.display = 'none';
@@ -1306,6 +1469,8 @@ document.addEventListener('DOMContentLoaded', () => {
         editingUsername = username;
         const modal = document.getElementById('loginModal');
         const mainContent = document.getElementById('mainModalContent');
+        const closeBtn = modal.querySelector('#modalCloseBtn');
+        if (closeBtn) closeBtn.style.display = 'none';
         if (mainContent) mainContent.classList.add('portal-fullscreen');
 
         modal.querySelector('#adminView').style.display = 'none';
@@ -1370,6 +1535,8 @@ document.addEventListener('DOMContentLoaded', () => {
     window.backToAdminView = () => {
         const modal = document.getElementById('loginModal');
         const mainContent = document.getElementById('mainModalContent');
+        const closeBtn = modal.querySelector('#modalCloseBtn');
+        if (closeBtn) closeBtn.style.display = 'none';
         if (mainContent) {
             mainContent.classList.add('portal-fullscreen');
             mainContent.classList.add('admin-modal-size');
@@ -1523,7 +1690,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (response && response.ok) {
-                alert(editingUsername ? '¡Usuario actualizado exitosamente!' : '¡Usuario creado exitosamente!');
+                const successMsg = editingUsername ? '¡Usuario actualizado exitosamente!' : '¡Usuario creado exitosamente!';
                 if (editingUsername) {
                     const idx = allUsersCache.findIndex(u => u.username.toLowerCase() === editingUsername.toLowerCase());
                     if (idx !== -1) {
@@ -1532,14 +1699,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     allUsersCache.push(userData);
                 }
+                localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
                 window.backToAdminView();
                 renderAdminUsersTable(allUsersCache);
+                await window.showFloatingDialog({
+                    title: editingUsername ? 'Usuario Modificado' : 'Usuario Registrado',
+                    message: successMsg,
+                    type: 'success',
+                    confirmText: 'Aceptar'
+                });
                 loadAdminUsers();
             } else {
                 const data = response ? await response.json().catch(() => ({})) : {};
                 errDiv.style.display = 'block';
                 errDiv.textContent = data.detail || 'Error al guardar los datos del usuario en el servidor.';
-                alert(data.detail || 'Error al guardar los datos del usuario en el servidor.');
+                await window.showFloatingDialog({
+                    title: 'Error al Guardar',
+                    message: data.detail || 'Error al guardar los datos del usuario en el servidor.',
+                    type: 'danger',
+                    confirmText: 'Aceptar'
+                });
             }
         } catch (error) {
             // Guardado en memoria si la API estuviera offline
@@ -1551,18 +1730,33 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 allUsersCache.push(userData);
             }
-            alert('¡Usuario guardado localmente!');
+            localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
             window.backToAdminView();
             renderAdminUsersTable(allUsersCache);
+            await window.showFloatingDialog({
+                title: 'Almacenamiento Local',
+                message: '¡Usuario guardado localmente!',
+                type: 'warning',
+                confirmText: 'Aceptar'
+            });
         } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="fas fa-save"></i> Guardar Usuario';
         }
     }
 
-    // Eliminar Usuario
+    // Eliminar Usuario con Ventana Flotante Centrada
     window.confirmDeleteUser = async (username, nombre) => {
-        if (!confirm(`¿Está seguro de que desea eliminar al usuario "${nombre || username}"?\nEsta acción no se puede deshacer.`)) {
+        const confirmed = await window.showFloatingDialog({
+            title: 'Confirmar Eliminación de Usuario',
+            message: `¿Está seguro de que desea eliminar al usuario "${nombre || username}"?\n\nEsta acción no se puede deshacer y removerá permanentemente al trabajador del sistema.`,
+            type: 'delete',
+            confirmText: 'Sí, Eliminar Usuario',
+            cancelText: 'Cancelar',
+            isConfirm: true
+        });
+
+        if (!confirmed) {
             return;
         }
 
@@ -1601,19 +1795,36 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (res && res.ok) {
-                alert(`El usuario ${username} ha sido eliminado.`);
                 allUsersCache = allUsersCache.filter(u => u.username.toLowerCase() !== username.toLowerCase());
+                localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
                 renderAdminUsersTable(allUsersCache);
+                await window.showFloatingDialog({
+                    title: 'Usuario Eliminado',
+                    message: `El usuario ${username} ha sido eliminado exitosamente del sistema.`,
+                    type: 'success',
+                    confirmText: 'Aceptar'
+                });
                 loadAdminUsers();
             } else {
                 const data = res ? await res.json().catch(() => ({})) : {};
-                alert(data.detail || 'No se pudo eliminar el usuario en el servidor.');
+                await window.showFloatingDialog({
+                    title: 'Error al Eliminar',
+                    message: data.detail || 'No se pudo eliminar el usuario en el servidor.',
+                    type: 'danger',
+                    confirmText: 'Aceptar'
+                });
             }
         } catch (error) {
             // Eliminar de cache local
             allUsersCache = allUsersCache.filter(u => u.username.toLowerCase() !== username.toLowerCase());
+            localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
             renderAdminUsersTable(allUsersCache);
-            alert(`El usuario ${username} ha sido eliminado localmente.`);
+            await window.showFloatingDialog({
+                title: 'Eliminación Local',
+                message: `El usuario ${username} ha sido eliminado localmente.`,
+                type: 'warning',
+                confirmText: 'Aceptar'
+            });
         }
     };
 
@@ -1912,6 +2123,9 @@ document.addEventListener('DOMContentLoaded', () => {
             mainContent.classList.remove('portal-fullscreen');
             mainContent.classList.remove('admin-modal-size');
         }
+
+        const closeBtn = modal.querySelector('#modalCloseBtn');
+        if (closeBtn) closeBtn.style.display = 'block';
         
         modal.querySelector('#loginView').style.display = 'block';
         modal.querySelector('#workerView').style.display = 'none';
@@ -1938,7 +2152,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const modal = ensureLoginModal();
         if (!modal) return;
         const mainContent = document.getElementById('mainModalContent');
+        const closeBtn = modal.querySelector('#modalCloseBtn');
+
         if (!currentUser) {
+            if (closeBtn) closeBtn.style.display = 'block';
             if (mainContent) {
                 mainContent.classList.remove('portal-fullscreen');
                 mainContent.classList.remove('admin-modal-size');
@@ -1957,6 +2174,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 errDiv.textContent = '';
             }
         } else {
+            if (closeBtn) closeBtn.style.display = 'none';
             handlePostLogin(currentUser);
         }
         modal.classList.add('show');

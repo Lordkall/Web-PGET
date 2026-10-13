@@ -148,11 +148,11 @@ async def get_all_users():
     try:
         cursor = users_collection.find({})
         docs = await cursor.to_list(length=200)
-        if docs:
-            return [format_user_doc(d) for d in docs]
+        valid_docs = [d for d in docs if d.get("username") not in ["admin", "trabajador1"]]
+        return [format_user_doc(d) for d in valid_docs]
     except Exception as e:
         print(f"MongoDB warning in get_all_users: {e}")
-    return [dict(u) for u in memory_users]
+    return [dict(u) for u in memory_users if u.get("username") not in ["admin", "trabajador1"]]
 
 async def create_user_record(user_data: dict):
     # Asegurar consistencia de nombres, apellidos y nombre completo
@@ -215,17 +215,20 @@ async def delete_user_record(username: str):
     clean_name = unquote(str(username or "")).strip().lower()
     if not clean_name:
         return False
+    deleted = False
     try:
         res = await users_collection.delete_one({"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}})
         if res.deleted_count > 0:
-            return True
+            deleted = True
     except Exception as e:
         print(f"MongoDB warning in delete_user_record: {e}")
     
-    # Fallback memoria
+    # Sincronizar siempre con memoria
     initial_len = len(memory_users)
     memory_users[:] = [u for u in memory_users if u["username"].lower() != clean_name]
-    return len(memory_users) < initial_len
+    if len(memory_users) < initial_len:
+        deleted = True
+    return deleted
 
 async def create_initial_users():
     initial_accounts = [
@@ -304,21 +307,21 @@ async def create_initial_users():
     ]
 
     try:
-        for acc in initial_accounts:
-            await users_collection.update_one(
-                {"username": acc["username"]},
-                {"$set": acc, "$unset": {"rac": ""}},
-                upsert=True
-            )
-        # Sincronizar alias antiguos si existieran
-        await users_collection.update_one(
-            {"username": "admin"},
-            {"$set": {"role": "admin", "nombres": "ADMINISTRADOR GENERAL", "apellidos": "PGET", "nombre": "ADMINISTRADOR GENERAL PGET", "cargo": "ADMINISTRADOR DEL SISTEMA", "dependencia": "DESPACHO DEL PROCURADOR GENERAL", "password": "admin123"}, "$unset": {"rac": ""}}
-        )
-        await users_collection.update_one(
-            {"username": "trabajador1"},
-            {"$set": {"role": "trabajador", "nombres": "VICTORIA ALEJANDRA", "apellidos": "CARMONA TORRES", "nombre": "VICTORIA ALEJANDRA CARMONA TORRES", "cargo": "ADMINISTRADOR PROFESIONAL I", "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO", "cedula": "27251622", "profesion": "Abogada", "genero": "femenino"}, "$unset": {"rac": ""}}
-        )
-        print("Usuarios iniciales verificados y sincronizados en MongoDB Atlas (sin rac).")
+        # Eliminar alias redundantes antiguos para dejar un solo administrador
+        await users_collection.delete_many({"username": {"$in": ["admin", "trabajador1"]}})
+
+        # Verificar si la base de datos está totalmente vacía
+        total = await users_collection.count_documents({})
+        if total == 0:
+            for acc in initial_accounts:
+                await users_collection.insert_one(acc)
+            print("Base de datos inicializada por primera vez.")
+        else:
+            # Si ya hay usuarios, asegurar exclusivamente que admin@pget.gob.ve exista
+            admin_user = await users_collection.find_one({"username": "admin@pget.gob.ve"})
+            if not admin_user:
+                await users_collection.insert_one(initial_accounts[0])
+                print("Administrador principal verificado.")
+            print("Usuarios existentes preservados (no se reviven cuentas eliminadas).")
     except Exception as e:
         print(f"Error initializing users in MongoDB Atlas: {e}")
