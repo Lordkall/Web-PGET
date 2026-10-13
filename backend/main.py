@@ -1,7 +1,15 @@
 from fastapi import FastAPI, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List
+import os
+import sys
+
+_backend_dir = os.path.dirname(os.path.abspath(__file__))
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
 from database import (
     authenticate_user,
     get_user_by_username,
@@ -75,6 +83,27 @@ async def startup_event():
         await create_initial_users()
     except Exception as e:
         print(f"Error on startup initializing users: {e}")
+
+# Localizar directorio de archivos estáticos del frontend
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_candidate_dirs = [
+    os.path.abspath("."),
+    os.path.abspath(".."),
+    os.path.join(_current_dir, ".."),
+    os.path.join(_current_dir, "frontend"),
+    os.path.join(_current_dir, "..", "frontend"),
+]
+frontend_dir = None
+for _d in _candidate_dirs:
+    if os.path.exists(os.path.join(_d, "index.html")):
+        frontend_dir = _d
+        break
+
+@app.get("/")
+async def serve_index():
+    if frontend_dir and os.path.exists(os.path.join(frontend_dir, "index.html")):
+        return FileResponse(os.path.join(frontend_dir, "index.html"))
+    return {"message": "Portal Web PGET en línea"}
 
 @app.get("/api")
 @app.get("/api/")
@@ -518,3 +547,6 @@ async def solicitar_constancia(
         "iniciales": iniciales,
         "cuerpo": cuerpo
     }
+
+if frontend_dir:
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="static")
