@@ -1840,4 +1840,159 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    // Sistema Automático de Menú Móvil Responsive para todas las páginas
+    function setupResponsiveMobileNav() {
+        const navContainer = document.querySelector('.nav-container');
+        if (!navContainer) return;
+
+        // 1. Crear e insertar botón Hamburguesa si no existe
+        if (!document.getElementById('mobileMenuBtn')) {
+            const btn = document.createElement('button');
+            btn.id = 'mobileMenuBtn';
+            btn.className = 'mobile-menu-btn';
+            btn.setAttribute('aria-label', 'Abrir Menú de Navegación');
+            btn.innerHTML = '<i class="fas fa-bars"></i>';
+            navContainer.appendChild(btn);
+        }
+
+        // 2. Crear Drawer y Overlay si no existen
+        if (!document.getElementById('mobileNavDrawer')) {
+            const overlay = document.createElement('div');
+            overlay.id = 'mobileNavOverlay';
+            overlay.className = 'mobile-nav-overlay';
+            document.body.appendChild(overlay);
+
+            const drawer = document.createElement('div');
+            drawer.id = 'mobileNavDrawer';
+            drawer.className = 'mobile-nav-drawer';
+
+            const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+
+            drawer.innerHTML = `
+                <div class="mobile-drawer-header">
+                    <div class="mobile-drawer-logo">
+                        <img src="assets/logo.png" alt="Logo PGET" onerror="this.src='https://via.placeholder.com/40?text=PGET'">
+                        <div class="mobile-drawer-logo-text">
+                            <h3>PROCURADURÍA GENERAL</h3>
+                            <span>ESTADO TRUJILLO</span>
+                        </div>
+                    </div>
+                    <button id="mobileDrawerCloseBtn" class="mobile-drawer-close" aria-label="Cerrar Menú">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="mobile-drawer-links">
+                    <a href="index.html" class="mobile-drawer-link ${currentPath === 'index.html' || currentPath === '' ? 'active' : ''}">
+                        <span><i class="fas fa-home" style="margin-right: 8px; color: #16a34a;"></i> Inicio</span>
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                    
+                    <a href="quienes-somos.html" class="mobile-drawer-link ${currentPath === 'quienes-somos.html' ? 'active' : ''}">
+                        <span><i class="fas fa-landmark" style="margin-right: 8px; color: #16a34a;"></i> ¿Quiénes Somos?</span>
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+
+                    <!-- Submenú Filosofía -->
+                    <div class="mobile-submenu-group">
+                        <div class="mobile-submenu-header" id="subFilosofiaHeader">
+                            <span><i class="fas fa-book-open" style="margin-right: 8px; color: #16a34a;"></i> Filosofía Institucional</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="mobile-submenu-items" id="subFilosofiaItems">
+                            <a href="mision-vision.html" class="mobile-submenu-item ${currentPath === 'mision-vision.html' ? 'active' : ''}">
+                                &bull; Misión y Visión
+                            </a>
+                            <a href="valores.html" class="mobile-submenu-item ${currentPath === 'valores.html' ? 'active' : ''}">
+                                &bull; Valores y Principios
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Submenú Organización -->
+                    <div class="mobile-submenu-group">
+                        <div class="mobile-submenu-header" id="subOrgHeader">
+                            <span><i class="fas fa-sitemap" style="margin-right: 8px; color: #16a34a;"></i> Organización</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="mobile-submenu-items" id="subOrgItems">
+                            <a href="organigrama.html" class="mobile-submenu-item ${currentPath === 'organigrama.html' ? 'active' : ''}">
+                                &bull; Organigrama Oficial
+                            </a>
+                            <a href="direcciones.html" class="mobile-submenu-item ${currentPath === 'direcciones.html' ? 'active' : ''}">
+                                &bull; Direcciones y Unidades
+                            </a>
+                        </div>
+                    </div>
+
+                    <a href="bases-juridicas.html" class="mobile-drawer-link ${currentPath === 'bases-juridicas.html' ? 'active' : ''}">
+                        <span><i class="fas fa-balance-scale" style="margin-right: 8px; color: #16a34a;"></i> Bases Jurídicas</span>
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+
+                    <a href="contacto.html" class="mobile-drawer-link ${currentPath === 'contacto.html' ? 'active' : ''}">
+                        <span><i class="fas fa-map-marker-alt" style="margin-right: 8px; color: #16a34a;"></i> Contacto y Ubicación</span>
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+
+                <div class="mobile-drawer-footer">
+                    <button id="mobileDrawerLoginBtn" class="mobile-drawer-login-btn">
+                        <i class="fas fa-user-shield"></i> Acceso al Sistema PGET
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(drawer);
+
+            // Toggle eventos
+            const menuBtn = document.getElementById('mobileMenuBtn');
+            const closeBtn = document.getElementById('mobileDrawerCloseBtn');
+            const drawerEl = document.getElementById('mobileNavDrawer');
+            const overlayEl = document.getElementById('mobileNavOverlay');
+
+            const openDrawer = () => {
+                drawerEl.classList.add('active');
+                overlayEl.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            };
+
+            const closeDrawer = () => {
+                drawerEl.classList.remove('active');
+                overlayEl.classList.remove('active');
+                document.body.style.overflow = '';
+            };
+
+            if (menuBtn) menuBtn.addEventListener('click', openDrawer);
+            if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
+            if (overlayEl) overlayEl.addEventListener('click', closeDrawer);
+
+            // Submenú Toggles
+            const toggleSubmenu = (headerId, itemsId) => {
+                const header = document.getElementById(headerId);
+                const items = document.getElementById(itemsId);
+                if (header && items) {
+                    header.addEventListener('click', () => {
+                        header.classList.toggle('active');
+                        items.classList.toggle('active');
+                    });
+                }
+            };
+            toggleSubmenu('subFilosofiaHeader', 'subFilosofiaItems');
+            toggleSubmenu('subOrgHeader', 'subOrgItems');
+
+            // Botón de login en el drawer
+            const drawerLoginBtn = document.getElementById('mobileDrawerLoginBtn');
+            if (drawerLoginBtn) {
+                drawerLoginBtn.addEventListener('click', () => {
+                    closeDrawer();
+                    ensureLoginModal();
+                    const modal = document.getElementById('loginModal');
+                    if (modal) modal.classList.add('show');
+                });
+            }
+        }
+    }
+
+    setupResponsiveMobileNav();
 });
