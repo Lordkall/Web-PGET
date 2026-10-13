@@ -45,17 +45,17 @@ h1, h2, h3 {
     font-weight: 700;
 }
 
-/* Navbar (Glassmorphism) */
+/* Navbar (Gris medio transparente estilo Contraloría PGET - img 2) */
 .navbar {
     position: fixed;
     top: 0;
     width: 100%;
     z-index: 1000;
-    background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: rgba(38, 41, 46, 0.90);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
     border-bottom: 2px solid var(--accent-gold);
-    box-shadow: 0 4px 20px rgba(106, 13, 37, 0.08);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
     padding: 12px 0;
     transition: all 0.3s ease;
 }
@@ -85,15 +85,16 @@ h1, h2, h3 {
 
 .logo-text h1 {
     font-size: 1rem;
-    color: var(--primary-color);
+    color: #FFFFFF !important;
     line-height: 1.2;
     letter-spacing: 0.5px;
     white-space: nowrap;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
 .logo-text h2 {
     font-size: 0.75rem;
-    color: var(--accent-gold-dark);
+    color: var(--accent-gold) !important;
     font-weight: 700;
     line-height: 1.2;
     white-space: nowrap;
@@ -108,7 +109,7 @@ h1, h2, h3 {
 
 .nav-links a, .dropbtn {
     text-decoration: none;
-    color: var(--primary-color);
+    color: #FFFFFF !important;
     font-weight: 600;
     font-size: 0.85rem;
     position: relative;
@@ -119,6 +120,14 @@ h1, h2, h3 {
     border: none;
     font-family: inherit;
     cursor: pointer;
+}
+
+.nav-links a:hover, .dropbtn:hover {
+    color: var(--accent-gold-light) !important;
+}
+
+.nav-links a.active {
+    color: #FFFFFF !important;
 }
 
 .nav-links a::after {
@@ -151,10 +160,11 @@ h1, h2, h3 {
 .dropdown-content {
     display: none;
     position: absolute;
-    background-color: #ffffff;
-    backdrop-filter: blur(12px);
+    background-color: #26292E;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
     min-width: 220px;
-    box-shadow: 0px 10px 25px rgba(106, 13, 37, 0.12);
+    box-shadow: 0px 10px 25px rgba(0, 0, 0, 0.4);
     z-index: 1;
     border-radius: 8px;
     top: 100%;
@@ -164,7 +174,7 @@ h1, h2, h3 {
 }
 
 .dropdown-content a {
-    color: var(--primary-color);
+    color: #FFFFFF;
     padding: 12px 16px;
     text-decoration: none;
     display: block;
@@ -174,8 +184,8 @@ h1, h2, h3 {
 }
 
 .dropdown-content a:hover {
-    background-color: rgba(212, 175, 55, 0.12);
-    color: var(--primary-color);
+    background-color: rgba(212, 175, 55, 0.20);
+    color: var(--accent-gold-light);
     padding-left: 20px;
 }
 
@@ -463,8 +473,13 @@ h1, h2, h3 {
 
 .blue-icon {
     background: rgba(212, 175, 55, 0.15);
-    color: var(--accent-gold-dark);
+    color: #6A0D25 !important;
     border: 2px solid var(--accent-gold);
+}
+
+.blue-icon i,
+.blue-icon .fa-gavel {
+    color: #6A0D25 !important;
 }
 
 .card h3 {
@@ -1346,11 +1361,11 @@ footer {
 .mobile-menu-btn {
     display: none;
     background: transparent;
-    border: none;
-    color: var(--primary-color);
-    font-size: 1.55rem;
+    border: 1.5px solid var(--accent-gold);
+    color: #FFFFFF !important;
+    font-size: 1.4rem;
     cursor: pointer;
-    padding: 8px 12px;
+    padding: 6px 12px;
     border-radius: 8px;
     transition: background 0.2s, color 0.2s, transform 0.2s;
     align-items: center;
@@ -1359,7 +1374,7 @@ footer {
 }
 
 .mobile-menu-btn:hover {
-    background: rgba(27, 94, 32, 0.08);
+    background: rgba(212, 175, 55, 0.2);
 }
 
 .mobile-menu-btn:active {

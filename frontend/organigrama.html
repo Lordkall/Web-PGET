@@ -110,7 +110,7 @@
             <!-- VISTA 1: DIAGRAMA GRÁFICO (SVG) -->
             <div id="orgGraphView" class="org-chart-viewport">
                 <div id="orgCanvas" class="org-canvas-inner">
-                    <svg id="orgSvgElement" class="org-svg" viewBox="0 0 1200 560" xmlns="http://www.w3.org/2000/svg">
+                    <svg id="orgSvgElement" class="org-svg" viewBox="0 0 1200 590" xmlns="http://www.w3.org/2000/svg">
                         <defs>
                             <filter id="nodeShadow" x="-10%" y="-10%" width="125%" height="130%">
                                 <feDropShadow dx="0" dy="3" stdDeviation="3.5" flood-color="#000000" flood-opacity="0.12" />
@@ -122,8 +122,8 @@
                         <!-- Línea de Asesoría / Staff (Línea punteada horizontal entre Atención al Ciudadano y Auditoría Interna) -->
                         <line x1="240" y1="145" x2="830" y2="145" class="org-connector-dotted" />
 
-                        <!-- Tallo Central Superior (Despacho a Dirección General) -->
-                        <line x1="600" y1="94" x2="600" y2="220" class="org-connector" />
+                        <!-- Tallo Central Superior (Despacho a Dirección General - Bajar Dir General) -->
+                        <line x1="600" y1="94" x2="600" y2="280" class="org-connector" />
 
                         <!-- Ramificación Auditoría Interna (a Control Posterior y Determinación de Responsabilidades) -->
                         <line x1="945" y1="175" x2="945" y2="205" class="org-connector" />
@@ -132,24 +132,24 @@
                         <line x1="1050" y1="205" x2="1050" y2="220" class="org-connector" />
 
                         <!-- Tallo de Dirección General a las 4 Direcciones -->
-                        <line x1="600" y1="270" x2="600" y2="320" class="org-connector" />
+                        <line x1="600" y1="330" x2="600" y2="365" class="org-connector" />
                         <!-- Barra horizontal distribuidora de las 4 Direcciones -->
-                        <line x1="160" y1="320" x2="1040" y2="320" class="org-connector" />
+                        <line x1="160" y1="365" x2="1040" y2="365" class="org-connector" />
                         <!-- Bajadas a las 4 Direcciones -->
-                        <line x1="160" y1="320" x2="160" y2="350" class="org-connector" />
-                        <line x1="453" y1="320" x2="453" y2="350" class="org-connector" />
-                        <line x1="747" y1="320" x2="747" y2="350" class="org-connector" />
-                        <line x1="1040" y1="320" x2="1040" y2="350" class="org-connector" />
+                        <line x1="160" y1="365" x2="160" y2="395" class="org-connector" />
+                        <line x1="453" y1="365" x2="453" y2="395" class="org-connector" />
+                        <line x1="747" y1="365" x2="747" y2="395" class="org-connector" />
+                        <line x1="1040" y1="365" x2="1040" y2="395" class="org-connector" />
 
                         <!-- Conexión desde Dirección de Bienes y Servicios a las 4 Sub-unidades -->
-                        <line x1="747" y1="402" x2="747" y2="445" class="org-connector" />
+                        <line x1="747" y1="447" x2="747" y2="480" class="org-connector" />
                         <!-- Barra horizontal distribuidora de las 4 Sub-unidades -->
-                        <line x1="175" y1="445" x2="1015" y2="445" class="org-connector" />
+                        <line x1="175" y1="480" x2="1015" y2="480" class="org-connector" />
                         <!-- Bajadas a las 4 Sub-unidades -->
-                        <line x1="175" y1="445" x2="175" y2="475" class="org-connector" />
-                        <line x1="455" y1="445" x2="455" y2="475" class="org-connector" />
-                        <line x1="735" y1="445" x2="735" y2="475" class="org-connector" />
-                        <line x1="1015" y1="445" x2="1015" y2="475" class="org-connector" />
+                        <line x1="175" y1="480" x2="175" y2="508" class="org-connector" />
+                        <line x1="455" y1="480" x2="455" y2="508" class="org-connector" />
+                        <line x1="735" y1="480" x2="735" y2="508" class="org-connector" />
+                        <line x1="1015" y1="480" x2="1015" y2="508" class="org-connector" />
 
 
                         <!-- NODOS / CAJAS DEL ORGANIGRAMA -->
@@ -191,64 +191,64 @@
                             <text x="1050" y="272" font-size="11">RESPONSABILIDADES</text>
                         </g>
 
-                        <!-- 4. DIRECCIÓN GENERAL (Nivel 2) -->
+                        <!-- 4. DIRECCIÓN GENERAL (Nivel 2 - Posición rebajada según img4) -->
                         <g class="org-node" onclick="openOrgModal('direccion_general')">
-                            <rect x="475" y="220" width="250" height="50" rx="5" filter="url(#nodeShadow)" />
-                            <text x="600" y="251" font-size="14.5">DIRECCIÓN GENERAL</text>
+                            <rect x="475" y="280" width="250" height="50" rx="5" filter="url(#nodeShadow)" />
+                            <text x="600" y="311" font-size="14.5">DIRECCIÓN GENERAL</text>
                         </g>
 
                         <!-- 5. DIRECCIÓN ADMINISTRACIÓN (Nivel 3 - Columna 1) -->
                         <g class="org-node" onclick="openOrgModal('administracion')">
-                            <rect x="45" y="350" width="230" height="52" rx="5" filter="url(#nodeShadow)" />
-                            <text x="160" y="371" font-size="13">DIRECCIÓN</text>
-                            <text x="160" y="390" font-size="13">ADMINISTRACIÓN</text>
+                            <rect x="45" y="395" width="230" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="160" y="416" font-size="13">DIRECCIÓN</text>
+                            <text x="160" y="435" font-size="13">ADMINISTRACIÓN</text>
                         </g>
 
                         <!-- 6. DIRECCIÓN DE ASUNTOS JURÍDICOS (Nivel 3 - Columna 2) -->
                         <g class="org-node" onclick="openOrgModal('juridico')">
-                            <rect x="338" y="350" width="230" height="52" rx="5" filter="url(#nodeShadow)" />
-                            <text x="453" y="371" font-size="13">DIRECCIÓN DE</text>
-                            <text x="453" y="390" font-size="13">ASUNTOS JURÍDICOS</text>
+                            <rect x="338" y="395" width="230" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="453" y="416" font-size="13">DIRECCIÓN DE</text>
+                            <text x="453" y="435" font-size="13">ASUNTOS JURÍDICOS</text>
                         </g>
 
                         <!-- 7. DIRECCIÓN DE BIENES Y SERVICIOS (Nivel 3 - Columna 3) -->
                         <g class="org-node" onclick="openOrgModal('bienes_servicios')">
-                            <rect x="632" y="350" width="230" height="52" rx="5" filter="url(#nodeShadow)" />
-                            <text x="747" y="371" font-size="13">DIRECCIÓN DE</text>
-                            <text x="747" y="390" font-size="13">BIENES Y SERVICIOS</text>
+                            <rect x="632" y="395" width="230" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="747" y="416" font-size="13">DIRECCIÓN DE</text>
+                            <text x="747" y="435" font-size="13">BIENES Y SERVICIOS</text>
                         </g>
 
                         <!-- 8. DIRECCIÓN DE RECURSOS HUMANOS (Nivel 3 - Columna 4) -->
                         <g class="org-node" onclick="openOrgModal('recursos_humanos')">
-                            <rect x="925" y="350" width="230" height="52" rx="5" filter="url(#nodeShadow)" />
-                            <text x="1040" y="371" font-size="13">DIRECCIÓN DE</text>
-                            <text x="1040" y="390" font-size="13">RECURSOS HUMANOS</text>
+                            <rect x="925" y="395" width="230" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="1040" y="416" font-size="13">DIRECCIÓN DE</text>
+                            <text x="1040" y="435" font-size="13">RECURSOS HUMANOS</text>
                         </g>
 
                         <!-- 9. CATASTRO (Nivel 4 - Sub 1) -->
                         <g class="org-node" onclick="openOrgModal('catastro')">
-                            <rect x="65" y="475" width="220" height="52" rx="5" filter="url(#nodeShadow)" />
-                            <text x="175" y="506" font-size="14">CATASTRO</text>
+                            <rect x="65" y="508" width="220" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="175" y="539" font-size="14">CATASTRO</text>
                         </g>
 
                         <!-- 10. COMPUTACIÓN Y SISTEMA (Nivel 4 - Sub 2) -->
                         <g class="org-node" onclick="openOrgModal('sistemas')">
-                            <rect x="345" y="475" width="220" height="52" rx="5" filter="url(#nodeShadow)" />
-                            <text x="455" y="496" font-size="13">COMPUTACIÓN</text>
-                            <text x="455" y="515" font-size="13">Y SISTEMA</text>
+                            <rect x="345" y="508" width="220" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="455" y="529" font-size="13">COMPUTACIÓN</text>
+                            <text x="455" y="548" font-size="13">Y SISTEMA</text>
                         </g>
 
                         <!-- 11. ARCHIVO (Nivel 4 - Sub 3) -->
                         <g class="org-node" onclick="openOrgModal('archivo')">
-                            <rect x="625" y="475" width="220" height="52" rx="5" filter="url(#nodeShadow)" />
-                            <text x="735" y="506" font-size="14">ARCHIVO</text>
+                            <rect x="625" y="508" width="220" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="735" y="539" font-size="14">ARCHIVO</text>
                         </g>
 
                         <!-- 12. EXPROPIACIONES Y AVALÚO (Nivel 4 - Sub 4) -->
                         <g class="org-node" onclick="openOrgModal('expropiaciones')">
-                            <rect x="905" y="475" width="220" height="52" rx="5" filter="url(#nodeShadow)" />
-                            <text x="1015" y="496" font-size="13">EXPROPIACIONES</text>
-                            <text x="1015" y="515" font-size="13">Y AVALÚO</text>
+                            <rect x="905" y="508" width="220" height="52" rx="5" filter="url(#nodeShadow)" />
+                            <text x="1015" y="529" font-size="13">EXPROPIACIONES</text>
+                            <text x="1015" y="548" font-size="13">Y AVALÚO</text>
                         </g>
                     </svg>
                 </div>

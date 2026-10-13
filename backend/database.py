@@ -1,5 +1,7 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import re
+from urllib.parse import unquote
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://lorenzoavila07_db_user:Jso40aJ1Z38xkmbV@pgetweb.npkuwlb.mongodb.net/?appName=pgetweb")
 
@@ -111,15 +113,18 @@ def format_user_doc(doc):
     return d
 
 async def get_user_by_username(username: str):
+    clean_name = unquote(str(username or "")).strip().lower()
+    if not clean_name:
+        return None
     try:
-        user = await users_collection.find_one({"username": username})
+        user = await users_collection.find_one({"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}})
         if user:
             return format_user_doc(user)
     except Exception as e:
         print(f"MongoDB warning in get_user_by_username: {e}")
     # Fallback memoria
     for u in memory_users:
-        if u["username"].lower() == username.lower():
+        if u["username"].lower() == clean_name:
             return dict(u)
     return None
 
@@ -176,8 +181,11 @@ async def create_user_record(user_data: dict):
     return user_data, None
 
 async def update_user_record(username: str, update_fields: dict):
+    clean_name = unquote(str(username or "")).strip().lower()
+    if not clean_name:
+        return None
     if "nombres" in update_fields or "apellidos" in update_fields:
-        curr = await get_user_by_username(username)
+        curr = await get_user_by_username(clean_name)
         curr_nom = update_fields.get("nombres") or (curr.get("nombres") if curr else "")
         curr_ape = update_fields.get("apellidos") or (curr.get("apellidos") if curr else "")
         update_fields["nombre"] = f"{curr_nom} {curr_ape}".strip()
@@ -188,24 +196,27 @@ async def update_user_record(username: str, update_fields: dict):
 
     try:
         res = await users_collection.update_one(
-            {"username": username},
+            {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
             {"$set": update_fields}
         )
         if res.matched_count > 0:
-            return await get_user_by_username(username)
+            return await get_user_by_username(clean_name)
     except Exception as e:
         print(f"MongoDB warning in update_user_record: {e}")
     
     # Fallback memoria
     for idx, u in enumerate(memory_users):
-        if u["username"].lower() == username.lower():
+        if u["username"].lower() == clean_name:
             memory_users[idx].update(update_fields)
             return dict(memory_users[idx])
     return None
 
 async def delete_user_record(username: str):
+    clean_name = unquote(str(username or "")).strip().lower()
+    if not clean_name:
+        return False
     try:
-        res = await users_collection.delete_one({"username": username})
+        res = await users_collection.delete_one({"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}})
         if res.deleted_count > 0:
             return True
     except Exception as e:
@@ -213,7 +224,7 @@ async def delete_user_record(username: str):
     
     # Fallback memoria
     initial_len = len(memory_users)
-    memory_users[:] = [u for u in memory_users if u["username"].lower() != username.lower()]
+    memory_users[:] = [u for u in memory_users if u["username"].lower() != clean_name]
     return len(memory_users) < initial_len
 
 async def create_initial_users():

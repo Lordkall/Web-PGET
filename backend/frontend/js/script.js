@@ -27,6 +27,17 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // Helper de seguridad contra XSS (Cross-Site Scripting)
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     // Helper para obtener las iniciales del trabajador (ej. VICTORIA CARMONA -> VC)
     function getWorkerInitials(user) {
         if (!user) return 'XX';
@@ -1108,25 +1119,34 @@ document.addEventListener('DOMContentLoaded', () => {
             const prof = formatProfessionByGender(u.profesion, gen);
             const fullNameWithTitle = formatFullNameWithTitle(u.nombre, prof, gen);
             const cedulaOficial = formatCedulaOficial(u.cedula);
+            const safeUsername = escapeHtml(u.username);
+            const safeFullName = escapeHtml(fullNameWithTitle || 'Sin nombre');
+            const safeCargo = escapeHtml(u.cargo || 'Sin cargo asignado');
+            const safeDireccion = escapeHtml(u.direccion || 'DIRECCIÓN GENERAL');
+            const safeSalario = escapeHtml(u.salario || 'Bs. 1.000,00');
+            const safeCedula = escapeHtml(cedulaOficial || 'N/A');
+            const safeCond = escapeHtml(cond);
+            const safeNameRaw = escapeHtml(u.nombre || u.username);
+
             return `
             <tr>
                 <td>
-                    <strong style="color: #1e293b; display: block; font-size: 0.95rem;">${fullNameWithTitle || 'Sin nombre'}</strong>
+                    <strong style="color: #1e293b; display: block; font-size: 0.95rem;">${safeFullName}</strong>
                     <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap;">
-                        <span style="color: #64748b; font-size: 0.82rem; font-weight: 600;"><i class="fas fa-id-card"></i> ${cedulaOficial || 'N/A'}</span>
-                        <span class="condicion-badge ${cond.toLowerCase()}">${cond}</span>
+                        <span style="color: #64748b; font-size: 0.82rem; font-weight: 600;"><i class="fas fa-id-card"></i> ${safeCedula}</span>
+                        <span class="condicion-badge ${safeCond.toLowerCase()}">${safeCond}</span>
                         <span style="font-size: 0.78rem; color: #475569; background: #e2e8f0; padding: 2px 7px; border-radius: 4px; font-weight: 600;">
                             <i class="fas ${gen === 'femenino' ? 'fa-venus' : 'fa-mars'}" style="color: ${gen === 'femenino' ? '#db2777' : '#0284c7'};"></i> ${gen === 'femenino' ? 'Femenino' : 'Masculino'}
                         </span>
                     </div>
                 </td>
                 <td>
-                    <span style="color: #0369a1; font-weight: 600;">${u.username}</span>
+                    <span style="color: #0369a1; font-weight: 600;">${safeUsername}</span>
                 </td>
                 <td>
-                    <strong style="color: #6A0D25; display: block;">${u.cargo || 'Sin cargo asignado'}</strong>
-                    <span style="color: #1e293b; font-size: 0.82rem; font-weight: 600; display: block;">${u.direccion || 'DIRECCIÓN GENERAL'}</span>
-                    <span style="color: #83122F; font-size: 0.82rem; font-weight: 700; display: block;">${u.salario || 'Bs. 1.000,00'}</span>
+                    <strong style="color: #6A0D25; display: block;">${safeCargo}</strong>
+                    <span style="color: #1e293b; font-size: 0.82rem; font-weight: 600; display: block;">${safeDireccion}</span>
+                    <span style="color: #83122F; font-size: 0.82rem; font-weight: 700; display: block;">${safeSalario}</span>
                 </td>
                 <td>
                     <span class="role-badge ${u.role === 'admin' ? 'admin' : 'trabajador'}">
@@ -1134,11 +1154,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     </span>
                 </td>
                 <td style="text-align: right; white-space: nowrap;">
-                    <button class="btn-action edit" onclick="window.openEditUserForm('${u.username}')" title="Editar Cargo e Información">
+                    <button class="btn-action edit" data-user="${safeUsername}" title="Editar Cargo e Información">
                         <i class="fas fa-edit"></i> Editar
                     </button>
                     ${u.username !== 'admin@pget.gob.ve' && u.username !== 'admin' ? `
-                    <button class="btn-action delete" onclick="window.confirmDeleteUser('${u.username}', '${u.nombre}')" title="Eliminar Usuario">
+                    <button class="btn-action delete" data-user="${safeUsername}" data-name="${safeNameRaw}" title="Eliminar Usuario">
                         <i class="fas fa-trash"></i> Eliminar
                     </button>
                     ` : '<span style="color:#94a3b8; font-size:0.75rem; padding: 0 5px;">Protegido</span>'}
@@ -1146,6 +1166,23 @@ document.addEventListener('DOMContentLoaded', () => {
             </tr>
             `;
         }).join('');
+
+        // Delegación de eventos segura (previene inyección en atributos onclick)
+        tbody.onclick = (e) => {
+            const editBtn = e.target.closest('.btn-action.edit');
+            if (editBtn) {
+                const u = editBtn.getAttribute('data-user');
+                if (u) window.openEditUserForm(u);
+                return;
+            }
+            const delBtn = e.target.closest('.btn-action.delete');
+            if (delBtn) {
+                const u = delBtn.getAttribute('data-user');
+                const n = delBtn.getAttribute('data-name');
+                if (u) window.confirmDeleteUser(u, n);
+                return;
+            }
+        };
     }
 
     // Activar filtro rápido por condición (Fijos, Contratados, Jubilados, Todos)
@@ -1442,12 +1479,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let response;
             if (editingUsername) {
-                // Actualizar usuario existente (POST /update para compatibilidad total con Vercel)
-                response = await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}/update`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(userData)
-                });
+                // Actualizar usuario existente: enviar a /users/update con username en payload
+                try {
+                    response = await fetch(`${API_URL}/users/update`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...userData, username: editingUsername })
+                    });
+                } catch (e) {
+                    response = null;
+                }
+
+                // Fallback a ruta parametrizada si fuera necesario
+                if (!response || !response.ok) {
+                    try {
+                        const fallbackRes = await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}/update`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(userData)
+                        });
+                        if (fallbackRes.ok || !response) response = fallbackRes;
+                    } catch (e2) {}
+                }
             } else {
                 // Crear nuevo usuario
                 response = await fetch(`${API_URL}/users`, {
@@ -1457,14 +1510,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
 
-            if (response.ok) {
+            if (response && response.ok) {
                 alert(editingUsername ? '¡Usuario actualizado exitosamente!' : '¡Usuario creado exitosamente!');
                 window.backToAdminView();
                 loadAdminUsers();
             } else {
-                const data = await response.json();
+                const data = response ? await response.json().catch(() => ({})) : {};
                 errDiv.style.display = 'block';
-                errDiv.textContent = data.detail || 'Error al guardar los datos del usuario.';
+                errDiv.textContent = data.detail || 'Error al guardar los datos del usuario en el servidor.';
             }
         } catch (error) {
             // Guardado en memoria si la API estuviera offline
@@ -1492,19 +1545,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const res = await fetch(`${API_URL}/users/${encodeURIComponent(username)}/delete`, {
-                method: 'POST'
-            });
+            let res;
+            try {
+                res = await fetch(`${API_URL}/users/delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username })
+                });
+            } catch (e) {
+                res = null;
+            }
 
-            if (res.ok) {
+            // Fallback a ruta parametrizada si fuera necesario
+            if (!res || !res.ok) {
+                try {
+                    const fallbackRes = await fetch(`${API_URL}/users/${encodeURIComponent(username)}/delete`, {
+                        method: 'POST'
+                    });
+                    if (fallbackRes.ok || !res) res = fallbackRes;
+                } catch (e2) {}
+            }
+
+            if (res && res.ok) {
                 alert(`El usuario ${username} ha sido eliminado.`);
                 loadAdminUsers();
             } else {
-                const data = await res.json();
-                alert(data.detail || 'No se pudo eliminar el usuario.');
+                const data = res ? await res.json().catch(() => ({})) : {};
+                alert(data.detail || 'No se pudo eliminar el usuario en el servidor.');
             }
         } catch (error) {
-            // Eliminar de cache
+            // Eliminar de cache local
             allUsersCache = allUsersCache.filter(u => u.username.toLowerCase() !== username.toLowerCase());
             renderAdminUsersTable(allUsersCache);
             alert(`El usuario ${username} ha sido eliminado localmente.`);
@@ -1871,10 +1941,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (navbar) {
             if (window.scrollY > 50) {
                 navbar.style.padding = '8px 0';
-                navbar.style.background = 'rgba(255, 255, 255, 0.95)';
+                navbar.style.background = 'rgba(32, 34, 38, 0.96)';
             } else {
                 navbar.style.padding = '12px 0';
-                navbar.style.background = 'var(--glass-bg)';
+                navbar.style.background = 'rgba(38, 41, 46, 0.90)';
             }
         }
     });

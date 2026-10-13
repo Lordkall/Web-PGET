@@ -23,8 +23,15 @@ from database import (
 from datetime import datetime
 import re
 import unicodedata
+from urllib.parse import unquote
 
-app = FastAPI(title="API Procuraduría General del Estado Trujillo", version="2.0")
+app = FastAPI(
+    title="API Procuraduría General del Estado Trujillo",
+    version="2.0",
+    docs_url=None if os.getenv("VERCEL") else "/docs",
+    redoc_url=None if os.getenv("VERCEL") else "/redoc",
+    openapi_url=None if os.getenv("VERCEL") else "/openapi.json"
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,6 +66,7 @@ class UserCreateRequest(BaseModel):
     cuenta: Optional[str] = ""
 
 class UserUpdateRequest(BaseModel):
+    username: Optional[str] = None
     nombres: Optional[str] = None
     apellidos: Optional[str] = None
     nombre: Optional[str] = None
@@ -76,6 +84,9 @@ class UserUpdateRequest(BaseModel):
     cuenta: Optional[str] = None
     role: Optional[str] = None
     password: Optional[str] = None
+
+class UserDeleteRequest(BaseModel):
+    username: Optional[str] = None
 
 @app.on_event("startup")
 async def startup_event():
@@ -178,15 +189,25 @@ async def create_user(request: UserCreateRequest):
 @app.put("/api/users/{username}")
 @app.post("/api/users/{username}/update")
 @app.post("/api/users/{username}")
-async def update_user(username: str, request: UserUpdateRequest):
-    update_data = {k: v for k, v in request.dict().items() if v is not None and v != ""}
+@app.post("/api/users/update")
+@app.put("/users/{username}")
+@app.post("/users/{username}/update")
+@app.post("/users/{username}")
+@app.post("/users/update")
+async def update_user(request: UserUpdateRequest, username: Optional[str] = None):
+    target = username or request.username or ""
+    clean_username = unquote(str(target)).strip().lower()
+    if not clean_username:
+        raise HTTPException(status_code=400, detail="Debe indicar el usuario a actualizar")
+        
+    update_data = {k: v for k, v in request.dict().items() if v is not None and v != "" and k != "username"}
     if not update_data:
         raise HTTPException(status_code=400, detail="No se enviaron datos para actualizar")
     
     if "cedula" in update_data and update_data["cedula"]:
         update_data["cedula"] = re.sub(r'^[Vv]-?', '', str(update_data["cedula"]).strip())
     
-    updated = await update_user_record(username.strip().lower(), update_data)
+    updated = await update_user_record(clean_username, update_data)
     if not updated:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
@@ -197,8 +218,16 @@ async def update_user(username: str, request: UserUpdateRequest):
 
 @app.delete("/api/users/{username}")
 @app.post("/api/users/{username}/delete")
-async def delete_user(username: str):
-    clean_username = username.strip().lower()
+@app.post("/api/users/delete")
+@app.delete("/users/{username}")
+@app.post("/users/{username}/delete")
+@app.post("/users/delete")
+async def delete_user(request: Optional[UserDeleteRequest] = None, username: Optional[str] = None):
+    target = username or (request.username if request else None) or ""
+    clean_username = unquote(str(target)).strip().lower()
+    if not clean_username:
+        raise HTTPException(status_code=400, detail="Debe especificar el usuario a eliminar")
+        
     if clean_username in ["admin@pget.gob.ve", "admin"]:
         raise HTTPException(
             status_code=400,
@@ -209,7 +238,7 @@ async def delete_user(username: str):
     if not success:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
-    return {"message": f"Usuario {username} eliminado exitosamente"}
+    return {"message": f"Usuario {clean_username} eliminado exitosamente"}
 
 def format_cedula_oficial(cedula: str) -> str:
     if not cedula:
@@ -413,23 +442,28 @@ def get_worker_initials(user: dict) -> str:
     return "XX"
 
 @app.get("/api/constancia")
+@app.get("/constancia")
 async def solicitar_constancia(
     token: Optional[str] = None,
     username: Optional[str] = None,
     nota: Optional[str] = None,
     con_salario: Optional[str] = "true"
 ):
-    if not token:
-        raise HTTPException(status_code=401, detail="No autorizado")
+    if not token or not str(token).strip():
+        raise HTTPException(status_code=401, detail="No autorizado: token requerido")
     
-    # Determinar usuario
-    user = None
-    if username:
-        user = await get_user_by_username(username.strip().lower())
-    elif "pget-token-" in token:
-        user_key = token.replace("pget-token-", "")
-        user = await get_user_by_username(user_key)
+    token_user_key = str(token).replace("pget-token-", "").strip().lower()
+    token_user = await get_user_by_username(token_user_key)
+    if not token_user:
+        raise HTTPException(status_code=401, detail="Token de sesión no válido o expirado")
+        
+    req_username = unquote(username).strip().lower() if username else token_user_key
     
+    # Solo el propio trabajador o el administrador pueden emitir/visualizar la constancia
+    if token_user.get("role") != "admin" and token_user_key != req_username:
+        raise HTTPException(status_code=403, detail="No tiene permisos para consultar constancias de otros funcionarios")
+
+    user = await get_user_by_username(req_username)
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
