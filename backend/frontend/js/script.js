@@ -330,7 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (input.type === 'password') {
             input.type = 'text';
             if (icon) icon.className = 'fas fa-eye-slash';
-            btn.style.color = '#1b5e20';
+            btn.style.color = '#6A0D25';
         } else {
             input.type = 'password';
             if (icon) icon.className = 'fas fa-eye';
@@ -355,7 +355,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (p1) p1.focus();
         } else {
             container.style.display = 'none';
-            btn.innerHTML = '<i class="fas fa-key" style="color: #059669;"></i> Cambiar Contraseña';
+            btn.innerHTML = '<i class="fas fa-key" style="color: #D4AF37;"></i> Cambiar Contraseña';
             btn.style.background = '#f1f5f9';
             btn.style.borderColor = '#cbd5e1';
             const p1 = modal.querySelector('#formPassword');
@@ -379,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div id="loginView" style="padding: 35px 30px;">
                         <div style="text-align: center; margin-bottom: 25px;">
                             <img src="assets/logo.png" alt="Logo PGET" style="height: 70px;" onerror="this.src='https://via.placeholder.com/60?text=PGET'">
-                            <h2 style="margin-top: 15px; color: #1e293b; font-size: 1.8rem;">Iniciar Sesión</h2>
+                            <h2 style="margin-top: 15px; color: #6A0D25; font-size: 1.8rem;">Iniciar Sesión</h2>
                             <p style="color: #64748b; font-size: 0.95rem;">Ingresa tus credenciales institucionales</p>
                         </div>
                         
@@ -388,7 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <label for="username" style="display: block; font-weight: 700; margin-bottom: 8px; color: #334155;">Correo Electrónico / Usuario</label>
                                 <div class="input-icon" style="position: relative;">
                                     <i class="fas fa-envelope" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8;"></i>
-                                    <input type="text" id="username" placeholder="admin@pget.gob.ve o usuario" required style="width: 100%; padding: 12px 15px 12px 42px; border: 1px solid #16a34a; border-radius: 8px; outline: none; font-size: 0.95rem; box-sizing: border-box;">
+                                    <input type="text" id="username" placeholder="admin@pget.gob.ve o usuario" required style="width: 100%; padding: 12px 15px 12px 42px; border: 1.5px solid #D4AF37; border-radius: 8px; outline: none; font-size: 0.95rem; box-sizing: border-box;">
                                 </div>
                             </div>
                             
@@ -403,7 +403,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             <div style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
                                 <label style="display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 0.9rem; cursor: pointer;">
-                                    <input type="checkbox" id="remember" style="accent-color: #16a34a;">
+                                    <input type="checkbox" id="remember" style="accent-color: #6A0D25;">
                                     Recordarme
                                 </label>
                                 <span style="font-size: 0.82rem; color: #0284c7; cursor: pointer;" title="Admin: admin@pget.gob.ve / admin123 | Trabajador: victoria@pget.gob.ve / password123">
@@ -413,7 +413,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             <div id="loginError" class="error-msg" style="display:none; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; font-size: 0.9rem;"></div>
                             
-                            <button type="submit" id="submitLoginBtn" style="width: 100%; background: #1b5e20; color: white; border: none; padding: 13px; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: background 0.2s;">
+                            <button type="submit" id="submitLoginBtn" style="width: 100%; background: linear-gradient(135deg, #6A0D25, #83122F); color: white; border: 1.5px solid #D4AF37; padding: 13px; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(106, 13, 37, 0.25);">
                                 <i class="fas fa-sign-in-alt"></i> Iniciar Sesión
                             </button>
                         </form>
@@ -421,7 +421,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     <!-- 2. VISTA DE TRABAJADOR (PANTALLA COMPLETA - PUEDE GENERAR CONSTANCIAS) -->
                     <div id="workerView" style="display: none; background: #f8fafc; height: 100%; display: flex; flex-direction: column;">
-                        <div style="background: linear-gradient(135deg, #1b5e20, #0a3d12); color: white; padding: 18px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15);">
+                        <div style="background: linear-gradient(135deg, #6A0D25, #450614); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15);">
                             <div>
                                 <h3 style="margin: 0; font-size: 1.3rem;"><i class="fas fa-user-circle"></i> Portal del Trabajador</h3>
                                 <span style="font-size: 0.85rem; opacity: 0.9;">Procuraduría General del Estado Trujillo &bull; Trámites y Perfil</span>
@@ -440,7 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div style="max-width: 950px; margin: 0 auto;">
                                 <div style="background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
                                     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 20px;">
-                                        <h4 style="color: #1b5e20; font-size: 1.15rem; margin: 0;">
+                                        <h4 style="color: #6A0D25; font-size: 1.15rem; margin: 0;">
                                             <i class="fas fa-id-card"></i> Datos Personales y Laborales del Trabajador
                                         </h4>
                                         <span id="workerCondicionBadge" class="condicion-badge fijo" style="font-size: 0.85rem; padding: 6px 14px;">
@@ -462,11 +462,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                         </div>
                                         <div>
                                             <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Condición Laboral:</span>
-                                            <strong id="workerCondicionText" style="color: #15803d; font-size: 1rem;">PERSONAL FIJO</strong>
+                                            <strong id="workerCondicionText" style="color: #6A0D25; font-size: 1rem;">PERSONAL FIJO</strong>
                                         </div>
                                         <div>
                                             <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Cargo Institucional:</span>
-                                            <strong id="workerCargo" style="color: #059669; font-size: 1rem;">-</strong>
+                                            <strong id="workerCargo" style="color: #6A0D25; font-size: 1rem;">-</strong>
                                         </div>
                                         <div>
                                             <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Fecha de Ingreso:</span>
@@ -474,7 +474,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         </div>
                                         <div>
                                             <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Salario / Remuneración Mensual:</span>
-                                            <strong id="workerSalario" style="color: #047857; font-size: 1.05rem;">Bs. 1.000,00</strong>
+                                            <strong id="workerSalario" style="color: #83122F; font-size: 1.05rem;">Bs. 1.000,00</strong>
                                         </div>
                                         <div>
                                             <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Años de Servicio:</span>
@@ -486,15 +486,15 @@ document.addEventListener('DOMContentLoaded', () => {
                                         </div>
                                         <div style="grid-column: span 2;">
                                             <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Dirección / Oficina Adscrita:</span>
-                                            <strong id="workerDireccion" style="color: #059669; font-size: 1.02rem;">-</strong>
+                                            <strong id="workerDireccion" style="color: #6A0D25; font-size: 1.02rem;">-</strong>
                                         </div>
                                     </div>
                                 </div>
 
                                 <!-- Generador de Constancia (Solo para trabajadores) -->
-                                <div style="background: white; border: 2px dashed #059669; border-radius: 16px; padding: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                                    <h4 id="workerCertHeader" style="color: #059669; font-size: 1.15rem; margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
-                                        <i class="fas fa-file-invoice"></i> Generar Constancia Oficial (<span id="workerCertModelBadge">Personal Fijo</span>)
+                                <div style="background: white; border: 2px dashed #D4AF37; border-radius: 16px; padding: 30px; box-shadow: 0 4px 15px rgba(106,13,37,0.06);">
+                                    <h4 id="workerCertHeader" style="color: #6A0D25; font-size: 1.15rem; margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
+                                        <i class="fas fa-file-invoice" style="color: #D4AF37;"></i> Generar Constancia Oficial (<span id="workerCertModelBadge">Personal Fijo</span>)
                                     </h4>
                                     <p id="workerCertDesc" style="font-size: 0.92rem; color: #64748b; margin-bottom: 20px;">
                                         Modelo oficial adaptado automáticamente a su condición laboral.
@@ -502,7 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     
                                     <div style="margin-bottom: 20px;">
                                         <label style="display: block; font-weight: 700; font-size: 0.88rem; color: #334155; margin-bottom: 8px;">
-                                            <i class="fas fa-coins" style="color: #059669;"></i> Modalidad Salarial:
+                                            <i class="fas fa-coins" style="color: #D4AF37;"></i> Modalidad Salarial:
                                         </label>
                                         <select id="conSalarioSelect" style="width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; font-weight: 600; color: #1e293b;">
                                             <option value="true">Con Salario (Refleja Asignación Mensual en letras y números)</option>
@@ -510,7 +510,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         </select>
                                     </div>
 
-                                    <button id="requestCertBtn" style="width: 100%; background: #059669; color: white; border: none; padding: 14px; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: background 0.2s; box-shadow: 0 3px 10px rgba(5,150,105,0.25);">
+                                    <button id="requestCertBtn" style="width: 100%; background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 14px; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(106,13,37,0.25);">
                                         <i class="fas fa-file-alt"></i> Generar y Ver Constancia Oficial
                                     </button>
                                     <div id="certMessage" style="margin-top: 15px; font-size: 0.95rem; text-align: center; font-weight: 600;"></div>
@@ -546,10 +546,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 
                                 <!-- Filtro por Condición Laboral: Fijos, Contratados, Jubilados -->
                                 <div id="condFilterGroup" style="display: flex; gap: 4px; align-items: center; background: #f1f5f9; padding: 4px; border-radius: 8px; border: 1px solid #cbd5e1;">
-                                    <button type="button" class="cond-filter-btn active" data-cond="" onclick="window.setCondicionFilter('')" style="border: none; background: #1b5e20; color: white; padding: 6px 13px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                                    <button type="button" class="cond-filter-btn active" data-cond="" onclick="window.setCondicionFilter('')" style="border: 1px solid #D4AF37; background: #6A0D25; color: white; padding: 6px 13px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
                                         Todos
                                     </button>
-                                    <button type="button" class="cond-filter-btn" data-cond="FIJO" onclick="window.setCondicionFilter('FIJO')" style="border: none; background: transparent; color: #15803d; padding: 6px 13px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                                    <button type="button" class="cond-filter-btn" data-cond="FIJO" onclick="window.setCondicionFilter('FIJO')" style="border: none; background: transparent; color: #6A0D25; padding: 6px 13px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
                                         Fijos
                                     </button>
                                     <button type="button" class="cond-filter-btn" data-cond="CONTRATADO" onclick="window.setCondicionFilter('CONTRATADO')" style="border: none; background: transparent; color: #0284c7; padding: 6px 13px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
@@ -560,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     </button>
                                 </div>
                             </div>
-                            <button onclick="window.openCreateUserForm()" style="background: #1b5e20; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+                            <button onclick="window.openCreateUserForm()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.25);">
                                 <i class="fas fa-user-plus"></i> + Registrar Nuevo Usuario
                             </button>
                         </div>
@@ -580,7 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <tbody id="adminUsersListBody">
                                     <tr>
                                         <td colspan="5" style="text-align: center; padding: 25px; color: #64748b;">
-                                            <i class="fas fa-spinner fa-spin"></i> Cargando usuarios...
+                                             <i class="fas fa-spinner fa-spin"></i> Cargando usuarios...
                                         </td>
                                     </tr>
                                 </tbody>
@@ -590,13 +590,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <!-- Aviso Legal Administrador -->
                         <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 12px 30px; font-size: 0.85rem; color: #64748b; display: flex; justify-content: space-between; align-items: center;">
                             <span><i class="fas fa-lock"></i> Modo Administrador activo: El administrador gestiona el personal y no emite constancias individuales.</span>
-                            <span style="font-weight: 600; color: #1b5e20;">Procuraduría General del Estado Trujillo</span>
+                            <span style="font-weight: 700; color: #6A0D25;">Procuraduría General del Estado Trujillo</span>
                         </div>
                     </div>
 
                     <!-- 4. VISTA / FORMULARIO CREAR Y EDITAR USUARIO (PANTALLA COMPLETA) -->
                     <div id="userFormView" style="display: none; background: #f8fafc; height: 100%; display: flex; flex-direction: column;">
-                        <div style="background: linear-gradient(135deg, #1b5e20, #0a3d12); color: white; padding: 18px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15);">
+                        <div style="background: linear-gradient(135deg, #6A0D25, #450614); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15);">
                             <h3 id="userFormTitle" style="margin: 0; font-size: 1.25rem;"><i class="fas fa-user-edit"></i> Registrar Nuevo Usuario</h3>
                             <button type="button" onclick="window.backToAdminView()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;">
                                 <i class="fas fa-arrow-left"></i> Volver al Panel
@@ -608,7 +608,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
                                     
                                     <div style="grid-column: span 2;">
-                                        <h4 style="color: #1b5e20; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
+                                        <h4 style="color: #6A0D25; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
                                             <i class="fas fa-key"></i> 1. Credenciales de Acceso
                                         </h4>
                                     </div>
@@ -629,7 +629,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <!-- Botón para Cambiar Contraseña (Solo en Modo Edición) -->
                                     <div id="changePasswordBtnWrapper" style="grid-column: span 2; display: none; margin: 4px 0 6px 0;">
                                         <button type="button" id="btnToggleChangePass" onclick="window.toggleChangePasswordSection()" style="background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s;">
-                                            <i class="fas fa-key" style="color: #059669;"></i> Cambiar Contraseña
+                                            <i class="fas fa-key" style="color: #D4AF37;"></i> Cambiar Contraseña
                                         </button>
                                         <span style="font-size: 0.82rem; color: #64748b; margin-left: 12px;">(Pulse este botón si desea asignar una nueva contraseña a este usuario)</span>
                                     </div>
@@ -662,7 +662,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     </div>
 
                                     <div style="grid-column: span 2; margin-top: 15px;">
-                                        <h4 style="color: #1b5e20; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
+                                        <h4 style="color: #6A0D25; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
                                             <i class="fas fa-address-card"></i> 2. Datos Personales
                                         </h4>
                                     </div>
@@ -679,7 +679,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                     <div>
                                         <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                            Cédula de Identidad * <span style="font-weight: 400; color: #059669; font-size: 0.8rem;">(Solo números)</span>
+                                            Cédula de Identidad * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Solo números)</span>
                                         </label>
                                         <input type="text" id="formCedula" required inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="Solo números (ej. 12345678)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
                                     </div>
@@ -688,11 +688,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Género *</label>
                                         <div style="display: flex; gap: 24px; align-items: center; padding: 10px 14px; background: white; border: 1px solid #cbd5e1; border-radius: 8px; min-height: 44px; box-sizing: border-box;">
                                             <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.92rem; font-weight: 600; color: #1e293b; margin: 0;">
-                                                <input type="radio" name="formGenero" id="formGeneroMasculino" value="masculino" checked style="width: 18px; height: 18px; accent-color: #1b5e20; cursor: pointer;">
+                                                <input type="radio" name="formGenero" id="formGeneroMasculino" value="masculino" checked style="width: 18px; height: 18px; accent-color: #6A0D25; cursor: pointer;">
                                                 <span>Masculino</span>
                                             </label>
                                             <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.92rem; font-weight: 600; color: #1e293b; margin: 0;">
-                                                <input type="radio" name="formGenero" id="formGeneroFemenino" value="femenino" style="width: 18px; height: 18px; accent-color: #1b5e20; cursor: pointer;">
+                                                <input type="radio" name="formGenero" id="formGeneroFemenino" value="femenino" style="width: 18px; height: 18px; accent-color: #6A0D25; cursor: pointer;">
                                                 <span>Femenino</span>
                                             </label>
                                         </div>
@@ -700,7 +700,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                     <div style="grid-column: span 2;">
                                         <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                            Profesión / Título Académico * <span style="font-weight: 400; color: #059669; font-size: 0.8rem;">(Prefijo: Abog., Ing., T.S.U., Lic.)</span>
+                                            Profesión / Título Académico * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Prefijo: Abog., Ing., T.S.U., Lic.)</span>
                                         </label>
                                         <select id="formProfesion" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white;">
                                             <option value="Abogado">Abogado (Prefijo: Abog. Nombre)</option>
@@ -715,7 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     </div>
 
                                     <div style="grid-column: span 2; margin-top: 15px;">
-                                        <h4 style="color: #1b5e20; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
+                                        <h4 style="color: #6A0D25; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
                                             <i class="fas fa-briefcase"></i> 3. Datos Laborales y Administrativos
                                         </h4>
                                     </div>
@@ -727,7 +727,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                     <div>
                                         <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                            Condición Laboral * <span style="font-weight: 400; color: #059669; font-size: 0.8rem;">(Define su modelo de constancia)</span>
+                                            Condición Laboral * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Define su modelo de constancia)</span>
                                         </label>
                                         <select id="formCondicion" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; font-weight: 600;">
                                             <option value="FIJO">FIJO (Constancia de Trabajo - Personal Fijo)</option>
@@ -750,9 +750,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                     </div>
 
                                     <div style="grid-column: span 2;">
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Años de Servicio <span style="font-weight: 400; color: #059669; font-size: 0.8rem;">(Cálculo Automático)</span></label>
-                                        <input type="text" id="formAnos" readonly style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: #f1f5f9; color: #166534; font-weight: 700; cursor: not-allowed;" placeholder="0">
-                                        <small style="color: #059669; font-size: 0.78rem; font-weight: 600; display: block; margin-top: 2px;"><i class="fas fa-calculator"></i> Se calcula automáticamente según la fecha de ingreso</small>
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Años de Servicio <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Cálculo Automático)</span></label>
+                                        <input type="text" id="formAnos" readonly style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: #f1f5f9; color: #6A0D25; font-weight: 700; cursor: not-allowed;" placeholder="0">
+                                        <small style="color: #83122F; font-size: 0.78rem; font-weight: 600; display: block; margin-top: 2px;"><i class="fas fa-calculator"></i> Se calcula automáticamente según la fecha de ingreso</small>
                                     </div>
 
                                     <div style="grid-column: span 2;">
@@ -782,7 +782,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <button type="button" onclick="window.backToAdminView()" style="background: #e2e8f0; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; color: #475569;">
                                         Cancelar
                                     </button>
-                                    <button type="submit" id="saveUserSubmitBtn" style="background: #1b5e20; color: white; border: none; padding: 12px 30px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 8px rgba(27,94,32,0.3);">
+                                    <button type="submit" id="saveUserSubmitBtn" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 12px 30px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.3);">
                                         <i class="fas fa-save"></i> Guardar Usuario
                                     </button>
                                 </div>
@@ -1107,9 +1107,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span style="color: #0369a1; font-weight: 600;">${u.username}</span>
                 </td>
                 <td>
-                    <strong style="color: #059669; display: block;">${u.cargo || 'Sin cargo asignado'}</strong>
+                    <strong style="color: #6A0D25; display: block;">${u.cargo || 'Sin cargo asignado'}</strong>
                     <span style="color: #1e293b; font-size: 0.82rem; font-weight: 600; display: block;">${u.direccion || 'DIRECCIÓN GENERAL'}</span>
-                    <span style="color: #047857; font-size: 0.82rem; font-weight: 700; display: block;">${u.salario || 'Bs. 1.000,00'}</span>
+                    <span style="color: #83122F; font-size: 0.82rem; font-weight: 700; display: block;">${u.salario || 'Bs. 1.000,00'}</span>
                 </td>
                 <td>
                     <span class="role-badge ${u.role === 'admin' ? 'admin' : 'trabajador'}">
@@ -1140,22 +1140,27 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btnCond === currentCondicionFilter) {
                 btn.classList.add('active');
                 if (btnCond === 'FIJO') {
-                    btn.style.background = '#15803d';
+                    btn.style.background = '#6A0D25';
                     btn.style.color = 'white';
+                    btn.style.border = '1px solid #D4AF37';
                 } else if (btnCond === 'CONTRATADO') {
                     btn.style.background = '#0284c7';
                     btn.style.color = 'white';
+                    btn.style.border = '1px solid #38bdf8';
                 } else if (btnCond === 'JUBILADO') {
                     btn.style.background = '#7e22ce';
                     btn.style.color = 'white';
+                    btn.style.border = '1px solid #c084fc';
                 } else {
-                    btn.style.background = '#1b5e20';
+                    btn.style.background = '#6A0D25';
                     btn.style.color = 'white';
+                    btn.style.border = '1px solid #D4AF37';
                 }
             } else {
                 btn.classList.remove('active');
                 btn.style.background = 'transparent';
-                if (btnCond === 'FIJO') btn.style.color = '#15803d';
+                btn.style.border = 'none';
+                if (btnCond === 'FIJO') btn.style.color = '#6A0D25';
                 else if (btnCond === 'CONTRATADO') btn.style.color = '#0284c7';
                 else if (btnCond === 'JUBILADO') btn.style.color = '#7e22ce';
                 else btn.style.color = '#475569';
@@ -1263,7 +1268,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (passBtnWrapper) passBtnWrapper.style.display = 'inline-flex';
         const passBtn = modal.querySelector('#btnToggleChangePass');
         if (passBtn) {
-            passBtn.innerHTML = '<i class="fas fa-key" style="color: #059669;"></i> Cambiar Contraseña';
+            passBtn.innerHTML = '<i class="fas fa-key" style="color: #D4AF37;"></i> Cambiar Contraseña';
             passBtn.style.background = '#f1f5f9';
             passBtn.style.borderColor = '#cbd5e1';
         }
@@ -1660,10 +1665,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 <!-- Barra superior de control (no imprimible) -->
                 <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 30px; font-family: sans-serif;">
                     <span style="font-size: 0.92rem; color: #1e293b; font-weight: 700;">
-                        <i class="fas fa-file-contract" style="color: #1b5e20;"></i> Constancia Oficial Generada Exitosamente
+                        <i class="fas fa-file-contract" style="color: #6A0D25;"></i> Constancia Oficial Generada Exitosamente
                     </span>
                     <div style="display: flex; gap: 10px;">
-                        <button onclick="window.print()" style="background: #1b5e20; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 6px rgba(27,94,32,0.3);">
+                        <button onclick="window.print()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 20px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.25);">
                             <i class="fas fa-print"></i> Imprimir / Guardar como PDF
                         </button>
                         <button onclick="document.getElementById('constanciaPrintModal').style.display='none'" style="background: #e2e8f0; color: #475569; border: none; padding: 10px 18px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer;">
@@ -1759,8 +1764,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 certData = buildClientCertificate(currentUser, conSalarioVal);
             }
 
-            certMsg.style.color = '#059669';
-            certMsg.innerHTML = `<i class="fas fa-check-circle"></i> ¡Constancia generada exitosamente! Se ha abierto el documento oficial.`;
+            certMsg.style.color = '#6A0D25';
+            certMsg.innerHTML = `<i class="fas fa-check-circle" style="color: #D4AF37;"></i> ¡Constancia generada exitosamente! Se ha abierto el documento oficial.`;
             
             // Abrir documento para previsualización e impresión
             window.showConstanciaDocument(certData);
@@ -1885,19 +1890,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 <div class="mobile-drawer-links">
                     <a href="index.html" class="mobile-drawer-link ${currentPath === 'index.html' || currentPath === '' ? 'active' : ''}">
-                        <span><i class="fas fa-home" style="margin-right: 8px; color: #16a34a;"></i> Inicio</span>
+                        <span><i class="fas fa-home" style="margin-right: 8px; color: #D4AF37;"></i> Inicio</span>
                         <i class="fas fa-chevron-right"></i>
                     </a>
                     
                     <a href="quienes-somos.html" class="mobile-drawer-link ${currentPath === 'quienes-somos.html' ? 'active' : ''}">
-                        <span><i class="fas fa-landmark" style="margin-right: 8px; color: #16a34a;"></i> ¿Quiénes Somos?</span>
+                        <span><i class="fas fa-landmark" style="margin-right: 8px; color: #D4AF37;"></i> ¿Quiénes Somos?</span>
                         <i class="fas fa-chevron-right"></i>
                     </a>
 
                     <!-- Submenú Filosofía -->
                     <div class="mobile-submenu-group">
                         <div class="mobile-submenu-header" id="subFilosofiaHeader">
-                            <span><i class="fas fa-book-open" style="margin-right: 8px; color: #16a34a;"></i> Filosofía Institucional</span>
+                            <span><i class="fas fa-book-open" style="margin-right: 8px; color: #D4AF37;"></i> Filosofía Institucional</span>
                             <i class="fas fa-chevron-down"></i>
                         </div>
                         <div class="mobile-submenu-items" id="subFilosofiaItems">
@@ -1913,7 +1918,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <!-- Submenú Organización -->
                     <div class="mobile-submenu-group">
                         <div class="mobile-submenu-header" id="subOrgHeader">
-                            <span><i class="fas fa-sitemap" style="margin-right: 8px; color: #16a34a;"></i> Organización</span>
+                            <span><i class="fas fa-sitemap" style="margin-right: 8px; color: #D4AF37;"></i> Organización</span>
                             <i class="fas fa-chevron-down"></i>
                         </div>
                         <div class="mobile-submenu-items" id="subOrgItems">
@@ -1927,12 +1932,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
 
                     <a href="bases-juridicas.html" class="mobile-drawer-link ${currentPath === 'bases-juridicas.html' ? 'active' : ''}">
-                        <span><i class="fas fa-balance-scale" style="margin-right: 8px; color: #16a34a;"></i> Bases Jurídicas</span>
+                        <span><i class="fas fa-balance-scale" style="margin-right: 8px; color: #D4AF37;"></i> Bases Jurídicas</span>
                         <i class="fas fa-chevron-right"></i>
                     </a>
 
                     <a href="contacto.html" class="mobile-drawer-link ${currentPath === 'contacto.html' ? 'active' : ''}">
-                        <span><i class="fas fa-map-marker-alt" style="margin-right: 8px; color: #16a34a;"></i> Contacto y Ubicación</span>
+                        <span><i class="fas fa-map-marker-alt" style="margin-right: 8px; color: #D4AF37;"></i> Contacto y Ubicación</span>
                         <i class="fas fa-chevron-right"></i>
                     </a>
                 </div>
