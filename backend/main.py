@@ -77,10 +77,13 @@ async def startup_event():
         print(f"Error on startup initializing users: {e}")
 
 @app.get("/")
+@app.get("/api")
+@app.get("/api/")
 async def root():
     return {"message": "API Procuraduría General del Estado Trujillo (PGET) en línea", "status": "online"}
 
 @app.get("/health")
+@app.get("/api/health")
 async def health():
     return {"status": "ok"}
 

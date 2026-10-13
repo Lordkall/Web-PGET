@@ -1,13 +1,13 @@
 // Global JavaScript for PGET Portal - Authentication & Admin Management
 document.addEventListener('DOMContentLoaded', () => {
-    // Detección dinámica de entorno (Local vs Producción en Koyeb)
+    // Detección dinámica de entorno (Local vs Producción en Vercel)
     const isLocal = window.location.hostname === 'localhost' || 
                     window.location.hostname === '127.0.0.1' || 
-                    window.location.hostname === '' ||
                     window.location.protocol === 'file:';
-    const PROD_API_URL = window.PGET_API_URL || localStorage.getItem('PGET_API_URL') || 'https://web-pget-api.koyeb.app/api';
+    // En Vercel la API corre en el mismo dominio bajo /api:
+    const PROD_API_URL = `${window.location.origin}/api`;
     const LOCAL_API_URL = 'http://127.0.0.1:8000/api';
-    const API_URL = isLocal ? LOCAL_API_URL : PROD_API_URL;
+    const API_URL = isLocal ? LOCAL_API_URL : (window.PGET_API_URL || localStorage.getItem('PGET_API_URL') || PROD_API_URL);
     let currentToken = null;
     let currentUser = null;
     let allUsersCache = [];
