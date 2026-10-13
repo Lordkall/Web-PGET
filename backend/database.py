@@ -8,6 +8,7 @@ MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://lorenzoavila07_db_user:Jso40aJ
 client = AsyncIOMotorClient(MONGO_URI)
 db = client.pget_db
 users_collection = db.users
+cargos_collection = db.cargos
 
 def split_nombre_apellidos(nombre_completo: str):
     parts = (nombre_completo or "").strip().split()
@@ -325,3 +326,69 @@ async def create_initial_users():
             print("Usuarios existentes preservados (no se reviven cuentas eliminadas).")
     except Exception as e:
         print(f"Error initializing users in MongoDB Atlas: {e}")
+
+# =========================================================================
+# GESTIÓN Y CATÁLOGO DE CARGOS INSTITUCIONALES PGET
+# =========================================================================
+DEFAULT_CARGOS = [
+    "ADMINISTRADOR DEL SISTEMA",
+    "ADMINISTRADOR PROFESIONAL I",
+    "ANALISTA CENTRAL DE COMPUTACIÓN Y SISTEMAS",
+    "AUDITOR JEFE",
+    "ABOGADO I",
+    "ABOGADO II",
+    "ABOGADO III",
+    "ASISTENTE ADMINISTRATIVO",
+    "ASISTENTE JURÍDICO",
+    "DIRECTOR GENERAL",
+    "DIRECTOR DE LÍNEA",
+    "DIRECTORA (E) DE RECURSOS HUMANOS",
+    "ESPECIALISTA EN BIENES Y SERVICIOS",
+    "SECRETARIA EJECUTIVA",
+    "CHOFER",
+    "OBRERO"
+]
+
+async def get_all_cargos():
+    cargos = list(DEFAULT_CARGOS)
+    try:
+        cursor = cargos_collection.find({})
+        docs = await cursor.to_list(length=300)
+        for d in docs:
+            name = (d.get("nombre") or "").strip().upper()
+            if name and name not in cargos:
+                cargos.append(name)
+    except Exception as e:
+        print(f"MongoDB warning in get_all_cargos: {e}")
+    try:
+        cursor_u = users_collection.find({}, {"cargo": 1})
+        u_docs = await cursor_u.to_list(length=300)
+        for u in u_docs:
+            c = (u.get("cargo") or "").strip().upper()
+            if c and c not in cargos:
+                cargos.append(c)
+    except Exception:
+        pass
+    return sorted(list(set(cargos)))
+
+async def add_cargo_record(nombre: str):
+    clean = (nombre or "").strip().upper()
+    if not clean:
+        return False, "El nombre del cargo no puede estar vacío"
+    try:
+        existing = await cargos_collection.find_one({"nombre": clean})
+        if not existing:
+            await cargos_collection.insert_one({"nombre": clean})
+        return True, None
+    except Exception as e:
+        print(f"MongoDB warning in add_cargo_record: {e}")
+        return True, None
+
+async def delete_cargo_record(nombre: str):
+    clean = (nombre or "").strip().upper()
+    try:
+        await cargos_collection.delete_one({"nombre": clean})
+        return True
+    except Exception as e:
+        print(f"MongoDB warning in delete_cargo_record: {e}")
+        return False

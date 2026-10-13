@@ -2333,3 +2333,67 @@ footer {
 .pget-dialog-btn-confirm.danger:hover {
     box-shadow: 0 6px 16px rgba(220, 38, 38, 0.45);
 }
+
+/* ==========================================================================
+   DROPDOWN DESPLEGABLE BUSCABLE DE CARGOS Y GESTIÓN DE CARGOS PGET
+   ========================================================================== */
+.cargo-dropdown-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border: 1.5px solid #D4AF37;
+    border-radius: 8px;
+    max-height: 230px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+
+.cargo-option-item {
+    padding: 10px 14px;
+    font-size: 0.90rem;
+    font-weight: 600;
+    color: #1e293b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.15s, color 0.15s;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.cargo-option-item:last-child {
+    border-bottom: none;
+}
+
+.cargo-option-item:hover,
+.cargo-option-item.highlighted {
+    background: #fdf2f4;
+    color: #6A0D25;
+}
+
+.cargo-option-item i {
+    color: #D4AF37;
+    font-size: 0.85rem;
+}
+
+.cargo-manage-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 14px;
+    border: 1px solid #e2e8f0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #334155;
+    background: #ffffff;
+    border-radius: 6px;
+    margin-bottom: 6px;
+}
+
+.cargo-manage-row:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}

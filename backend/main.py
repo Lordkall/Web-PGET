@@ -17,7 +17,10 @@ from database import (
     create_user_record,
     update_user_record,
     delete_user_record,
-    create_initial_users
+    create_initial_users,
+    get_all_cargos,
+    add_cargo_record,
+    delete_cargo_record
 )
 
 from datetime import datetime
@@ -229,6 +232,33 @@ async def delete_user(request: Optional[UserDeleteRequest] = None, username: Opt
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     
     return {"message": f"Usuario {clean_username} eliminado exitosamente"}
+
+# Rutas para Catálogo y Gestión de Cargos
+class CargoCreateRequest(BaseModel):
+    nombre: str
+
+@app.get("/api/cargos")
+@app.get("/cargos")
+async def list_cargos():
+    cargos = await get_all_cargos()
+    return cargos
+
+@app.post("/api/cargos")
+@app.post("/cargos")
+async def create_cargo(req: CargoCreateRequest):
+    success, err = await add_cargo_record(req.nombre)
+    if not success:
+        raise HTTPException(status_code=400, detail=err)
+    return {"message": "Cargo registrado exitosamente", "nombre": req.nombre.strip().upper()}
+
+@app.delete("/api/cargos/{nombre}")
+@app.delete("/cargos/{nombre}")
+@app.post("/api/cargos/{nombre}/delete")
+@app.post("/cargos/{nombre}/delete")
+async def remove_cargo(nombre: str):
+    unquoted = unquote(nombre).strip().upper()
+    await delete_cargo_record(unquoted)
+    return {"message": f"Cargo {unquoted} eliminado"}
 
 # Rutas de Actualización y Modificación de Usuarios
 @app.post("/api/users/update")

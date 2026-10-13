@@ -14,6 +14,85 @@ document.addEventListener('DOMContentLoaded', () => {
     let editingUsername = null;
     let currentCondicionFilter = ''; // '' (Todos), 'FIJO', 'CONTRATADO', 'JUBILADO'
 
+    const defaultCargosInitial = [
+        'ADMINISTRADOR DEL SISTEMA',
+        'ADMINISTRADOR PROFESIONAL I',
+        'ANALISTA CENTRAL DE COMPUTACIÓN Y SISTEMAS',
+        'AUDITOR JEFE',
+        'ABOGADO I',
+        'ABOGADO II',
+        'ABOGADO III',
+        'ASISTENTE ADMINISTRATIVO',
+        'ASISTENTE JURÍDICO',
+        'DIRECTOR GENERAL',
+        'DIRECTOR DE LÍNEA',
+        'DIRECTORA (E) DE RECURSOS HUMANOS',
+        'ESPECIALISTA EN BIENES Y SERVICIOS',
+        'SECRETARIA EJECUTIVA',
+        'CHOFER',
+        'OBRERO'
+    ];
+    let allCargosCache = [...defaultCargosInitial];
+
+    // Helpers para formateo de fechas entre Input Date (YYYY-MM-DD) y formato institucional (DD/MM/AAAA)
+    function toInputDateValue(dateStr) {
+        if (!dateStr) return '';
+        const clean = String(dateStr).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+        if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(clean)) {
+            const parts = clean.split(/[\/\-]/);
+            const day = parts[0].padStart(2, '0');
+            const month = parts[1].padStart(2, '0');
+            const year = parts[2];
+            return `${year}-${month}-${day}`;
+        }
+        return '';
+    }
+
+    function toDisplayDateValue(dateStr) {
+        if (!dateStr) return '';
+        const clean = String(dateStr).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+            const parts = clean.split('-');
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return clean;
+    }
+
+    async function loadCargosCatalog() {
+        try {
+            const local = localStorage.getItem('pget_custom_cargos');
+            if (local) {
+                const parsed = JSON.parse(local);
+                if (Array.isArray(parsed)) {
+                    parsed.forEach(c => {
+                        const norm = String(c).trim().toUpperCase();
+                        if (norm && !allCargosCache.includes(norm)) allCargosCache.push(norm);
+                    });
+                }
+            }
+        } catch (e) {}
+
+        try {
+            const res = await fetch(`${API_URL}/cargos`);
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    data.forEach(c => {
+                        const norm = String(c).trim().toUpperCase();
+                        if (norm && !allCargosCache.includes(norm)) allCargosCache.push(norm);
+                    });
+                    localStorage.setItem('pget_custom_cargos', JSON.stringify(allCargosCache));
+                }
+            }
+        } catch (err) {
+            console.warn('API cargos offline, utilizando catalogo local');
+        }
+        allCargosCache.sort();
+    }
+
+    loadCargosCatalog();
+
     // Helper para dividir nombres y apellidos si vienen en un solo campo
     function splitNombreApellidos(nombreCompleto) {
         if (!nombreCompleto) return { nombres: '', apellidos: '' };
@@ -517,6 +596,309 @@ document.addEventListener('DOMContentLoaded', () => {
         return window.pgetAlert(msg);
     };
 
+    // =========================================================================
+    // GESTIÓN Y CATÁLOGO DE CARGOS INSTITUCIONALES PGET
+    // =========================================================================
+    async function addCargoToCatalog(nombre) {
+        const clean = String(nombre || '').trim().toUpperCase();
+        if (!clean) return false;
+        if (!allCargosCache.includes(clean)) {
+            allCargosCache.push(clean);
+            allCargosCache.sort();
+        }
+        localStorage.setItem('pget_custom_cargos', JSON.stringify(allCargosCache));
+
+        try {
+            await fetch(`${API_URL}/cargos`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre: clean })
+            });
+        } catch (e) {
+            console.warn('API cargos offline, guardado en cache local');
+        }
+        return true;
+    }
+
+    async function deleteCargoFromCatalog(nombre) {
+        const clean = String(nombre || '').trim().toUpperCase();
+        allCargosCache = allCargosCache.filter(c => c !== clean);
+        localStorage.setItem('pget_custom_cargos', JSON.stringify(allCargosCache));
+
+        try {
+            await fetch(`${API_URL}/cargos/${encodeURIComponent(clean)}`, {
+                method: 'DELETE'
+            });
+        } catch (e) {
+            console.warn('API cargos offline, eliminado localmente');
+        }
+    }
+
+    window.quickAddCargoFromInput = async (nombre) => {
+        const clean = String(nombre || '').trim().toUpperCase();
+        if (!clean) return;
+        await addCargoToCatalog(clean);
+        const input = document.getElementById('formCargo');
+        if (input) input.value = clean;
+        const dropdown = document.getElementById('cargoDropdownList');
+        if (dropdown) dropdown.style.display = 'none';
+        window.pgetAlert(`El cargo "${clean}" ha sido añadido al catálogo y seleccionado.`, 'Cargo Registrado', 'success');
+    };
+
+    window.openManageCargosModal = (prefill = '') => {
+        const existing = document.getElementById('pgetManageCargosOverlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'pgetManageCargosOverlay';
+        overlay.className = 'pget-dialog-overlay';
+
+        overlay.innerHTML = `
+            <div class="pget-dialog-card" style="max-width: 580px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;" role="dialog" aria-modal="true">
+                <div class="pget-dialog-header">
+                    <h3 class="pget-dialog-title">
+                        <i class="fas fa-briefcase" style="color: #D4AF37;"></i>
+                        <span>Catálogo de Cargos Institucionales</span>
+                    </h3>
+                    <button type="button" class="pget-dialog-close" id="closeManageCargosBtn" aria-label="Cerrar">&times;</button>
+                </div>
+                
+                <div style="padding: 22px 24px; flex: 1; overflow-y: auto;">
+                    <p style="color: #64748b; font-size: 0.88rem; margin-top: 0; margin-bottom: 16px;">
+                        Añada nuevos cargos al sistema o consulte los cargos disponibles. Los nuevos cargos se guardan en la base de datos y estarán disponibles de inmediato para asignar a cualquier trabajador.
+                    </p>
+
+                    <!-- Formulario Añadir Nuevo Cargo -->
+                    <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
+                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #1e293b; margin-bottom: 6px;">
+                            <i class="fas fa-plus-circle" style="color: #6A0D25;"></i> Registrar Nuevo Cargo:
+                        </label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="newCargoInputModal" placeholder="Ej. ASISTENTE LEGAL II, JEFE DE SECCIÓN..." value="${escapeHtml(prefill)}" style="flex: 1; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.90rem; text-transform: uppercase;">
+                            <button type="button" id="submitNewCargoBtnModal" style="background: linear-gradient(135deg, #6A0D25, #83122F); color: white; border: 1.5px solid #D4AF37; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; box-shadow: 0 2px 6px rgba(106,13,37,0.25);">
+                                <i class="fas fa-save"></i> Guardar
+                            </button>
+                        </div>
+                        <div id="newCargoErrorModal" style="display: none; color: #dc2626; font-size: 0.82rem; margin-top: 6px; font-weight: 600;"></div>
+                    </div>
+
+                    <!-- Buscador de cargos existentes -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span id="cargosCountBadge" style="font-size: 0.84rem; font-weight: 700; color: #6A0D25; background: #fdf2f4; padding: 4px 10px; border-radius: 6px; border: 1px solid #fecdd3;">
+                            ${allCargosCache.length} Cargos Registrados
+                        </span>
+                        <input type="text" id="filterCargosInputModal" placeholder="Filtrar catálogo..." style="padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; width: 180px;">
+                    </div>
+
+                    <!-- Lista de Cargos -->
+                    <div id="cargosListContainerModal" style="max-height: 240px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; background: #fafafa;">
+                    </div>
+                </div>
+
+                <div style="padding: 12px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end;">
+                    <button type="button" id="closeManageCargosFooterBtn" style="background: #e2e8f0; border: none; padding: 9px 20px; border-radius: 8px; font-weight: 600; font-size: 0.90rem; cursor: pointer; color: #475569;">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        requestAnimationFrame(() => overlay.classList.add('active'));
+
+        const renderCargosList = (q = '') => {
+            const container = overlay.querySelector('#cargosListContainerModal');
+            const countBadge = overlay.querySelector('#cargosCountBadge');
+            const filterStr = q.trim().toUpperCase();
+            const filtered = allCargosCache.filter(c => !filterStr || c.includes(filterStr));
+
+            if (countBadge) countBadge.textContent = `${allCargosCache.length} Cargos Registrados`;
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 0.88rem;">No hay cargos que coincidan con "${escapeHtml(filterStr)}"</div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(c => {
+                const isDefault = defaultCargosInitial.includes(c);
+                return `
+                    <div class="cargo-manage-row">
+                        <span style="display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-briefcase" style="color: #D4AF37;"></i>
+                            <span>${escapeHtml(c)}</span>
+                        </span>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            <button type="button" class="btn-use-cargo" data-cargo="${escapeHtml(c)}" style="background: #f1f5f9; border: 1px solid #cbd5e1; color: #0284c7; padding: 4px 10px; border-radius: 4px; font-size: 0.78rem; font-weight: 600; cursor: pointer;" title="Seleccionar para el formulario">
+                                Asignar
+                            </button>
+                            ${!isDefault ? `
+                                <button type="button" class="btn-del-cargo" data-cargo="${escapeHtml(c)}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 4px 8px; border-radius: 4px; font-size: 0.78rem; cursor: pointer;" title="Eliminar cargo personalizado">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.querySelectorAll('.btn-use-cargo').forEach(btn => {
+                btn.onclick = () => {
+                    const cargoName = btn.getAttribute('data-cargo');
+                    const formCargoInput = document.getElementById('formCargo');
+                    if (formCargoInput) formCargoInput.value = cargoName;
+                    closeModal();
+                };
+            });
+
+            container.querySelectorAll('.btn-del-cargo').forEach(btn => {
+                btn.onclick = async () => {
+                    const cargoName = btn.getAttribute('data-cargo');
+                    const ok = await window.showFloatingDialog({
+                        title: 'Eliminar Cargo',
+                        message: `¿Desea eliminar el cargo personalizado "${cargoName}" del catálogo?`,
+                        type: 'delete',
+                        confirmText: 'Sí, Eliminar',
+                        cancelText: 'Cancelar',
+                        isConfirm: true
+                    });
+                    if (ok) {
+                        await deleteCargoFromCatalog(cargoName);
+                        renderCargosList(overlay.querySelector('#filterCargosInputModal').value);
+                    }
+                };
+            });
+        };
+
+        renderCargosList();
+
+        const filterInput = overlay.querySelector('#filterCargosInputModal');
+        if (filterInput) {
+            filterInput.addEventListener('input', () => renderCargosList(filterInput.value));
+        }
+
+        const inputNew = overlay.querySelector('#newCargoInputModal');
+        const submitBtn = overlay.querySelector('#submitNewCargoBtnModal');
+        const errDiv = overlay.querySelector('#newCargoErrorModal');
+
+        const handleSaveNewCargo = async () => {
+            const val = inputNew.value.trim().toUpperCase();
+            if (!val) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'Por favor escriba el nombre del cargo.';
+                return;
+            }
+            errDiv.style.display = 'none';
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+            await addCargoToCatalog(val);
+
+            const formCargoInput = document.getElementById('formCargo');
+            if (formCargoInput) formCargoInput.value = val;
+
+            inputNew.value = '';
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-save"></i> Guardar';
+            renderCargosList(filterInput ? filterInput.value : '');
+        };
+
+        submitBtn.onclick = handleSaveNewCargo;
+        inputNew.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSaveNewCargo();
+            }
+        });
+
+        const closeModal = () => {
+            overlay.classList.remove('active');
+            setTimeout(() => overlay.remove(), 240);
+        };
+
+        overlay.querySelector('#closeManageCargosBtn').onclick = closeModal;
+        overlay.querySelector('#closeManageCargosFooterBtn').onclick = closeModal;
+    };
+
+    function setupCargoSearchableDropdown(modal) {
+        const cargoInput = modal.querySelector('#formCargo');
+        const toggleBtn = modal.querySelector('#toggleCargoDropdownBtn');
+        const dropdown = modal.querySelector('#cargoDropdownList');
+        if (!cargoInput || !dropdown) return;
+
+        const renderCargoOptions = (filter = '') => {
+            const q = filter.trim().toUpperCase();
+            const matches = allCargosCache.filter(c => !q || c.includes(q));
+
+            let html = '';
+            if (matches.length > 0) {
+                html = matches.map(c => `
+                    <div class="cargo-option-item" data-value="${escapeHtml(c)}">
+                        <i class="fas fa-briefcase"></i>
+                        <span>${escapeHtml(c)}</span>
+                    </div>
+                `).join('');
+            } else {
+                html = `
+                    <div style="padding: 12px; text-align: center; color: #64748b; font-size: 0.85rem;">
+                        No se encontró "<strong>${escapeHtml(q)}</strong>"<br>
+                        <button type="button" onclick="window.quickAddCargoFromInput('${escapeHtml(q)}')" style="display: inline-block; margin-top: 8px; background: linear-gradient(135deg, #6A0D25, #83122F); color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 700; cursor: pointer;">
+                            <i class="fas fa-plus"></i> Registrar este cargo
+                        </button>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div style="padding: 9px 12px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
+                    <button type="button" onclick="window.openManageCargosModal()" style="background: none; border: none; color: #0284c7; font-weight: 700; font-size: 0.83rem; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-cog"></i> Administrar catálogo de cargos
+                    </button>
+                </div>
+            `;
+
+            dropdown.innerHTML = html;
+
+            dropdown.querySelectorAll('.cargo-option-item').forEach(el => {
+                el.onclick = () => {
+                    const val = el.getAttribute('data-value');
+                    if (val) {
+                        cargoInput.value = val;
+                        dropdown.style.display = 'none';
+                    }
+                };
+            });
+        };
+
+        cargoInput.addEventListener('focus', () => {
+            renderCargoOptions(cargoInput.value);
+            dropdown.style.display = 'block';
+        });
+
+        cargoInput.addEventListener('input', () => {
+            renderCargoOptions(cargoInput.value);
+            dropdown.style.display = 'block';
+        });
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (dropdown.style.display === 'block') {
+                    dropdown.style.display = 'none';
+                } else {
+                    renderCargoOptions(cargoInput.value);
+                    dropdown.style.display = 'block';
+                    cargoInput.focus();
+                }
+            });
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!cargoInput.contains(e.target) && !dropdown.contains(e.target) && !(toggleBtn && toggleBtn.contains(e.target))) {
+                dropdown.style.display = 'none';
+            }
+        });
+    }
+
     // Helper to ensure Login & Management Modal exists in the document with all views
     function ensureLoginModal() {
         let modal = document.getElementById('loginModal');
@@ -712,9 +1094,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                     </button>
                                 </div>
                             </div>
-                            <button onclick="window.openCreateUserForm()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.25);">
-                                <i class="fas fa-user-plus"></i> + Registrar Nuevo Usuario
-                            </button>
+                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                <button type="button" onclick="window.openManageCargosModal()" style="background: #ffffff; border: 1.5px solid #cbd5e1; color: #1e293b; padding: 10px 16px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); transition: all 0.2s;">
+                                    <i class="fas fa-briefcase" style="color: #6A0D25;"></i> Añadir / Gestionar Cargos
+                                </button>
+                                <button onclick="window.openCreateUserForm()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.25);">
+                                    <i class="fas fa-user-plus"></i> + Registrar Nuevo Usuario
+                                </button>
+                            </div>
                         </div>
 
                         <!-- Tabla de Usuarios (Aprovecha 100% de la altura disponible) -->
@@ -872,9 +1259,22 @@ document.addEventListener('DOMContentLoaded', () => {
                                         </h4>
                                     </div>
 
+                                    <!-- Cargo Institucional con Buscador y Desplegable -->
                                     <div>
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Cargo Institucional *</label>
-                                        <input type="text" id="formCargo" required placeholder="ej. ABOGADO I, AUDITOR..." style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                            <label style="font-weight: 700; font-size: 0.85rem; color: #334155; margin: 0;">Cargo Institucional *</label>
+                                            <button type="button" onclick="window.openManageCargosModal()" style="background: none; border: none; color: #0284c7; font-size: 0.8rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 0;">
+                                                <i class="fas fa-plus-circle"></i> Gestionar Cargos
+                                            </button>
+                                        </div>
+                                        <div style="position: relative;">
+                                            <input type="text" id="formCargo" required autocomplete="off" placeholder="Escriba para buscar o seleccione un cargo..." style="width: 100%; padding: 11px 36px 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; text-transform: uppercase;">
+                                            <button type="button" id="toggleCargoDropdownBtn" style="position: absolute; right: 0; top: 0; bottom: 0; width: 36px; background: transparent; border: none; cursor: pointer; color: #64748b; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;" title="Ver todos los cargos">
+                                                <i class="fas fa-chevron-down"></i>
+                                            </button>
+                                            <div id="cargoDropdownList" class="cargo-dropdown-list"></div>
+                                        </div>
+                                        <small style="color: #64748b; font-size: 0.78rem;">Escriba para buscar o use la flecha para ver el listado de cargos</small>
                                     </div>
 
                                     <div>
@@ -895,10 +1295,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <input type="text" id="formSalario" required placeholder="Bs. 1.000,00" value="Bs. 1.000,00" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
                                     </div>
 
+                                    <!-- Fecha de Ingreso con Selector Calendario Interactivo -->
                                     <div>
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Fecha de Ingreso *</label>
-                                        <input type="text" id="formFechaIngreso" required placeholder="DD/MM/AAAA (ej. 01/04/2024)" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
-                                        <small style="color: #64748b; font-size: 0.78rem;">Formato: DD/MM/AAAA o AAAA-MM-DD</small>
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                            <i class="fas fa-calendar-alt" style="color: #6A0D25;"></i> Fecha de Ingreso * <span style="font-weight: 400; color: #64748b; font-size: 0.8rem;">(Seleccionar en el calendario)</span>
+                                        </label>
+                                        <input type="date" id="formFechaIngreso" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; color: #1e293b; cursor: pointer;">
+                                        <small style="color: #64748b; font-size: 0.78rem;">Haga clic para abrir el calendario y seleccionar la fecha exacta</small>
                                     </div>
 
                                     <div style="grid-column: span 2;">
@@ -907,9 +1310,14 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <small style="color: #83122F; font-size: 0.78rem; font-weight: 600; display: block; margin-top: 2px;"><i class="fas fa-calculator"></i> Se calcula automáticamente según la fecha de ingreso</small>
                                     </div>
 
+                                    <!-- Dependencia Administrativa como Ventana Desplegable con Valor Fijo -->
                                     <div style="grid-column: span 2;">
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Dependencia Administrativa *</label>
-                                        <input type="text" id="formDependencia" required value="PROCURADURÍA GENERAL DEL ESTADO TRUJILLO" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                            <i class="fas fa-landmark" style="color: #6A0D25;"></i> Dependencia Administrativa *
+                                        </label>
+                                        <select id="formDependencia" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; font-weight: 600; color: #1e293b; cursor: pointer;">
+                                            <option value="PROCURADURÍA GENERAL DEL ESTADO TRUJILLO" selected>PROCURADURÍA GENERAL DEL ESTADO TRUJILLO</option>
+                                        </select>
                                     </div>
 
                                     <div style="grid-column: span 2;">
@@ -991,6 +1399,9 @@ document.addEventListener('DOMContentLoaded', () => {
             fechaInput.addEventListener('input', handleDateCalc);
             fechaInput.addEventListener('change', handleDateCalc);
         }
+
+        // Inicializar dropdown interactivo y buscador de cargos
+        setupCargoSearchableDropdown(modal);
 
         const genderRadios = modal.querySelectorAll('input[name="formGenero"]');
         const formProf = modal.querySelector('#formProfesion');
@@ -1522,7 +1933,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.querySelector('#formSalario').value = user.salario || 'Bs. 1.000,00';
         modal.querySelector('#formDependencia').value = user.dependencia || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO';
         modal.querySelector('#formDireccion').value = user.direccion || 'DIRECCIÓN DE RECURSOS HUMANOS';
-        modal.querySelector('#formFechaIngreso').value = user.fecha_ingreso || '';
+        modal.querySelector('#formFechaIngreso').value = toInputDateValue(user.fecha_ingreso);
         
         // Auto-calcular años de servicio al abrir
         const autoYears = calculateYearsOfService(user.fecha_ingreso || '') || user.anos_servicio || '0';
@@ -1551,8 +1962,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const errDiv = modal.querySelector('#formUserError');
         const submitBtn = modal.querySelector('#saveUserSubmitBtn');
 
-        const fechaIng = modal.querySelector('#formFechaIngreso').value.trim();
-        const autoYears = calculateYearsOfService(fechaIng).toString();
+        const rawFechaIng = modal.querySelector('#formFechaIngreso').value.trim();
+        const fechaIng = toDisplayDateValue(rawFechaIng);
+        const autoYears = calculateYearsOfService(rawFechaIng || fechaIng).toString();
         modal.querySelector('#formAnos').value = autoYears;
         const gen = getFormGender();
         const profVal = modal.querySelector('#formProfesion').value;
@@ -1566,8 +1978,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const cargo = modal.querySelector('#formCargo').value.trim().toUpperCase();
         const condicion = modal.querySelector('#formCondicion').value;
         const salario = modal.querySelector('#formSalario').value.trim();
-        const dependencia = modal.querySelector('#formDependencia').value.trim().toUpperCase();
+        const dependencia = (modal.querySelector('#formDependencia').value || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO').trim().toUpperCase();
         const direccion = modal.querySelector('#formDireccion').value;
+
+        if (cargo) {
+            addCargoToCatalog(cargo);
+        }
 
         // Validación: Todos los campos deben ser obligatorios
         if (!username || !nombres || !apellidos || !cedula || !cargo || !condicion || !salario || !fechaIng || !dependencia || !direccion || !profVal) {
