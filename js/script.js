@@ -59,6 +59,18 @@ document.addEventListener('DOMContentLoaded', () => {
         return clean;
     }
 
+    // Helpers para Salario con prefijo Bs. fijo (no borrable)
+    function cleanSalarioAmount(salarioStr) {
+        if (!salarioStr) return '1.000,00';
+        return String(salarioStr).replace(/^[bB][sS]\.?\s*/, '').trim() || '1.000,00';
+    }
+
+    function formatSalarioBs(amountStr) {
+        if (!amountStr) return 'Bs. 1.000,00';
+        const clean = String(amountStr).replace(/^[bB][sS]\.?\s*/, '').trim();
+        return clean ? `Bs. ${clean}` : 'Bs. 1.000,00';
+    }
+
     async function loadCargosCatalog() {
         try {
             const local = localStorage.getItem('pget_custom_cargos');
@@ -728,27 +740,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span>${escapeHtml(c)}</span>
                         </span>
                         <div style="display: flex; gap: 6px; align-items: center;">
-                            <button type="button" class="btn-use-cargo" data-cargo="${escapeHtml(c)}" style="background: #f1f5f9; border: 1px solid #cbd5e1; color: #0284c7; padding: 4px 10px; border-radius: 4px; font-size: 0.78rem; font-weight: 600; cursor: pointer;" title="Seleccionar para el formulario">
-                                Asignar
-                            </button>
                             ${!isDefault ? `
-                                <button type="button" class="btn-del-cargo" data-cargo="${escapeHtml(c)}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 4px 8px; border-radius: 4px; font-size: 0.78rem; cursor: pointer;" title="Eliminar cargo personalizado">
+                                <button type="button" class="btn-del-cargo" data-cargo="${escapeHtml(c)}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 5px 9px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; transition: all 0.2s;" title="Eliminar cargo del catálogo">
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
-                            ` : ''}
+                            ` : `
+                                <span style="font-size: 0.75rem; color: #64748b; background: #f1f5f9; padding: 3px 8px; border-radius: 4px; font-weight: 600;">
+                                    Institucional
+                                </span>
+                            `}
                         </div>
                     </div>
                 `;
             }).join('');
-
-            container.querySelectorAll('.btn-use-cargo').forEach(btn => {
-                btn.onclick = () => {
-                    const cargoName = btn.getAttribute('data-cargo');
-                    const formCargoInput = document.getElementById('formCargo');
-                    if (formCargoInput) formCargoInput.value = cargoName;
-                    closeModal();
-                };
-            });
 
             container.querySelectorAll('.btn-del-cargo').forEach(btn => {
                 btn.onclick = async () => {
@@ -1290,9 +1294,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                                     <div>
                                         <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                            Salario / Remuneración Mensual * <span style="font-weight: 400; color: #64748b; font-size: 0.8rem;">(Ej. Bs. 1.000,00)</span>
+                                            Salario / Remuneración Mensual * <span style="font-weight: 400; color: #64748b; font-size: 0.8rem;">(Ej. 1.000,00)</span>
                                         </label>
-                                        <input type="text" id="formSalario" required placeholder="Bs. 1.000,00" value="Bs. 1.000,00" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
+                                        <div style="display: flex; align-items: stretch; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: white; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);">
+                                            <span style="background: #f1f5f9; color: #6A0D25; font-weight: 700; font-size: 0.92rem; padding: 11px 14px; border-right: 1px solid #cbd5e1; display: flex; align-items: center; user-select: none;">
+                                                Bs.
+                                            </span>
+                                            <input type="text" id="formSalario" required placeholder="1.000,00" value="1.000,00" style="flex: 1; border: none; padding: 11px 14px; font-size: 0.92rem; outline: none; box-sizing: border-box; color: #1e293b; font-weight: 600;">
+                                        </div>
+                                        <small style="color: #64748b; font-size: 0.78rem;">El prefijo "Bs." es fijo e inamovible; escriba únicamente el monto numérico.</small>
                                     </div>
 
                                     <!-- Fecha de Ingreso con Selector Calendario Interactivo -->
@@ -1417,6 +1427,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cedulaInput) {
             cedulaInput.addEventListener('input', () => {
                 cedulaInput.value = cedulaInput.value.replace(/[^0-9]/g, '');
+            });
+        }
+
+        const salarioInput = modal.querySelector('#formSalario');
+        if (salarioInput) {
+            salarioInput.addEventListener('input', () => {
+                const cleaned = salarioInput.value.replace(/^[bB][sS]\.?\s*/, '');
+                if (cleaned !== salarioInput.value) {
+                    salarioInput.value = cleaned;
+                }
             });
         }
 
@@ -1862,7 +1882,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.querySelector('#formCedula').value = '';
         modal.querySelector('#formCargo').value = '';
         modal.querySelector('#formCondicion').value = 'FIJO';
-        modal.querySelector('#formSalario').value = 'Bs. 1.000,00';
+        modal.querySelector('#formSalario').value = '1.000,00';
         modal.querySelector('#formDependencia').value = 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO';
         modal.querySelector('#formDireccion').value = 'DIRECCIÓN DE RECURSOS HUMANOS';
         modal.querySelector('#formFechaIngreso').value = '';
@@ -1930,7 +1950,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.querySelector('#formCedula').value = cleanCedula(user.cedula);
         modal.querySelector('#formCargo').value = user.cargo || '';
         modal.querySelector('#formCondicion').value = (user.condicion || 'FIJO').toUpperCase();
-        modal.querySelector('#formSalario').value = user.salario || 'Bs. 1.000,00';
+        modal.querySelector('#formSalario').value = cleanSalarioAmount(user.salario);
         modal.querySelector('#formDependencia').value = user.dependencia || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO';
         modal.querySelector('#formDireccion').value = user.direccion || 'DIRECCIÓN DE RECURSOS HUMANOS';
         modal.querySelector('#formFechaIngreso').value = toInputDateValue(user.fecha_ingreso);
@@ -1977,7 +1997,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cedula = cleanCedula(modal.querySelector('#formCedula').value);
         const cargo = modal.querySelector('#formCargo').value.trim().toUpperCase();
         const condicion = modal.querySelector('#formCondicion').value;
-        const salario = modal.querySelector('#formSalario').value.trim();
+        const salario = formatSalarioBs(modal.querySelector('#formSalario').value);
         const dependencia = (modal.querySelector('#formDependencia').value || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO').trim().toUpperCase();
         const direccion = modal.querySelector('#formDireccion').value;
 
