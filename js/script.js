@@ -1494,7 +1494,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         currentUser = data.user;
                         localStorage.setItem('pget_auth_token', currentToken);
                         localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
-                        localStorage.setItem('pget_session_open', 'true');
                         handlePostLogin(currentUser);
                     } else {
                         // Fallback offline en caso de que el backend no esté encendido
@@ -1504,7 +1503,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             currentUser = offlineMatch;
                             localStorage.setItem('pget_auth_token', currentToken);
                             localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
-                            localStorage.setItem('pget_session_open', 'true');
                             handlePostLogin(currentUser);
                         } else {
                             if (errorMsg) {
@@ -1521,7 +1519,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         currentUser = offlineMatch;
                         localStorage.setItem('pget_auth_token', currentToken);
                         localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
-                        localStorage.setItem('pget_session_open', 'true');
                         handlePostLogin(currentUser);
                     } else {
                         if (errorMsg) {
@@ -1570,11 +1567,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (userFormView) userFormView.style.display = 'none';
 
         if (loginBtn) {
-            loginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${user.nombre ? user.nombre.split(' ')[0] : user.username}`;
+            const displayName = user.role === 'admin' 
+                ? 'ADMINISTRADOR' 
+                : (user.nombre ? user.nombre.split(' ')[0] : user.username);
+            loginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${displayName}`;
         }
 
         if (currentUser) localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
-        localStorage.setItem('pget_session_open', 'true');
 
         const closeBtn = modal.querySelector('#modalCloseBtn');
         if (closeBtn) closeBtn.style.display = 'none';
@@ -2610,7 +2609,6 @@ document.addEventListener('DOMContentLoaded', () => {
     window.openLoginModal = () => {
         const modal = ensureLoginModal();
         if (!modal) return;
-        localStorage.setItem('pget_session_open', 'true');
         const mainContent = document.getElementById('mainModalContent');
         const closeBtn = modal.querySelector('#modalCloseBtn');
 
@@ -2820,9 +2818,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
     // RESTAURACIÓN AUTOMÁTICA DE SESIÓN AL ACTUALIZAR LA PÁGINA (F5 / RECARGA)
     // =========================================================================
+    // RESTAURACIÓN SILENCIOSA DE SESIÓN AL ACTUALIZAR LA PÁGINA (F5 / RECARGA)
+    // =========================================================================
     async function restoreSavedSession() {
         const savedToken = localStorage.getItem('pget_auth_token');
         const savedUserRaw = localStorage.getItem('pget_auth_user');
+        localStorage.removeItem('pget_session_open'); // Prevenir que el modal se abra automáticamente
         if (!savedToken || !savedUserRaw) return;
 
         try {
@@ -2831,26 +2832,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 currentToken = savedToken;
                 currentUser = parsedUser;
 
-                // Actualizar botón de iniciar sesión en barra superior
+                const displayName = currentUser.role === 'admin' 
+                    ? 'ADMINISTRADOR' 
+                    : (currentUser.nombre ? currentUser.nombre.split(' ')[0] : currentUser.username);
+
+                // Actualizar botón de iniciar sesión en barra superior manteniendo la página actual
                 const loginBtn = document.getElementById('loginBtn');
                 if (loginBtn) {
-                    loginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${currentUser.nombre ? currentUser.nombre.split(' ')[0] : currentUser.username}`;
+                    loginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${displayName}`;
                 }
 
                 // Actualizar botón en el menú móvil si existe
                 const drawerLoginBtn = document.getElementById('mobileDrawerLoginBtn');
                 if (drawerLoginBtn) {
-                    drawerLoginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${currentUser.nombre ? currentUser.nombre.split(' ')[0] : currentUser.username}`;
-                }
-
-                // Si la sesión o panel estaba abierto antes de recargar la página, volver a mostrarlo de inmediato
-                const wasOpen = localStorage.getItem('pget_session_open') === 'true';
-                if (wasOpen) {
-                    const modal = ensureLoginModal();
-                    if (modal) {
-                        modal.classList.add('show');
-                        handlePostLogin(currentUser);
-                    }
+                    drawerLoginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${displayName}`;
                 }
 
                 // Sincronizar en segundo plano datos frescos del usuario desde el backend
