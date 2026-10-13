@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bases Jurídicas | PGET</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <style>
+        .bases-header-card {
+            text-align: center;
+            margin-bottom: 35px;
+            padding-bottom: 25px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .bases-search-bar {
+            position: relative;
+            max-width: 650px;
+            margin: 0 auto 35px auto;
+        }
+        .bases-search-bar input {
+            width: 100%;
+            padding: 14px 20px 14px 48px;
+            border-radius: 12px;
+            border: 2px solid #e2e8f0;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            font-family: 'Inter', sans-serif;
+        }
+        .bases-search-bar input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 4px 18px rgba(27, 94, 32, 0.15);
+        }
+        .bases-search-bar i {
+            position: absolute;
+            left: 18px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 1.15rem;
+        }
+        .legal-items-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .legal-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 20px 24px;
+            transition: all 0.25s ease;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+            position: relative;
+            overflow: hidden;
+        }
+        .legal-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 5px;
+            background: var(--primary-color);
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+        .legal-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.06);
+            border-color: #cbd5e1;
+        }
+        .legal-card:hover::before {
+            opacity: 1;
+        }
+        .legal-badge-num {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            background: #ecfdf5;
+            color: #006837;
+            font-weight: 800;
+            font-size: 1.1rem;
+            border-radius: 10px;
+            flex-shrink: 0;
+            border: 1px solid #a7f3d0;
+        }
+        .legal-card-content {
+            flex: 1;
+        }
+        .legal-card-tag {
+            display: inline-block;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #059669;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+        .legal-card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1e293b;
+            line-height: 1.5;
+            margin: 0;
+        }
+        .legal-count-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #ecfdf5;
+            color: #059669;
+            padding: 6px 16px;
+            border-radius: 50px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            border: 1px solid #a7f3d0;
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <header class="navbar" style="background: var(--glass-bg);">
+        <div class="nav-container">
+            <a href="index.html" class="logo-container" style="text-decoration: none;">
+                <img src="assets/logo.png" alt="Logo PGET" class="logo" onerror="this.src='https://via.placeholder.com/60?text=PGET'">
+                <div class="logo-text">
+                    <h1>PROCURADURÍA GENERAL</h1>
+                    <h2>DEL ESTADO TRUJILLO</h2>
+                </div>
+            </a>
+            <nav class="nav-links">
+                <a href="index.html">Inicio</a>
+                <a href="quienes-somos.html">¿Quiénes Somos?</a>
+                <div class="dropdown">
+                    <a href="#" class="dropbtn">Filosofía Institucional <i class="fas fa-chevron-down"></i></a>
+                    <div class="dropdown-content">
+                        <a href="mision-vision.html">Misión y Visión</a>
+                        <a href="valores.html">Valores y Principios</a>
+                    </div>
+                </div>
+                <div class="dropdown">
+                    <a href="#" class="dropbtn">Organización <i class="fas fa-chevron-down"></i></a>
+                    <div class="dropdown-content">
+                        <a href="organigrama.html">Organigrama</a>
+                        <a href="direcciones.html">Direcciones</a>
+                    </div>
+                </div>
+                <a href="bases-juridicas.html">Bases Jurídicas</a>
+                <a href="contacto.html">Contacto</a>
+            </nav>
+            <div class="nav-actions">
+                <button id="loginBtn" class="btn-primary"><i class="fas fa-user"></i> Iniciar Sesión</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Page Banner -->
+    <div style="padding-top: 100px; background: linear-gradient(135deg, var(--primary-color), #0f3d13); color: white; text-align: center; padding-bottom: 45px;">
+        <h1 style="font-size: 2.5rem; margin-top: 35px; text-transform: uppercase; letter-spacing: 1px;">Bases Jurídicas</h1>
+        <p style="opacity: 0.9; font-size: 1.05rem; margin-top: 8px;">Marco legal y normativo que rige la actuación institucional de la Procuraduría General del Estado Trujillo</p>
+    </div>
+
+    <!-- Main Content Section -->
+    <section class="info-section" style="padding: 40px 15px;">
+        <div class="container" style="max-width: 1000px; background: white; padding: 40px; border-radius: 20px; box-shadow: var(--shadow-soft);">
+            
+            <div class="bases-header-card">
+                <div class="legal-count-badge">
+                    <i class="fas fa-balance-scale"></i> 19 Instrumentos Normativos Rectores
+                </div>
+                <h2 class="section-title left" style="text-align: center; margin-top: 5px;">Marco Legal e Institucional</h2>
+                <p style="font-size: 1.12rem; color: #475569; line-height: 1.8; max-width: 820px; margin: 15px auto 0 auto; text-align: center;">
+                    La <strong>Procuraduría General del Estado Trujillo</strong> sustenta su actuación en los siguientes instrumentos normativos, garantizando la legalidad, transparencia y defensa del patrimonio público estadal:
+                </p>
+            </div>
+
+            <!-- Buscador Interactivo -->
+            <div class="bases-search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" id="lawSearch" placeholder="Buscar ley, código, decreto o instrumento normativo..." onkeyup="filterLaws()">
+            </div>
+
+            <!-- Lista de Bases Jurídicas (19 Instrumentos Oficiales) -->
+            <div class="legal-items-grid" id="lawsList">
+                
+                <div class="legal-card" data-title="constitucion republica bolivariana venezuela">
+                    <div class="legal-badge-num">1</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-crown"></i> Nivel Constitucional Nacional</span>
+                        <h3 class="legal-card-title">Constitución de la República Bolivariana de Venezuela</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="tratados convenios internacionales republica">
+                    <div class="legal-badge-num">2</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-globe-americas"></i> Ámbito Internacional</span>
+                        <h3 class="legal-card-title">Tratados o convenios internacionales suscritos y ratificados por la República</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="codigo civil">
+                    <div class="legal-badge-num">3</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-book"></i> Legislación Sustantiva</span>
+                        <h3 class="legal-card-title">Código Civil</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="codigo procedimiento civil">
+                    <div class="legal-badge-num">4</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-gavel"></i> Legislación Procesal</span>
+                        <h3 class="legal-card-title">Código de Procedimiento Civil</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="ley organica procesal del trabajo">
+                    <div class="legal-badge-num">5</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-briefcase"></i> Jurisdicción Laboral</span>
+                        <h3 class="legal-card-title">Ley Orgánica Procesal del Trabajo</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="ley organica jurisdiccion contencioso administrativa">
+                    <div class="legal-badge-num">6</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-landmark"></i> Contencioso Administrativo</span>
+                        <h3 class="legal-card-title">Ley Orgánica de la Jurisdicción Contencioso Administrativa</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="ley organica procedimientos administrativos">
+                    <div class="legal-badge-num">7</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-file-contract"></i> Actividad Administrativa</span>
+                        <h3 class="legal-card-title">Ley Orgánica de Procedimientos Administrativos</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="ley organica contraloria general republica sistema nacional control fiscal">
+                    <div class="legal-badge-num">8</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-shield-halved"></i> Control Fiscal y Fiscalización</span>
+                        <h3 class="legal-card-title">Ley Orgánica de la Contraloría General de la República y del Sistema Nacional de Control Fiscal</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="ley estatuto funcion publica reglamento general ley carrera administrativa">
+                    <div class="legal-badge-num">9</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-users-gear"></i> Función Pública</span>
+                        <h3 class="legal-card-title">Ley del Estatuto de la Función Pública y el Reglamento General de la Ley de Carrera Administrativa, aún vigente</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="ley descentralizacion delimitacion transferencia competencias poder publico">
+                    <div class="legal-badge-num">10</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-sitemap"></i> Competencias Públicas</span>
+                        <h3 class="legal-card-title">Ley de Descentralización, Delimitación y Transferencia de Competencias del Poder Público</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="decreto rango valor fuerza ley organica procuraduria general republica">
+                    <div class="legal-badge-num">11</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-scale-balanced"></i> Órgano Rector Nacional</span>
+                        <h3 class="legal-card-title">Decreto con Rango, Valor y Fuerza de Ley Orgánica de la Procuraduría General de la República</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="decreto rango valor fuerza ley organica administracion publica">
+                    <div class="legal-badge-num">12</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-building-columns"></i> Administración Pública</span>
+                        <h3 class="legal-card-title">Decreto con Rango, Valor y Fuerza de Ley Orgánica de la Administración Pública</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="decreto rango valor fuerza ley organica administracion financiera sector publico reglamentos">
+                    <div class="legal-badge-num">13</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-coins"></i> Gestión Financiera Pública</span>
+                        <h3 class="legal-card-title">Decreto con Rango, Valor y Fuerza de Ley Orgánica de la Administración Financiera del Sector Público, y sus Reglamentos</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="decreto rango valor fuerza ley organica trabajo trabajadores trabajadoras reglamentos lottt">
+                    <div class="legal-badge-num">14</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-user-group"></i> Derechos Laborales</span>
+                        <h3 class="legal-card-title">Decreto con Rango, Valor y Fuerza de Ley Orgánica del Trabajo, los Trabajadores y las Trabajadoras, y sus Reglamentos</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="constitucion del estado trujillo">
+                    <div class="legal-badge-num">15</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-scroll"></i> Marco Constitucional Estadal</span>
+                        <h3 class="legal-card-title">Constitución del Estado Trujillo</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="ley de la procuraduria general del estado trujillo">
+                    <div class="legal-badge-num">16</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-star"></i> Ley Especial Orgánica de la Institución</span>
+                        <h3 class="legal-card-title">Ley de la Procuraduría General del Estado Trujillo</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="ley reforma parcial ley regimen politico estado trujillo">
+                    <div class="legal-badge-num">17</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-map-location-dot"></i> Régimen Político Territorial</span>
+                        <h3 class="legal-card-title">Ley de Reforma Parcial de la Ley de Régimen Político del Estado Trujillo</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="convenciones colectivas trabajo">
+                    <div class="legal-badge-num">18</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-handshake"></i> Acuerdos Colectivos</span>
+                        <h3 class="legal-card-title">Convenciones Colectivas de Trabajo</h3>
+                    </div>
+                </div>
+
+                <div class="legal-card" data-title="cualquier otra normativa juridica regule sustente actividad procuraduria general estado trujillo">
+                    <div class="legal-badge-num">19</div>
+                    <div class="legal-card-content">
+                        <span class="legal-card-tag"><i class="fas fa-asterisk"></i> Normativa Complementaria</span>
+                        <h3 class="legal-card-title">Cualquier otra normativa jurídica que regule o sustente la actividad desplegada por la Procuraduría General del Estado Trujillo.</h3>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="noResultsMsg" style="display: none; text-align: center; padding: 40px; color: #64748b;">
+                <i class="fas fa-search-minus" style="font-size: 2rem; margin-bottom: 12px; color: #94a3b8;"></i>
+                <p style="font-size: 1.1rem; font-weight: 600;">No se encontraron instrumentos normativos con ese criterio.</p>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container footer-content">
+            <div class="footer-logo">
+                <h3>P.G.E.T.</h3>
+                <p>Procuraduría General del Estado Trujillo</p>
+                <p style="margin-top: 5px; font-weight: 600; opacity: 0.9;"><i class="fas fa-id-card"></i> RIF: G-20000417-7</p>
+            </div>
+            <div class="footer-contact">
+                <p><i class="fas fa-id-card"></i> <strong>RIF:</strong> G-20000417-7</p>
+                <p><i class="fas fa-map-marker-alt"></i> Palacio de Gobierno, 2do Piso, Av. Independencia</p>
+                <p><i class="fas fa-envelope"></i> procuraduriageneraltrujillo@gmail.com</p>
+                <p><i class="fas fa-phone"></i> 0272-2365126</p>
+                <p><i class="fab fa-instagram"></i> @procuraduria_trujillo</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 Procuraduría General del Estado Trujillo &bull; RIF: G-20000417-7 &bull; Todos los derechos reservados.</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/script.js"></script>
+    <script>
+        function filterLaws() {
+            const query = document.getElementById('lawSearch').value.toLowerCase().trim();
+            const cards = document.querySelectorAll('#lawsList .legal-card');
+            let visibleCount = 0;
+
+            cards.forEach(card => {
+                const titleText = card.querySelector('.legal-card-title').textContent.toLowerCase();
+                const tagText = card.querySelector('.legal-card-tag').textContent.toLowerCase();
+                const dataTitle = card.getAttribute('data-title') || '';
+
+                if (titleText.includes(query) || tagText.includes(query) || dataTitle.includes(query)) {
+                    card.style.display = 'flex';
+                    visibleCount++;
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+
+            const noResults = document.getElementById('noResultsMsg');
+            if (visibleCount === 0) {
+                noResults.style.display = 'block';
+            } else {
+                noResults.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

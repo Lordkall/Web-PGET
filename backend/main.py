@@ -76,7 +76,6 @@ async def startup_event():
     except Exception as e:
         print(f"Error on startup initializing users: {e}")
 
-@app.get("/")
 @app.get("/api")
 @app.get("/api/")
 async def root():
