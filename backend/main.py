@@ -176,6 +176,8 @@ async def create_user(request: UserCreateRequest):
     return {"message": "Usuario creado exitosamente", "user": safe_user}
 
 @app.put("/api/users/{username}")
+@app.post("/api/users/{username}/update")
+@app.post("/api/users/{username}")
 async def update_user(username: str, request: UserUpdateRequest):
     update_data = {k: v for k, v in request.dict().items() if v is not None and v != ""}
     if not update_data:
@@ -194,6 +196,7 @@ async def update_user(username: str, request: UserUpdateRequest):
     return {"message": "Usuario actualizado exitosamente", "user": safe_user}
 
 @app.delete("/api/users/{username}")
+@app.post("/api/users/{username}/delete")
 async def delete_user(username: str):
     clean_username = username.strip().lower()
     if clean_username in ["admin@pget.gob.ve", "admin"]:

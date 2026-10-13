@@ -1420,9 +1420,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let response;
             if (editingUsername) {
-                // Actualizar usuario existente
-                response = await fetch(`${API_URL}/users/${editingUsername}`, {
-                    method: 'PUT',
+                // Actualizar usuario existente (POST /update para compatibilidad total con Vercel)
+                response = await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}/update`, {
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(userData)
                 });
@@ -1470,8 +1470,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const res = await fetch(`${API_URL}/users/${username}`, {
-                method: 'DELETE'
+            const res = await fetch(`${API_URL}/users/${encodeURIComponent(username)}/delete`, {
+                method: 'POST'
             });
 
             if (res.ok) {
