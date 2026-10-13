@@ -1391,12 +1391,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!modal) return;
         const closeBtn = modal.querySelector('#modalCloseBtn') || modal.querySelector('.close-btn');
         if (closeBtn) {
-            closeBtn.onclick = () => modal.classList.remove('show');
+            closeBtn.onclick = () => {
+                modal.classList.remove('show');
+                localStorage.setItem('pget_session_open', 'false');
+            };
         }
 
         modal.onclick = (e) => {
             if (e.target === modal) {
                 modal.classList.remove('show');
+                localStorage.setItem('pget_session_open', 'false');
             }
         };
 
@@ -1488,14 +1492,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (response.ok) {
                         currentToken = data.token;
                         currentUser = data.user;
+                        localStorage.setItem('pget_auth_token', currentToken);
+                        localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+                        localStorage.setItem('pget_session_open', 'true');
                         handlePostLogin(currentUser);
                     } else {
-                        // Fallback offline en caso de que el backend no esté encendido
                         // Fallback offline en caso de que el backend no esté encendido
                         const offlineMatch = checkOfflineAuth(username, password);
                         if (offlineMatch) {
                             currentToken = `offline-token-${offlineMatch.username}`;
                             currentUser = offlineMatch;
+                            localStorage.setItem('pget_auth_token', currentToken);
+                            localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+                            localStorage.setItem('pget_session_open', 'true');
                             handlePostLogin(currentUser);
                         } else {
                             if (errorMsg) {
@@ -1510,6 +1519,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (offlineMatch) {
                         currentToken = `offline-token-${offlineMatch.username}`;
                         currentUser = offlineMatch;
+                        localStorage.setItem('pget_auth_token', currentToken);
+                        localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+                        localStorage.setItem('pget_session_open', 'true');
                         handlePostLogin(currentUser);
                     } else {
                         if (errorMsg) {
@@ -1560,6 +1572,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loginBtn) {
             loginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${user.nombre ? user.nombre.split(' ')[0] : user.username}`;
         }
+
+        if (currentUser) localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+        localStorage.setItem('pget_session_open', 'true');
 
         const closeBtn = modal.querySelector('#modalCloseBtn');
         if (closeBtn) closeBtn.style.display = 'none';
@@ -2132,6 +2147,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (idx !== -1) {
                         allUsersCache[idx] = { ...allUsersCache[idx], ...userData };
                     }
+                    if (currentUser && currentUser.username.toLowerCase() === editingUsername.toLowerCase()) {
+                        currentUser = { ...currentUser, ...userData };
+                        localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+                    }
                 } else {
                     allUsersCache.push(userData);
                 }
@@ -2553,6 +2572,10 @@ document.addEventListener('DOMContentLoaded', () => {
     window.pgetLogout = () => {
         currentToken = null;
         currentUser = null;
+        localStorage.removeItem('pget_auth_token');
+        localStorage.removeItem('pget_auth_user');
+        localStorage.removeItem('pget_session_open');
+
         const modal = document.getElementById('loginModal');
         const mainContent = document.getElementById('mainModalContent');
         if (mainContent) {
@@ -2587,6 +2610,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.openLoginModal = () => {
         const modal = ensureLoginModal();
         if (!modal) return;
+        localStorage.setItem('pget_session_open', 'true');
         const mainContent = document.getElementById('mainModalContent');
         const closeBtn = modal.querySelector('#modalCloseBtn');
 
@@ -2782,6 +2806,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Botón de login en el drawer
             const drawerLoginBtn = document.getElementById('mobileDrawerLoginBtn');
             if (drawerLoginBtn) {
+                if (currentUser) {
+                    drawerLoginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${currentUser.nombre ? currentUser.nombre.split(' ')[0] : currentUser.username}`;
+                }
                 drawerLoginBtn.addEventListener('click', () => {
                     closeDrawer();
                     window.openLoginModal();
@@ -2790,5 +2817,63 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // =========================================================================
+    // RESTAURACIÓN AUTOMÁTICA DE SESIÓN AL ACTUALIZAR LA PÁGINA (F5 / RECARGA)
+    // =========================================================================
+    async function restoreSavedSession() {
+        const savedToken = localStorage.getItem('pget_auth_token');
+        const savedUserRaw = localStorage.getItem('pget_auth_user');
+        if (!savedToken || !savedUserRaw) return;
+
+        try {
+            const parsedUser = JSON.parse(savedUserRaw);
+            if (parsedUser && parsedUser.username) {
+                currentToken = savedToken;
+                currentUser = parsedUser;
+
+                // Actualizar botón de iniciar sesión en barra superior
+                const loginBtn = document.getElementById('loginBtn');
+                if (loginBtn) {
+                    loginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${currentUser.nombre ? currentUser.nombre.split(' ')[0] : currentUser.username}`;
+                }
+
+                // Actualizar botón en el menú móvil si existe
+                const drawerLoginBtn = document.getElementById('mobileDrawerLoginBtn');
+                if (drawerLoginBtn) {
+                    drawerLoginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${currentUser.nombre ? currentUser.nombre.split(' ')[0] : currentUser.username}`;
+                }
+
+                // Si la sesión o panel estaba abierto antes de recargar la página, volver a mostrarlo de inmediato
+                const wasOpen = localStorage.getItem('pget_session_open') === 'true';
+                if (wasOpen) {
+                    const modal = ensureLoginModal();
+                    if (modal) {
+                        modal.classList.add('show');
+                        handlePostLogin(currentUser);
+                    }
+                }
+
+                // Sincronizar en segundo plano datos frescos del usuario desde el backend
+                try {
+                    fetch(`${API_URL}/users`)
+                        .then(r => r.ok ? r.json() : null)
+                        .then(users => {
+                            if (Array.isArray(users) && currentUser) {
+                                const fresh = users.find(u => u.username.toLowerCase() === currentUser.username.toLowerCase());
+                                if (fresh) {
+                                    currentUser = { ...currentUser, ...fresh };
+                                    localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+                                }
+                            }
+                        })
+                        .catch(() => {});
+                } catch (e) {}
+            }
+        } catch (err) {
+            console.warn('Error al restaurar sesión previa:', err);
+        }
+    }
+
     setupResponsiveMobileNav();
+    restoreSavedSession();
 });
