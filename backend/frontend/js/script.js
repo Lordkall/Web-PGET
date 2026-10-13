@@ -420,7 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
 
                     <!-- 2. VISTA DE TRABAJADOR (PANTALLA COMPLETA - PUEDE GENERAR CONSTANCIAS) -->
-                    <div id="workerView" style="display: none; background: #f8fafc; height: 100%; display: flex; flex-direction: column;">
+                    <div id="workerView" style="display: none; background: #f8fafc; height: 100%; flex-direction: column;">
                         <div style="background: linear-gradient(135deg, #6A0D25, #450614); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15);">
                             <div>
                                 <h3 style="margin: 0; font-size: 1.3rem;"><i class="fas fa-user-circle"></i> Portal del Trabajador</h3>
@@ -520,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
 
                     <!-- 3. VISTA DE ADMINISTRADOR (PANTALLA COMPLETA - GESTIÓN TOTAL DE PERSONAL) -->
-                    <div id="adminView" style="display: none; background: #f8fafc; height: 100%; display: flex; flex-direction: column;">
+                    <div id="adminView" style="display: none; background: #f8fafc; height: 100%; flex-direction: column;">
                         <div class="admin-header">
                             <div>
                                 <h3 style="margin: 0; font-size: 1.3rem;"><i class="fas fa-user-shield"></i> Panel de Administración PGET</h3>
@@ -595,7 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
 
                     <!-- 4. VISTA / FORMULARIO CREAR Y EDITAR USUARIO (PANTALLA COMPLETA) -->
-                    <div id="userFormView" style="display: none; background: #f8fafc; height: 100%; display: flex; flex-direction: column;">
+                    <div id="userFormView" style="display: none; background: #f8fafc; height: 100%; flex-direction: column;">
                         <div style="background: linear-gradient(135deg, #6A0D25, #450614); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15);">
                             <h3 id="userFormTitle" style="margin: 0; font-size: 1.25rem;"><i class="fas fa-user-edit"></i> Registrar Nuevo Usuario</h3>
                             <button type="button" onclick="window.backToAdminView()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;">
@@ -795,6 +795,23 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.insertAdjacentHTML('beforeend', modalHTML);
             modal = document.getElementById('loginModal');
             attachModalEvents(modal);
+        }
+
+        // Si no hay sesión activa, garantizar que sólo se muestre el formulario de login
+        if (!currentUser && modal) {
+            const mainContent = modal.querySelector('#mainModalContent');
+            if (mainContent) {
+                mainContent.classList.remove('portal-fullscreen');
+                mainContent.classList.remove('admin-modal-size');
+            }
+            const lv = modal.querySelector('#loginView');
+            const wv = modal.querySelector('#workerView');
+            const av = modal.querySelector('#adminView');
+            const uf = modal.querySelector('#userFormView');
+            if (lv) lv.style.display = 'block';
+            if (wv) wv.style.display = 'none';
+            if (av) av.style.display = 'none';
+            if (uf) uf.style.display = 'none';
         }
         return modal;
     }
@@ -1810,25 +1827,41 @@ document.addEventListener('DOMContentLoaded', () => {
         attachModalEvents(initialModal);
     }
 
+    // Abrir Modal de Inicio de Sesión de forma limpia y confiable
+    window.openLoginModal = () => {
+        const modal = ensureLoginModal();
+        if (!modal) return;
+        const mainContent = document.getElementById('mainModalContent');
+        if (!currentUser) {
+            if (mainContent) {
+                mainContent.classList.remove('portal-fullscreen');
+                mainContent.classList.remove('admin-modal-size');
+            }
+            const lv = modal.querySelector('#loginView');
+            const wv = modal.querySelector('#workerView');
+            const av = modal.querySelector('#adminView');
+            const uf = modal.querySelector('#userFormView');
+            if (lv) lv.style.display = 'block';
+            if (wv) wv.style.display = 'none';
+            if (av) av.style.display = 'none';
+            if (uf) uf.style.display = 'none';
+            const errDiv = modal.querySelector('#loginError');
+            if (errDiv) {
+                errDiv.style.display = 'none';
+                errDiv.textContent = '';
+            }
+        } else {
+            handlePostLogin(currentUser);
+        }
+        modal.classList.add('show');
+    };
+
     // Attach to loginBtn in navbar
     const loginBtn = document.getElementById('loginBtn');
     if (loginBtn) {
         loginBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            const modal = ensureLoginModal();
-            modal.classList.add('show');
-            
-            if (!currentUser) {
-                const mainContent = document.getElementById('mainModalContent');
-                if (mainContent) {
-                    mainContent.classList.remove('portal-fullscreen');
-                    mainContent.classList.remove('admin-modal-size');
-                }
-                modal.querySelector('#loginView').style.display = 'block';
-                if (modal.querySelector('#workerView')) modal.querySelector('#workerView').style.display = 'none';
-                if (modal.querySelector('#adminView')) modal.querySelector('#adminView').style.display = 'none';
-                if (modal.querySelector('#userFormView')) modal.querySelector('#userFormView').style.display = 'none';
-            }
+            window.openLoginModal();
         });
     }
 
@@ -1991,9 +2024,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (drawerLoginBtn) {
                 drawerLoginBtn.addEventListener('click', () => {
                     closeDrawer();
-                    ensureLoginModal();
-                    const modal = document.getElementById('loginModal');
-                    if (modal) modal.classList.add('show');
+                    window.openLoginModal();
                 });
             }
         }

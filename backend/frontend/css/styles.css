@@ -1646,7 +1646,12 @@ footer {
     .hero {
         min-height: auto;
         padding: 110px 16px 50px 16px;
-        background-position: center center;
+        background: #6A0D25 !important;
+        background-image: none !important;
+    }
+
+    .hero-overlay {
+        display: none !important;
     }
 
     .hero-curve,

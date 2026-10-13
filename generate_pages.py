@@ -69,7 +69,6 @@ template_mision = """<!DOCTYPE html>
             <div class="footer-logo">
                 <h3>P.G.E.T.</h3>
                 <p>Procuraduría General del Estado Trujillo</p>
-                <p style="margin-top: 5px; font-weight: 600; opacity: 0.9;"><i class="fas fa-id-card"></i> RIF: G-20000417-7</p>
             </div>
             <div class="footer-contact">
                 <p><i class="fas fa-id-card"></i> <strong>RIF:</strong> G-20000417-7</p>
@@ -176,7 +175,6 @@ template_valores = """<!DOCTYPE html>
             <div class="footer-logo">
                 <h3>P.G.E.T.</h3>
                 <p>Procuraduría General del Estado Trujillo</p>
-                <p style="margin-top: 5px; font-weight: 600; opacity: 0.9;"><i class="fas fa-id-card"></i> RIF: G-20000417-7</p>
             </div>
             <div class="footer-contact">
                 <p><i class="fas fa-id-card"></i> <strong>RIF:</strong> G-20000417-7</p>
@@ -269,7 +267,6 @@ template_quienes = """<!DOCTYPE html>
             <div class="footer-logo">
                 <h3>P.G.E.T.</h3>
                 <p>Procuraduría General del Estado Trujillo</p>
-                <p style="margin-top: 5px; font-weight: 600; opacity: 0.9;"><i class="fas fa-id-card"></i> RIF: G-20000417-7</p>
             </div>
             <div class="footer-contact">
                 <p><i class="fas fa-id-card"></i> <strong>RIF:</strong> G-20000417-7</p>
@@ -354,7 +351,6 @@ template_contacto = """<!DOCTYPE html>
             <div class="footer-logo">
                 <h3>P.G.E.T.</h3>
                 <p>Procuraduría General del Estado Trujillo</p>
-                <p style="margin-top: 5px; font-weight: 600; opacity: 0.9;"><i class="fas fa-id-card"></i> RIF: G-20000417-7</p>
             </div>
             <div class="footer-contact">
                 <p><i class="fas fa-id-card"></i> <strong>RIF:</strong> G-20000417-7</p>
