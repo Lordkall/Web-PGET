@@ -2502,54 +2502,56 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
 
             <div class="constancia-paper" id="constanciaPaperSheet">
-                <div class="constancia-top-block">
-                    <!-- 1. Encabezado Oficial: Escudo Centrado y RIF debajo -->
-                    <div style="text-align: center; margin-bottom: 20px;">
-                        <img src="assets/logo.png" alt="Escudo Oficial PGET" style="height: 85px; margin: 0 auto; display: block;" onerror="this.src='https://via.placeholder.com/85?text=PGET'">
-                        <div style="font-weight: 800; font-size: 0.95rem; color: #000; margin-top: 5px; letter-spacing: 0.5px;">G-20000417-7</div>
-                    </div>
+                <!-- 1. Encabezado Oficial a 0.7cm desde el borde -->
+                <div class="constancia-header">
+                    <img src="assets/logo.png" alt="Escudo Oficial PGET" style="height: 75px; margin: 0 auto; display: block;" onerror="this.src='https://via.placeholder.com/75?text=PGET'">
+                    <div style="font-weight: 800; font-size: 0.95rem; color: #000; margin-top: 4px; letter-spacing: 0.5px;">G-20000417-7</div>
+                </div>
 
-                    <!-- 2. Correlativo Oficial al margen izquierdo -->
+                <!-- 2. Cuerpo Principal (Margen superior 3.95cm, Margen inferior 3cm) -->
+                <div class="constancia-body">
+                    <!-- Correlativo Oficial al margen izquierdo -->
                     <div style="text-align: left; font-weight: 800; font-size: 0.95rem; color: #000; margin-bottom: 20px; font-family: Arial, sans-serif;">
                         ${cert.correlativo || ('PGET  ' + new Date().getFullYear() + ' Nº S/N')}
                     </div>
 
-                    <!-- 3. Título Centrado Oficial con Espaciado -->
-                    <div style="text-align: center; margin-bottom: 28px;">
+                    <!-- Título Centrado Oficial con Espaciado -->
+                    <div style="text-align: center; margin-bottom: 26px;">
                         <h2 style="font-size: 1.15rem; font-weight: 900; color: #000; margin: 0; letter-spacing: 6px; font-family: Arial, sans-serif;">
                             C O N S T A N C I A .
                         </h2>
                     </div>
 
-                    <!-- 4. Cuerpo de la Constancia Justificado con Indentación -->
-                    <div style="margin-bottom: 25px;">
+                    <!-- Cuerpo de la Constancia Justificado con Indentación -->
+                    <div style="margin-bottom: 22px;">
                         ${cuerpoHTML}
                     </div>
-                </div>
 
-                <div class="constancia-bottom-block">
-                    <!-- 5. Bloque de Firma Centrado Oficial -->
-                    <div style="text-align: center; margin-top: 25px; margin-bottom: 35px; font-family: Arial, sans-serif; font-size: 0.95rem; line-height: 1.4; color: #000;">
+                    <!-- Bloque de Firma Centrado Oficial -->
+                    <div style="text-align: center; margin-top: 25px; margin-bottom: 30px; font-family: Arial, sans-serif; font-size: 0.95rem; line-height: 1.4; color: #000;">
                         <strong>ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.</strong><br>
                         <strong>DIRECTORA (E) DE RECURSOS HUMANOS DE LA</strong><br>
                         <strong>PROCURADURÍA GENERAL DEL ESTADO TRUJILLO.</strong>
                     </div>
 
-                    <!-- 6. Iniciales de Transcripción al margen izquierdo (EL/xx: Quien suscribe en mayúscula / Trabajador en minúscula) -->
-                    <div style="font-size: 0.85rem; font-weight: 800; color: #000; margin-bottom: 8px; font-family: Arial, sans-serif; letter-spacing: 0.5px;">
+                    <!-- Iniciales de Transcripción al margen izquierdo (EL/xx: Quien suscribe en mayúscula / Trabajador en minúscula) -->
+                    <div style="font-size: 0.85rem; font-weight: 800; color: #000; margin-bottom: 6px; font-family: Arial, sans-serif; letter-spacing: 0.5px;">
                         ${displayInitials}
                     </div>
+                </div>
 
-                    <!-- 7. Línea divisoria horizontal -->
-                    <hr style="border: none; border-top: 1px solid #000; margin: 0 0 8px 0;">
+                <!-- 3. Pie de Página Oficial a 2.38cm desde el borde -->
+                <div class="constancia-footer">
+                    <!-- Línea divisoria horizontal -->
+                    <hr style="border: none; border-top: 1px solid #000; margin: 0 0 6px 0;">
 
-                    <!-- 8. Pie de Página Oficial PGET con Ley Contra la Corrupción -->
-                    <div style="font-family: Arial, sans-serif; font-size: 0.64rem; line-height: 1.35; color: #334155;">
-                        <div style="text-align: center; margin-bottom: 4px;">
+                    <!-- Pie de Página Oficial PGET con Ley Contra la Corrupción -->
+                    <div style="font-family: Arial, sans-serif; font-size: 0.62rem; line-height: 1.35; color: #334155;">
+                        <div style="text-align: center; margin-bottom: 3px;">
                             Av. Independencia frente a la Plaza Bolívar, Palacio de Gobierno, 2do piso, Trujillo, edo. Trujillo<br>
                             TELEFAX. (0272) 2365126, CORREO ELECTRÓNICO: procuraduríageneraltrujillo@gmail.com
                         </div>
-                        <div style="text-align: justify; margin-top: 4px;">
+                        <div style="text-align: justify; margin-top: 3px;">
                             <strong>Documentación Oficial de Uso Restringido:</strong><br>
                             <strong>Ley Contra la Corrupción: Art. 66:</strong> El funcionario público que utilice, para sí o para otro, informaciones o datos de carácter reservado de los cuales tenga conocimiento en razón de su cargo, será penado con prisión de uno (1) a seis (6) años y multa de hasta el cincuenta por ciento (50%) del beneficio perseguido u obtenido, siempre que el hecho no constituya otro delito. Si del hecho resultare algún perjuicio a la Administración Pública, la pena será aumentada de un tercio (1/3) a la mitad (1/2).
                         </div>

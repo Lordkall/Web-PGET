@@ -737,13 +737,16 @@ h1, h2, h3 {
     flex-shrink: 0;
 }
 
+/* Hoja oficial Carta con márgenes reglamentarios:
+   Izquierda: 2.54cm, Derecha: 2.54cm, Encabezado: 0.7cm, Margen Superior texto: 3.95cm,
+   Margen Inferior texto: 3cm, Pie de página: 2.38cm desde el borde */
 .constancia-paper {
     background: #ffffff;
     width: 100%;
     max-width: 820px;
     min-height: 1050px;
     margin: 0 auto;
-    padding: 45px 50px 35px 50px;
+    padding: 0.7cm 2.54cm 0.7cm 2.54cm;
     border-radius: 6px;
     box-shadow: 0 20px 40px rgba(0,0,0,0.35);
     font-family: Arial, sans-serif;
@@ -757,13 +760,23 @@ h1, h2, h3 {
     justify-content: space-between;
 }
 
-.constancia-top-block {
-    flex: 1 1 auto;
+.constancia-header {
+    flex: 0 0 auto;
+    text-align: center;
+    margin-bottom: 0.75cm;
 }
 
-.constancia-bottom-block {
+.constancia-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    margin-bottom: 0.62cm;
+}
+
+.constancia-footer {
     flex: 0 0 auto;
-    margin-top: 30px;
+    margin-top: auto;
 }
 
 @media print {
@@ -810,13 +823,13 @@ h1, h2, h3 {
 
     .constancia-paper {
         position: relative !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        height: 100% !important;
-        min-height: 100% !important;
-        max-height: 100% !important;
-        margin: 0 !important;
-        padding: 16mm 22mm 12mm 22mm !important;
+        width: 21.59cm !important;
+        max-width: 21.59cm !important;
+        height: 27.94cm !important;
+        min-height: 27.94cm !important;
+        max-height: 27.94cm !important;
+        margin: 0 auto !important;
+        padding: 0.7cm 2.54cm 0.7cm 2.54cm !important;
         box-sizing: border-box !important;
         border: none !important;
         box-shadow: none !important;
@@ -827,16 +840,24 @@ h1, h2, h3 {
         page-break-inside: avoid !important;
         break-after: avoid !important;
         break-inside: avoid !important;
+        overflow: hidden !important;
     }
 
-    .constancia-top-block {
+    .constancia-header {
+        flex: 0 0 auto !important;
+        text-align: center !important;
+        margin-bottom: 0.75cm !important;
+    }
+
+    .constancia-body {
         flex: 1 1 auto !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: flex-start !important;
+        margin-bottom: 0.62cm !important;
     }
 
-    .constancia-bottom-block {
+    .constancia-footer {
         flex: 0 0 auto !important;
         margin-top: auto !important;
     }
@@ -844,7 +865,7 @@ h1, h2, h3 {
     .constancia-paper p {
         font-size: 11pt !important;
         line-height: 1.8 !important;
-        margin-bottom: 6mm !important;
+        margin-bottom: 5.5mm !important;
     }
 }
 
