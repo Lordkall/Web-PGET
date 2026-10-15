@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let allUsersCache = [];
     let editingUsername = null;
     let currentCondicionFilter = ''; // '' (Todos), 'FIJO', 'CONTRATADO', 'JUBILADO'
+    let formSelectedArcFile = undefined;
 
     const defaultCargosInitial = [
         'ADMINISTRADOR DEL SISTEMA',
@@ -1053,6 +1054,32 @@ document.addEventListener('DOMContentLoaded', () => {
                                     </button>
                                     <div id="certMessage" style="margin-top: 15px; font-size: 0.95rem; text-align: center; font-weight: 600;"></div>
                                 </div>
+
+                                <!-- Tarjeta Oficial Planillas de ARC -->
+                                <div class="arc-card" style="margin-top: 25px; background: white; border: 1px solid #cbd5e1; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                                    <div style="background: #15803d; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between;">
+                                        <div style="display: flex; align-items: center; gap: 12px; color: white;">
+                                            <i class="fas fa-file-medical" style="font-size: 1.35rem;"></i>
+                                            <h4 style="margin: 0; color: white; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.3px;">Planillas de ARC</h4>
+                                        </div>
+                                        <div style="background: white; border-radius: 20px; padding: 4px 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                                            <i class="fas fa-shield-alt" style="color: #15803d; font-size: 1.05rem;"></i>
+                                        </div>
+                                    </div>
+                                    <div style="padding: 24px;">
+                                        <p style="margin: 0 0 22px 0; font-size: 0.95rem; color: #334155; line-height: 1.6;">
+                                            La Planilla ARC muestra el consolidado anual de sus asignaciones y deducciones de ley.
+                                        </p>
+                                        <button id="viewWorkerArcBtn" type="button" style="width: 100%; background: #15803d; border: none; color: white; padding: 14px 20px; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(21,128,61,0.25);">
+                                            <i class="fas fa-folder-open"></i> Ver Planilla ARC
+                                        </button>
+                                        <div id="workerArcNotice" style="margin-top: 12px; font-size: 0.85rem; text-align: center; color: #64748b; font-weight: 600;"></div>
+                                    </div>
+                                    <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 11px 22px; display: flex; align-items: center; gap: 8px; font-size: 0.86rem; color: #475569;">
+                                        <i class="fas fa-info-circle" style="color: #475569; font-size: 0.95rem;"></i>
+                                        <span>Comprobante de retención anual</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1344,6 +1371,34 @@ document.addEventListener('DOMContentLoaded', () => {
                                         </select>
                                     </div>
 
+                                    <!-- Planilla de ARC en el formulario de usuario -->
+                                    <div style="grid-column: span 2; background: #f0fdf4; border: 1.5px dashed #86efac; border-radius: 12px; padding: 20px; margin-top: 10px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;">
+                                            <label style="font-weight: 700; font-size: 0.92rem; color: #166534; display: flex; align-items: center; gap: 8px; margin: 0;">
+                                                <i class="fas fa-file-invoice"></i> Planilla de ARC (Comprobante de Retención Anual)
+                                            </label>
+                                            <span id="formArcStatusBadge" style="font-size: 0.78rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; background: #dcfce7; color: #166534; border: 1px solid #86efac;">
+                                                Sin archivo
+                                            </span>
+                                        </div>
+                                        <div id="formArcFileInfo" style="font-size: 0.85rem; color: #334155; margin-bottom: 12px;">
+                                            Cargue la Planilla ARC (en formato PDF o Imagen) para que el trabajador pueda consultarla, descargarla o imprimirla desde su perfil.
+                                        </div>
+                                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                            <input type="file" id="formArcFileInput" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" style="display: none;">
+                                            <button type="button" id="formArcSelectBtn" style="background: white; border: 1.5px solid #16a34a; color: #15803d; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                                                <i class="fas fa-upload"></i> Seleccionar PDF o Imagen
+                                            </button>
+                                            <button type="button" id="formArcPreviewBtn" style="display: none; background: #15803d; border: none; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                                <i class="fas fa-eye"></i> Ver Archivo Actual
+                                            </button>
+                                            <button type="button" id="formArcDeleteBtn" style="display: none; background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                                <i class="fas fa-trash"></i> Quitar Planilla ARC
+                                            </button>
+                                        </div>
+                                        <div id="formArcSelectedNotice" style="margin-top: 8px; font-size: 0.82rem; color: #15803d; font-weight: 600;"></div>
+                                    </div>
+
                                 </div>
 
                                 <div id="formUserError" style="display: none; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 12px; border-radius: 8px; margin-bottom: 18px; font-size: 0.9rem; text-align: center;"></div>
@@ -1416,6 +1471,69 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Inicializar dropdown interactivo y buscador de cargos
         setupCargoSearchableDropdown(modal);
+
+        // Control de archivo ARC en el formulario de usuario
+        const formArcSelectBtn = modal.querySelector('#formArcSelectBtn');
+        const formArcFileInput = modal.querySelector('#formArcFileInput');
+        const formArcPreviewBtn = modal.querySelector('#formArcPreviewBtn');
+        const formArcDeleteBtn = modal.querySelector('#formArcDeleteBtn');
+        const formArcSelectedNotice = modal.querySelector('#formArcSelectedNotice');
+
+        if (formArcSelectBtn && formArcFileInput) {
+            formArcSelectBtn.onclick = () => formArcFileInput.click();
+            formArcFileInput.onchange = () => {
+                if (formArcFileInput.files && formArcFileInput.files[0]) {
+                    const f = formArcFileInput.files[0];
+                    if (f.size > 10 * 1024 * 1024) {
+                        window.pgetAlert('El archivo excede el tamaño máximo permitido de 10 MB.', 'Archivo Muy Grande', 'Aceptar', 'warning');
+                        formArcFileInput.value = '';
+                        return;
+                    }
+                    const r = new FileReader();
+                    r.onload = (ev) => {
+                        formSelectedArcFile = {
+                            name: f.name,
+                            type: f.type || (f.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+                            data: ev.target.result,
+                            size: f.size,
+                            uploaded_at: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        };
+                        if (formArcSelectedNotice) {
+                            formArcSelectedNotice.textContent = `Archivo seleccionado: ${f.name} (${(f.size/1024).toFixed(1)} KB)`;
+                        }
+                        if (formArcDeleteBtn) formArcDeleteBtn.style.display = 'inline-flex';
+                    };
+                    r.readAsDataURL(f);
+                }
+            };
+        }
+
+        if (formArcDeleteBtn) {
+            formArcDeleteBtn.onclick = () => {
+                formSelectedArcFile = null;
+                if (formArcFileInput) formArcFileInput.value = '';
+                if (formArcSelectedNotice) formArcSelectedNotice.textContent = 'Planilla ARC marcada para eliminar al guardar.';
+                const badge = modal.querySelector('#formArcStatusBadge');
+                if (badge) {
+                    badge.textContent = 'Eliminada';
+                    badge.style.background = '#fee2e2';
+                    badge.style.color = '#dc2626';
+                    badge.style.borderColor = '#fca5a5';
+                }
+                formArcDeleteBtn.style.display = 'none';
+                if (formArcPreviewBtn) formArcPreviewBtn.style.display = 'none';
+            };
+        }
+
+        if (formArcPreviewBtn) {
+            formArcPreviewBtn.onclick = () => {
+                const user = allUsersCache.find(u => u.username.toLowerCase() === (editingUsername || '').toLowerCase());
+                const arc = formSelectedArcFile || (user && user.arc_file);
+                if (arc && arc.data) {
+                    window.showArcViewerModal(arc, user || { nombre: 'Trabajador' });
+                }
+            };
+        }
 
         const genderRadios = modal.querySelectorAll('input[name="formGenero"]');
         const formProf = modal.querySelector('#formProfesion');
@@ -1654,6 +1772,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const certMsg = modal.querySelector('#certMessage');
         if (certMsg) certMsg.textContent = '';
+
+        // Configurar tarjeta de Planilla ARC
+        const arcNotice = modal.querySelector('#workerArcNotice');
+        const viewArcBtn = modal.querySelector('#viewWorkerArcBtn');
+        const targetArc = user.arc_file;
+        if (targetArc && targetArc.data) {
+            if (arcNotice) arcNotice.innerHTML = `<span style="color:#15803d;"><i class="fas fa-check-circle"></i> Planilla ARC disponible (${escapeHtml(targetArc.name || 'Documento')})</span>`;
+        } else {
+            if (arcNotice) arcNotice.innerHTML = `<span style="color:#64748b;"><i class="fas fa-clock"></i> Su Planilla ARC aún no ha sido cargada por la Dirección de Recursos Humanos.</span>`;
+        }
+
+        if (viewArcBtn) {
+            viewArcBtn.onclick = () => {
+                const targetUser = (allUsersCache && allUsersCache.find(u => u.username.toLowerCase() === user.username.toLowerCase())) || user;
+                if (targetUser.arc_file && targetUser.arc_file.data) {
+                    window.showArcViewerModal(targetUser.arc_file, targetUser);
+                } else {
+                    window.pgetAlert(
+                        `Estimado(a) <strong>${escapeHtml(targetUser.nombre || 'Trabajador')}</strong>:<br><br>` +
+                        `Su <strong>Planilla de ARC</strong> aún no ha sido cargada en el sistema por la <strong>Dirección de Recursos Humanos</strong> para el ejercicio fiscal actual.<br><br>` +
+                        `Por favor, comuníquese con Recursos Humanos para mayor información.`,
+                        'Planilla ARC No Disponible',
+                        'Entendido',
+                        'info'
+                    );
+                }
+            };
+        }
     }
 
     // Cargar Usuarios en el Panel de Administrador
@@ -1760,6 +1906,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     </span>
                 </td>
                 <td style="text-align: right; white-space: nowrap;">
+                    <button class="btn-action arc ${u.arc_file && u.arc_file.data ? 'has-arc' : ''}" data-user="${safeUsername}" title="${u.arc_file && u.arc_file.data ? 'Planilla ARC Cargada (Clic para ver/gestionar)' : 'Subir Planilla ARC para este trabajador'}">
+                        <i class="fas ${u.arc_file && u.arc_file.data ? 'fa-file-invoice' : 'fa-upload'}"></i> ARC ${u.arc_file && u.arc_file.data ? '<i class="fas fa-check" style="font-size:0.75rem;"></i>' : ''}
+                    </button>
                     <button class="btn-action edit" data-user="${safeUsername}" title="Editar Cargo e Información">
                         <i class="fas fa-edit"></i> Editar
                     </button>
@@ -1775,6 +1924,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Delegación de eventos segura (previene inyección en atributos onclick)
         tbody.onclick = (e) => {
+            const arcBtn = e.target.closest('.btn-action.arc');
+            if (arcBtn) {
+                const u = arcBtn.getAttribute('data-user');
+                if (u) window.openAdminArcModal(u);
+                return;
+            }
             const editBtn = e.target.closest('.btn-action.edit');
             if (editBtn) {
                 const u = editBtn.getAttribute('data-user');
@@ -1902,6 +2057,23 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.querySelector('#formFechaIngreso').value = '';
         modal.querySelector('#formAnos').value = '0';
         
+        formSelectedArcFile = undefined;
+        const formArcNotice = modal.querySelector('#formArcSelectedNotice');
+        if (formArcNotice) formArcNotice.textContent = '';
+        const formArcBadge = modal.querySelector('#formArcStatusBadge');
+        if (formArcBadge) {
+            formArcBadge.textContent = 'Sin archivo';
+            formArcBadge.style.background = '#f1f5f9';
+            formArcBadge.style.color = '#64748b';
+            formArcBadge.style.borderColor = '#cbd5e1';
+        }
+        const prevBtn = modal.querySelector('#formArcPreviewBtn');
+        if (prevBtn) prevBtn.style.display = 'none';
+        const delBtn = modal.querySelector('#formArcDeleteBtn');
+        if (delBtn) delBtn.style.display = 'none';
+        const fileIn = modal.querySelector('#formArcFileInput');
+        if (fileIn) fileIn.value = '';
+
         const err = modal.querySelector('#formUserError');
         if (err) err.style.display = 'none';
     };
@@ -1972,6 +2144,38 @@ document.addEventListener('DOMContentLoaded', () => {
         // Auto-calcular años de servicio al abrir
         const autoYears = calculateYearsOfService(user.fecha_ingreso || '') || user.anos_servicio || '0';
         modal.querySelector('#formAnos').value = autoYears.toString();
+
+        formSelectedArcFile = undefined;
+        const formArcNoticeEdit = modal.querySelector('#formArcSelectedNotice');
+        if (formArcNoticeEdit) formArcNoticeEdit.textContent = '';
+        const formArcBadgeEdit = modal.querySelector('#formArcStatusBadge');
+        const prevBtnEdit = modal.querySelector('#formArcPreviewBtn');
+        const delBtnEdit = modal.querySelector('#formArcDeleteBtn');
+        const fileInEdit = modal.querySelector('#formArcFileInput');
+        if (fileInEdit) fileInEdit.value = '';
+
+        if (user.arc_file && user.arc_file.data) {
+            if (formArcBadgeEdit) {
+                formArcBadgeEdit.textContent = 'Cargada ✓';
+                formArcBadgeEdit.style.background = '#dcfce7';
+                formArcBadgeEdit.style.color = '#166534';
+                formArcBadgeEdit.style.borderColor = '#86efac';
+            }
+            if (formArcNoticeEdit) {
+                formArcNoticeEdit.textContent = `Archivo actual: ${user.arc_file.name || 'Planilla ARC'} (${user.arc_file.uploaded_at || ''})`;
+            }
+            if (prevBtnEdit) prevBtnEdit.style.display = 'inline-flex';
+            if (delBtnEdit) delBtnEdit.style.display = 'inline-flex';
+        } else {
+            if (formArcBadgeEdit) {
+                formArcBadgeEdit.textContent = 'Sin archivo';
+                formArcBadgeEdit.style.background = '#f1f5f9';
+                formArcBadgeEdit.style.color = '#64748b';
+                formArcBadgeEdit.style.borderColor = '#cbd5e1';
+            }
+            if (prevBtnEdit) prevBtnEdit.style.display = 'none';
+            if (delBtnEdit) delBtnEdit.style.display = 'none';
+        }
 
         const err = modal.querySelector('#formUserError');
         if (err) err.style.display = 'none';
@@ -2052,6 +2256,10 @@ document.addEventListener('DOMContentLoaded', () => {
             fecha_ingreso: fechaIng,
             anos_servicio: autoYears
         };
+
+        if (formSelectedArcFile !== undefined) {
+            userData.arc_file = formSelectedArcFile;
+        }
 
         // Validación de Contraseña
         const pass = modal.querySelector('#formPassword').value.trim();
@@ -2642,6 +2850,397 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.style.display = 'flex';
         modal.scrollTop = 0;
         document.body.style.overflow = 'hidden';
+    };
+
+    // ==========================================
+    // SISTEMA DE GESTIÓN Y VISOR DE PLANILLAS ARC
+    // ==========================================
+
+    window.downloadArcFile = (arcFile, user) => {
+        if (!arcFile || !arcFile.data) return;
+        const cleanName = (user.nombre || user.username || 'Trabajador').replace(/[^a-zA-Z0-9_\-]/g, '_');
+        const ext = arcFile.name ? (arcFile.name.split('.').pop() || 'pdf') : (arcFile.type && arcFile.type.includes('pdf') ? 'pdf' : 'jpg');
+        const filename = `Planilla_ARC_${cleanName}.${ext}`;
+
+        const a = document.createElement('a');
+        a.href = arcFile.data;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+
+    window.printArcFile = (arcFile, user) => {
+        if (!arcFile || !arcFile.data) return;
+        const isPdf = (arcFile.type && arcFile.type.includes('pdf')) || (arcFile.name && arcFile.name.toLowerCase().endsWith('.pdf')) || (arcFile.data && arcFile.data.startsWith('data:application/pdf'));
+
+        if (isPdf) {
+            const iframe = document.getElementById('arcViewerIframe');
+            if (iframe && iframe.contentWindow) {
+                try {
+                    iframe.contentWindow.focus();
+                    iframe.contentWindow.print();
+                    return;
+                } catch (e) {
+                    console.log('Iframe print error', e);
+                }
+            }
+            const printWindow = window.open(arcFile.data, '_blank');
+            if (printWindow) {
+                printWindow.focus();
+            }
+        } else {
+            const printWindow = window.open('', '_blank');
+            if (printWindow) {
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Planilla ARC - ${escapeHtml(user.nombre || '')}</title>
+                        <style>
+                            @page { size: letter portrait; margin: 0.8cm; }
+                            body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: white; }
+                            img { max-width: 100%; max-height: 100%; object-fit: contain; }
+                        </style>
+                    </head>
+                    <body>
+                        <img src="${arcFile.data}" onload="setTimeout(() => { window.print(); window.close(); }, 300);" />
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+            }
+        }
+    };
+
+    window.showArcViewerModal = (arcFile, user) => {
+        let modal = document.getElementById('arcViewerModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'arcViewerModal';
+            modal.className = 'arc-viewer-backdrop';
+            document.body.appendChild(modal);
+        }
+
+        const isPdf = (arcFile.type && arcFile.type.includes('pdf')) || (arcFile.name && arcFile.name.toLowerCase().endsWith('.pdf')) || (arcFile.data && arcFile.data.startsWith('data:application/pdf'));
+
+        const userName = escapeHtml(user.nombre || user.username || 'Trabajador');
+        const fileName = escapeHtml(arcFile.name || 'Documento ARC');
+        const uploadDate = escapeHtml(arcFile.uploaded_at || 'Oficial');
+
+        modal.innerHTML = `
+            <div class="arc-viewer-container">
+                <!-- Header -->
+                <div style="background: #15803d; color: white; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #D4AF37; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <i class="fas fa-file-invoice" style="font-size: 1.3rem;"></i>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: white;">Planilla de ARC &bull; ${userName}</h3>
+                            <span style="font-size: 0.82rem; color: #dcfce7;">${fileName} &bull; ${uploadDate}</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button type="button" id="arcViewerPrintBtn" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.2s;">
+                            <i class="fas fa-print"></i> Imprimir
+                        </button>
+                        <button type="button" id="arcViewerDownloadBtn" style="background: #D4AF37; border: none; color: #1e293b; padding: 8px 16px; border-radius: 6px; font-weight: 800; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); transition: all 0.2s;">
+                            <i class="fas fa-download"></i> Descargar
+                        </button>
+                        <button type="button" onclick="window.closeArcViewerModal()" style="background: rgba(0,0,0,0.25); border: none; color: white; width: 34px; height: 34px; border-radius: 50%; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-left: 5px;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Body Viewer -->
+                <div style="flex: 1; min-height: 450px; max-height: 78vh; overflow: auto; background: #334155; padding: 15px; display: flex; align-items: center; justify-content: center;">
+                    ${isPdf ? `
+                        <iframe id="arcViewerIframe" src="${arcFile.data}" style="width: 100%; height: 75vh; border: none; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);"></iframe>
+                    ` : `
+                        <div style="width: 100%; height: 75vh; display: flex; align-items: center; justify-content: center; overflow: auto;">
+                            <img id="arcViewerImage" src="${arcFile.data}" alt="Planilla ARC" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); background: white;">
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+
+        modal.querySelector('#arcViewerPrintBtn').onclick = () => window.printArcFile(arcFile, user);
+        modal.querySelector('#arcViewerDownloadBtn').onclick = () => window.downloadArcFile(arcFile, user);
+
+        modal.onclick = (e) => {
+            if (e.target === modal) window.closeArcViewerModal();
+        };
+
+        modal.style.display = 'flex';
+    };
+
+    window.closeArcViewerModal = () => {
+        const modal = document.getElementById('arcViewerModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.openAdminArcModal = (username) => {
+        const user = allUsersCache.find(u => u.username.toLowerCase() === username.toLowerCase());
+        if (!user) return;
+
+        let modal = document.getElementById('adminArcManagementModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'adminArcManagementModal';
+            modal.className = 'login-modal-overlay';
+            modal.style.cssText = 'display: none; align-items: center; justify-content: center; z-index: 999999; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); padding: 15px; box-sizing: border-box;';
+            document.body.appendChild(modal);
+        }
+
+        const safeName = escapeHtml(user.nombre || user.username);
+        const safeCargo = escapeHtml(user.cargo || 'Sin cargo');
+        const safeCedula = escapeHtml(formatCedulaOficial(user.cedula) || user.cedula || 'N/A');
+        const hasArc = user.arc_file && user.arc_file.data;
+
+        modal.innerHTML = `
+            <div style="background: white; width: 100%; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); border: 1px solid #e2e8f0; display: flex; flex-direction: column;">
+                <!-- Header -->
+                <div style="background: linear-gradient(135deg, #15803d, #166534); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="background: white; border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; color: #15803d;">
+                            <i class="fas fa-file-invoice" style="font-size: 1.15rem;"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: white;">Planilla de ARC</h3>
+                            <span style="font-size: 0.8rem; opacity: 0.9; color: #f0fdf4;">Comprobante de Retención Anual del Trabajador</span>
+                        </div>
+                    </div>
+                    <button type="button" onclick="window.closeAdminArcModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- Info Usuario -->
+                <div style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <strong style="color: #1e293b; font-size: 0.95rem; display: block;">${safeName}</strong>
+                        <span style="font-size: 0.82rem; color: #64748b;">${safeCargo} &bull; ${safeCedula}</span>
+                    </div>
+                    <span style="font-size: 0.78rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; ${hasArc ? 'background: #dcfce7; color: #166534; border: 1px solid #86efac;' : 'background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1;'}">
+                        ${hasArc ? '<i class="fas fa-check-circle"></i> Planilla ARC Asignada' : '<i class="fas fa-clock"></i> Pendiente por Cargar'}
+                    </span>
+                </div>
+
+                <div style="padding: 24px; overflow-y: auto; max-height: 70vh;">
+                    ${hasArc ? `
+                    <!-- Detalle de la Planilla ARC Actual -->
+                    <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; padding: 18px; margin-bottom: 22px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                            <span style="font-weight: 700; font-size: 0.9rem; color: #166534; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas ${user.arc_file.type && user.arc_file.type.includes('pdf') ? 'fa-file-pdf' : 'fa-file-image'}" style="font-size: 1.15rem; color: #15803d;"></i>
+                                ${escapeHtml(user.arc_file.name || 'Planilla_ARC')}
+                            </span>
+                            <span style="font-size: 0.78rem; color: #64748b; font-weight: 600;">
+                                ${user.arc_file.uploaded_at ? `Subida: ${user.arc_file.uploaded_at}` : ''}
+                            </span>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <button type="button" id="adminPreviewArcBtn" style="background: #15803d; border: none; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.2s;">
+                                <i class="fas fa-eye"></i> Ver / Imprimir
+                            </button>
+                            <button type="button" id="adminDownloadArcBtn" style="background: #D4AF37; border: none; color: #1e293b; padding: 8px 16px; border-radius: 6px; font-weight: 800; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                <i class="fas fa-download"></i> Descargar
+                            </button>
+                            <button type="button" onclick="window.deleteUserArc('${user.username}')" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px; margin-left: auto;">
+                                <i class="fas fa-trash"></i> Eliminar
+                            </button>
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <!-- Subir o Reemplazar Documento -->
+                    <div>
+                        <h4 style="margin: 0 0 10px 0; color: #1e293b; font-size: 0.95rem; font-weight: 700;">
+                            ${hasArc ? '<i class="fas fa-sync-alt"></i> Reemplazar Planilla de ARC:' : '<i class="fas fa-upload"></i> Subir Planilla de ARC:'}
+                        </h4>
+                        
+                        <div id="adminArcDropzone" style="border: 2px dashed #cbd5e1; border-radius: 12px; padding: 25px; text-align: center; background: #fafafa; cursor: pointer; transition: all 0.2s;">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 2.2rem; color: #15803d; margin-bottom: 10px;"></i>
+                            <div style="font-weight: 700; color: #1e293b; font-size: 0.92rem; margin-bottom: 4px;">
+                                Haga clic para seleccionar archivo o arrástrelo aquí
+                            </div>
+                            <div style="font-size: 0.8rem; color: #64748b;">
+                                Formatos aceptados: Documentos PDF o Imágenes (JPG, PNG, WEBP) &bull; Máx. 10 MB
+                            </div>
+                            <input type="file" id="adminArcFileInput" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" style="display: none;">
+                        </div>
+
+                        <div id="adminArcSelectedFileBox" style="display: none; margin-top: 15px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px 16px; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-check-circle" style="color: #15803d; font-size: 1.2rem;"></i>
+                                <div>
+                                    <strong id="adminArcSelectedName" style="color: #166534; font-size: 0.88rem; display: block;">archivo.pdf</strong>
+                                    <span id="adminArcSelectedSize" style="font-size: 0.78rem; color: #64748b;">0 KB</span>
+                                </div>
+                            </div>
+                            <button type="button" id="adminArcClearFileBtn" style="background: transparent; border: none; color: #dc2626; cursor: pointer; font-size: 0.9rem;" title="Cancelar selección">
+                                <i class="fas fa-times-circle"></i>
+                            </button>
+                        </div>
+
+                        <div id="adminArcUploadMsg" style="display: none; margin-top: 12px; font-size: 0.85rem; text-align: center; font-weight: 600;"></div>
+
+                        <button type="button" id="adminUploadArcBtn" disabled style="width: 100%; margin-top: 18px; background: #15803d; opacity: 0.6; border: none; color: white; padding: 13px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: not-allowed; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;">
+                            <i class="fas fa-cloud-upload-alt"></i> Subir y Asignar Planilla ARC
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 12px 24px; display: flex; justify-content: flex-end;">
+                    <button type="button" onclick="window.closeAdminArcModal()" style="background: #e2e8f0; border: none; color: #475569; padding: 8px 18px; border-radius: 6px; font-weight: 600; font-size: 0.88rem; cursor: pointer;">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        `;
+
+        if (hasArc) {
+            const previewBtn = modal.querySelector('#adminPreviewArcBtn');
+            if (previewBtn) previewBtn.onclick = () => window.showArcViewerModal(user.arc_file, user);
+            const downloadBtn = modal.querySelector('#adminDownloadArcBtn');
+            if (downloadBtn) downloadBtn.onclick = () => window.downloadArcFile(user.arc_file, user);
+        }
+
+        const dropzone = modal.querySelector('#adminArcDropzone');
+        const fileInput = modal.querySelector('#adminArcFileInput');
+        const selectedBox = modal.querySelector('#adminArcSelectedFileBox');
+        const selectedName = modal.querySelector('#adminArcSelectedName');
+        const selectedSize = modal.querySelector('#adminArcSelectedSize');
+        const clearBtn = modal.querySelector('#adminArcClearFileBtn');
+        const uploadBtn = modal.querySelector('#adminUploadArcBtn');
+
+        let pendingFile = null;
+
+        dropzone.onclick = () => fileInput.click();
+        dropzone.ondragover = (e) => { e.preventDefault(); dropzone.style.borderColor = '#15803d'; dropzone.style.background = '#f0fdf4'; };
+        dropzone.ondragleave = () => { dropzone.style.borderColor = '#cbd5e1'; dropzone.style.background = '#fafafa'; };
+        dropzone.ondrop = (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = '#cbd5e1';
+            dropzone.style.background = '#fafafa';
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFileSelection(e.dataTransfer.files[0]);
+            }
+        };
+
+        fileInput.onchange = () => {
+            if (fileInput.files && fileInput.files[0]) {
+                handleFileSelection(fileInput.files[0]);
+            }
+        };
+
+        function handleFileSelection(file) {
+            if (file.size > 10 * 1024 * 1024) {
+                window.pgetAlert('El archivo excede el tamaño máximo permitido de 10 MB.', 'Archivo Muy Grande', 'Aceptar', 'warning');
+                return;
+            }
+            pendingFile = file;
+            selectedName.textContent = file.name;
+            selectedSize.textContent = `${(file.size / 1024).toFixed(1)} KB`;
+            selectedBox.style.display = 'flex';
+            uploadBtn.disabled = false;
+            uploadBtn.style.opacity = '1';
+            uploadBtn.style.cursor = 'pointer';
+        }
+
+        clearBtn.onclick = () => {
+            pendingFile = null;
+            fileInput.value = '';
+            selectedBox.style.display = 'none';
+            uploadBtn.disabled = true;
+            uploadBtn.style.opacity = '0.6';
+            uploadBtn.style.cursor = 'not-allowed';
+        };
+
+        uploadBtn.onclick = () => {
+            if (!pendingFile) return;
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo y procesando...';
+
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                const dataUrl = ev.target.result;
+                const arcPayload = {
+                    name: pendingFile.name,
+                    type: pendingFile.type || (pendingFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+                    data: dataUrl,
+                    size: pendingFile.size,
+                    uploaded_at: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                };
+
+                try {
+                    await fetch(`${API_URL}/users/${encodeURIComponent(username)}/arc`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(arcPayload)
+                    });
+                } catch (err) {}
+
+                user.arc_file = arcPayload;
+                localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
+                if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
+                    currentUser.arc_file = arcPayload;
+                    localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+                }
+
+                renderAdminUsersTable(allUsersCache);
+                window.openAdminArcModal(username);
+                window.pgetAlert(
+                    `La Planilla ARC (<strong>${escapeHtml(pendingFile.name)}</strong>) fue subida y asignada exitosamente al usuario <strong>${safeName}</strong>.`,
+                    'Planilla ARC Guardada',
+                    'Aceptar',
+                    'success'
+                );
+            };
+            reader.readAsDataURL(pendingFile);
+        };
+
+        modal.onclick = (e) => {
+            if (e.target === modal) window.closeAdminArcModal();
+        };
+
+        modal.style.display = 'flex';
+    };
+
+    window.closeAdminArcModal = () => {
+        const modal = document.getElementById('adminArcManagementModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.deleteUserArc = async (username) => {
+        const user = allUsersCache.find(u => u.username.toLowerCase() === username.toLowerCase());
+        if (!user) return;
+        const ok = await window.pgetConfirm(
+            `¿Está seguro de que desea eliminar la Planilla de ARC de <strong>${escapeHtml(user.nombre || user.username)}</strong>?<br><br>El trabajador ya no podrá verla ni descargarla en su perfil hasta que se cargue una nueva.`,
+            'Eliminar Planilla ARC',
+            'Sí, Eliminar',
+            'Cancelar',
+            'danger'
+        );
+        if (!ok) return;
+
+        try {
+            await fetch(`${API_URL}/users/${encodeURIComponent(username)}/arc`, {
+                method: 'DELETE'
+            });
+        } catch (e) {}
+
+        user.arc_file = null;
+        localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
+        if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
+            currentUser.arc_file = null;
+            localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+        }
+        renderAdminUsersTable(allUsersCache);
+        window.openAdminArcModal(username);
+        window.pgetAlert('La Planilla de ARC fue eliminada exitosamente.', 'Operación Exitosa', 'Aceptar', 'success');
     };
 
     // Solicitar Constancia (Solo Trabajador)

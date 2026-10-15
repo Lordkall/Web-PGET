@@ -1096,6 +1096,73 @@ h1, h2, h3 {
     color: white;
 }
 
+/* Botones de acción ARC en la tabla de administración */
+.btn-action.arc {
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+.btn-action.arc:hover {
+    background: #15803d;
+    color: white;
+}
+.btn-action.arc.has-arc {
+    background: #dcfce7;
+    color: #166534;
+    font-weight: 700;
+    border: 1px solid #86efac;
+}
+.btn-action.arc.has-arc:hover {
+    background: #15803d;
+    color: white;
+}
+
+/* Tarjeta ARC en el perfil del trabajador */
+.arc-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.arc-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(21, 128, 61, 0.12) !important;
+}
+
+/* Modal Visor de Documentos ARC (PDF o Imagen) */
+.arc-viewer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 100000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.arc-viewer-container {
+    background: white;
+    width: 100%;
+    max-width: 950px;
+    max-height: 90vh;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@media (max-width: 768px) {
+    .arc-viewer-container {
+        max-height: 95vh;
+        width: 98%;
+    }
+}
+
+
 .modal-header {
     text-align: center;
     margin-bottom: 35px;

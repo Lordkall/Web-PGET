@@ -394,3 +394,19 @@ async def delete_cargo_record(nombre: str):
     except Exception as e:
         print(f"MongoDB warning in delete_cargo_record: {e}")
         return False
+
+async def delete_user_arc(username: str):
+    clean_name = unquote(str(username or "")).strip().lower()
+    try:
+        await users_collection.update_one(
+            {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
+            {"$unset": {"arc_file": ""}}
+        )
+    except Exception as e:
+        print(f"MongoDB warning in delete_user_arc: {e}")
+    for idx, u in enumerate(memory_users):
+        if u["username"].lower() == clean_name:
+            memory_users[idx].pop("arc_file", None)
+            return True
+    return True
+

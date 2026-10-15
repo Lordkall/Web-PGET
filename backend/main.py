@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 import os
 import sys
 
@@ -20,7 +20,8 @@ from database import (
     create_initial_users,
     get_all_cargos,
     add_cargo_record,
-    delete_cargo_record
+    delete_cargo_record,
+    delete_user_arc
 )
 
 from datetime import datetime
@@ -83,6 +84,7 @@ class UserCreateRequest(BaseModel):
     anos_servicio: Optional[str] = "0"
     banco: Optional[str] = ""
     cuenta: Optional[str] = ""
+    arc_file: Optional[Any] = None
 
 class UserUpdateRequest(BaseModel):
     username: Optional[str] = None
@@ -104,6 +106,14 @@ class UserUpdateRequest(BaseModel):
     cuenta: Optional[str] = None
     role: Optional[str] = None
     password: Optional[str] = None
+    arc_file: Optional[Any] = None
+
+class ArcUploadRequest(BaseModel):
+    name: str
+    type: str
+    data: str
+    size: Optional[int] = 0
+    uploaded_at: Optional[str] = None
 
 class UserDeleteRequest(BaseModel):
     username: Optional[str] = None
@@ -299,6 +309,41 @@ async def update_user(request: UserUpdateRequest, username: Optional[str] = None
     safe_user.pop("password", None)
     safe_user.pop("_id", None)
     return {"message": "Usuario actualizado exitosamente", "user": safe_user}
+
+# Rutas para Subida, Consulta y Eliminación de Planillas ARC por Usuario
+@app.post("/api/users/{username}/arc")
+@app.post("/users/{username}/arc")
+async def upload_arc(username: str, req: ArcUploadRequest):
+    clean_username = unquote(str(username)).strip().lower()
+    arc_dict = {
+        "name": req.name,
+        "type": req.type,
+        "data": req.data,
+        "size": req.size,
+        "uploaded_at": req.uploaded_at or datetime.now().strftime("%d/%m/%Y %H:%M")
+    }
+    user = await update_user_record(clean_username, {"arc_file": arc_dict})
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return {"message": "Planilla ARC subida exitosamente", "arc_file": arc_dict}
+
+@app.get("/api/users/{username}/arc")
+@app.get("/users/{username}/arc")
+async def get_arc(username: str):
+    clean_username = unquote(str(username)).strip().lower()
+    user = await get_user_by_username(clean_username)
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return {"arc_file": user.get("arc_file")}
+
+@app.delete("/api/users/{username}/arc")
+@app.delete("/users/{username}/arc")
+@app.post("/api/users/{username}/arc/delete")
+@app.post("/users/{username}/arc/delete")
+async def remove_arc(username: str):
+    clean_username = unquote(str(username)).strip().lower()
+    await delete_user_arc(clean_username)
+    return {"message": "Planilla ARC eliminada exitosamente"}
 
 def format_cedula_oficial(cedula: str) -> str:
     if not cedula:
