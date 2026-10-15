@@ -2437,14 +2437,69 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // Cerrar modal de visualización de la constancia
+    // Helper para generar el nombre de archivo al descargar/imprimir:
+    // Formato exacto requerido: Constancia, fecha y nombre y apellido del trabajador
+    // Ej: Constancia - 15-10-2026 - Lorenzo Fabian Giulliano Avila Gonzalez
+    function getConstanciaDownloadFileName(cert) {
+        const today = new Date();
+        const dd = String(today.getDate()).padStart(2, '0');
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const yyyy = today.getFullYear();
+        const fechaStr = `${dd}-${mm}-${yyyy}`;
+
+        let rawName = '';
+        if (currentUser) {
+            if (currentUser.nombres && currentUser.apellidos) {
+                rawName = `${currentUser.nombres} ${currentUser.apellidos}`.trim();
+            } else if (currentUser.nombre) {
+                rawName = currentUser.nombre.trim();
+            }
+        }
+        if (!rawName && cert && cert.beneficiario) {
+            rawName = cert.beneficiario.trim();
+        }
+        if (!rawName) rawName = 'Trabajador';
+
+        // Quitar prefijos académicos si vinieran pegados (ABG., ING., LIC., etc.)
+        const cleanName = rawName
+            .replace(/^(ABG\.|ING\.|LIC\.|SOC\.|ECON\.|TSU\.|PROF\.|DR\.|DRA\.)\s+/i, '')
+            .replace(/[\/\\:*?"<>|]/g, '')
+            .trim();
+
+        return `Constancia - ${fechaStr} - ${cleanName}`;
+    }
+
+    // Cerrar modal de visualización de la constancia y restaurar el título del navegador
     window.closeConstanciaModal = () => {
         const modal = document.getElementById('constanciaPrintModal');
         if (modal) {
             modal.style.display = 'none';
         }
         document.body.style.overflow = '';
+        if (window._originalPageTitle) {
+            document.title = window._originalPageTitle;
+        } else {
+            document.title = 'Procuraduría General del Estado Trujillo - Portal Oficial';
+        }
     };
+
+    // Imprimir garantizando el nombre de descarga del archivo PDF
+    window.printConstancia = () => {
+        if (window._constanciaFileName) {
+            document.title = window._constanciaFileName;
+        }
+        window.print();
+    };
+
+    // Escuchar evento de fin de impresión para restaurar el título si el modal se cerró
+    window.addEventListener('afterprint', () => {
+        const modal = document.getElementById('constanciaPrintModal');
+        if (!modal || modal.style.display === 'none') {
+            if (window._originalPageTitle) {
+                document.title = window._originalPageTitle;
+            }
+        }
+    });
 
     // Escuchar Escape para cerrar modal de constancia si está abierto
     document.addEventListener('keydown', (e) => {
@@ -2466,6 +2521,14 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.appendChild(modal);
         }
         
+        // Guardar título original de la página y fijar el título exacto para la descarga del PDF
+        if (!window._originalPageTitle) {
+            window._originalPageTitle = document.title;
+        }
+        const downloadFileName = getConstanciaDownloadFileName(cert);
+        window._constanciaFileName = downloadFileName;
+        document.title = downloadFileName;
+
         // Formatear iniciales asegurando: Suscribe en MAYÚSCULAS (EL) / Trabajador en minúsculas (ej. la)
         let displayInitials = cert.iniciales || 'EL/xx';
         if (displayInitials.includes('/')) {
@@ -2477,7 +2540,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const paragraphs = (cert.cuerpo || '').split('\n\n').filter(p => p.trim());
         const cuerpoHTML = paragraphs.map(p => `
-            <p style="margin-bottom: 26px; text-align: justify; text-justify: inter-word; font-family: Arial, sans-serif; font-size: 1.02rem; line-height: 1.85; color: #000; text-indent: 40px;">
+            <p class="constancia-paragraph">
                 ${p.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}
             </p>
         `).join('');
@@ -2485,14 +2548,17 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.innerHTML = `
             <!-- Barra superior de control FLOTANTE / STICKY (no imprimible) -->
             <div class="constancia-controls-bar no-print">
-                <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="display: flex; flex-direction: column; gap: 3px;">
                     <span style="font-size: 0.95rem; color: #1e293b; font-weight: 700; display: flex; align-items: center; gap: 8px;">
                         <i class="fas fa-file-contract" style="color: #6A0D25; font-size: 1.1rem;"></i> 
                         <span>Constancia Oficial Generada Exitosamente</span>
                     </span>
+                    <span style="font-size: 0.82rem; color: #64748b; font-weight: 600;">
+                        Archivo al guardar como PDF: <strong style="color: #6A0D25;">${downloadFileName}.pdf</strong>
+                    </span>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <button type="button" onclick="window.print()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(106,13,37,0.3); transition: all 0.2s ease;">
+                    <button type="button" onclick="window.printConstancia()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(106,13,37,0.3); transition: all 0.2s ease;">
                         <i class="fas fa-print"></i> Imprimir / Guardar como PDF
                     </button>
                     <button type="button" onclick="window.closeConstanciaModal()" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 18px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
@@ -2504,54 +2570,51 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="constancia-paper" id="constanciaPaperSheet">
                 <!-- 1. Encabezado Oficial a 0.7cm desde el borde -->
                 <div class="constancia-header">
-                    <img src="assets/logo.png" alt="Escudo Oficial PGET" style="height: 75px; margin: 0 auto; display: block;" onerror="this.src='https://via.placeholder.com/75?text=PGET'">
-                    <div style="font-weight: 800; font-size: 0.95rem; color: #000; margin-top: 4px; letter-spacing: 0.5px;">G-20000417-7</div>
+                    <img class="constancia-logo" src="assets/logo.png" alt="Escudo Oficial PGET" onerror="this.src='https://via.placeholder.com/75?text=PGET'">
+                    <div class="constancia-rif">G-20000417-7</div>
                 </div>
 
                 <!-- 2. Cuerpo Principal (Margen superior 3.95cm, Margen inferior 3cm) -->
                 <div class="constancia-body">
                     <!-- Correlativo Oficial al margen izquierdo -->
-                    <div style="text-align: left; font-weight: 800; font-size: 0.95rem; color: #000; margin-bottom: 20px; font-family: Arial, sans-serif;">
+                    <div class="constancia-correlativo">
                         ${cert.correlativo || ('PGET  ' + new Date().getFullYear() + ' Nº S/N')}
                     </div>
 
                     <!-- Título Centrado Oficial con Espaciado -->
-                    <div style="text-align: center; margin-bottom: 26px;">
-                        <h2 style="font-size: 1.15rem; font-weight: 900; color: #000; margin: 0; letter-spacing: 6px; font-family: Arial, sans-serif;">
+                    <div class="constancia-title-wrap">
+                        <h2 class="constancia-title">
                             C O N S T A N C I A .
                         </h2>
                     </div>
 
                     <!-- Cuerpo de la Constancia Justificado con Indentación -->
-                    <div style="margin-bottom: 22px;">
+                    <div class="constancia-paragraphs">
                         ${cuerpoHTML}
                     </div>
 
                     <!-- Bloque de Firma Centrado Oficial -->
-                    <div style="text-align: center; margin-top: 25px; margin-bottom: 30px; font-family: Arial, sans-serif; font-size: 0.95rem; line-height: 1.4; color: #000;">
+                    <div class="constancia-firma">
                         <strong>ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.</strong><br>
                         <strong>DIRECTORA (E) DE RECURSOS HUMANOS DE LA</strong><br>
                         <strong>PROCURADURÍA GENERAL DEL ESTADO TRUJILLO.</strong>
                     </div>
 
-                    <!-- Iniciales de Transcripción al margen izquierdo (EL/xx: Quien suscribe en mayúscula / Trabajador en minúscula) -->
-                    <div style="font-size: 0.85rem; font-weight: 800; color: #000; margin-bottom: 6px; font-family: Arial, sans-serif; letter-spacing: 0.5px;">
+                    <!-- Iniciales de Transcripción al margen izquierdo -->
+                    <div class="constancia-iniciales">
                         ${displayInitials}
                     </div>
                 </div>
 
                 <!-- 3. Pie de Página Oficial a 2.38cm desde el borde -->
                 <div class="constancia-footer">
-                    <!-- Línea divisoria horizontal -->
-                    <hr style="border: none; border-top: 1px solid #000; margin: 0 0 6px 0;">
-
-                    <!-- Pie de Página Oficial PGET con Ley Contra la Corrupción -->
-                    <div style="font-family: Arial, sans-serif; font-size: 0.62rem; line-height: 1.35; color: #334155;">
-                        <div style="text-align: center; margin-bottom: 3px;">
+                    <hr class="constancia-footer-line">
+                    <div class="constancia-footer-text">
+                        <div class="constancia-footer-address">
                             Av. Independencia frente a la Plaza Bolívar, Palacio de Gobierno, 2do piso, Trujillo, edo. Trujillo<br>
                             TELEFAX. (0272) 2365126, CORREO ELECTRÓNICO: procuraduríageneraltrujillo@gmail.com
                         </div>
-                        <div style="text-align: justify; margin-top: 3px;">
+                        <div class="constancia-footer-legal">
                             <strong>Documentación Oficial de Uso Restringido:</strong><br>
                             <strong>Ley Contra la Corrupción: Art. 66:</strong> El funcionario público que utilice, para sí o para otro, informaciones o datos de carácter reservado de los cuales tenga conocimiento en razón de su cargo, será penado con prisión de uno (1) a seis (6) años y multa de hasta el cincuenta por ciento (50%) del beneficio perseguido u obtenido, siempre que el hecho no constituya otro delito. Si del hecho resultare algún perjuicio a la Administración Pública, la pena será aumentada de un tercio (1/3) a la mitad (1/2).
                         </div>
@@ -2560,7 +2623,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 <!-- Barra inferior adicional de control (no imprimible) para facilidad al llegar al final del documento -->
                 <div class="no-print" style="margin-top: 25px; padding-top: 15px; border-top: 1px dashed #cbd5e1; display: flex; justify-content: flex-end; gap: 12px; align-items: center;">
-                    <button type="button" onclick="window.print()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.25);">
+                    <button type="button" onclick="window.printConstancia()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.25);">
                         <i class="fas fa-print"></i> Imprimir / Guardar como PDF
                     </button>
                     <button type="button" onclick="window.closeConstanciaModal()" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 18px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
