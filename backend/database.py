@@ -195,13 +195,15 @@ async def update_user_record(username: str, update_fields: dict):
         update_fields["nombres"] = nom
         update_fields["apellidos"] = ape
 
+    new_clean_name = update_fields.get("username", clean_name).strip().lower()
+
     try:
         res = await users_collection.update_one(
             {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
             {"$set": update_fields}
         )
         if res.matched_count > 0:
-            return await get_user_by_username(clean_name)
+            return await get_user_by_username(new_clean_name)
     except Exception as e:
         print(f"MongoDB warning in update_user_record: {e}")
     

@@ -129,16 +129,16 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/'/g, '&#39;');
     }
 
-    // Helper para obtener las iniciales del trabajador (ej. VICTORIA CARMONA -> VC)
+    // Helper para obtener las iniciales del trabajador en minúsculas (ej. LORENZO AVILA -> la, VICTORIA CARMONA -> vc)
     function getWorkerInitials(user) {
-        if (!user) return 'XX';
+        if (!user) return 'xx';
         const cleanStr = (str) => {
             if (!str) return '';
-            return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
+            return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
         };
         const stripPrefix = (str) => {
             return cleanStr(str)
-                .replace(/^(ABOG\.|ABOGADA|ABOGADO|ING\.|INGENIERO|INGENIERA|LIC\.|LICENCIADO|LICENCIADA|T\.S\.U\.|TSU|PROF\.|PROFESOR|PROFESORA|DRA?\.|DOCTOR|DOCTORA)\s+/i, '')
+                .replace(/^(abog\.|abogada|abogado|ing\.|ingeniero|ingeniera|lic\.|licenciado|licenciada|t\.s\.u\.|tsu|prof\.|profesor|profesora|dra?\.|doctor|doctora)\s+/i, '')
                 .trim();
         };
 
@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const initN = firstN ? firstN[0] : '';
             const initA = firstA ? firstA[0] : '';
             if (initN && initA) {
-                return `${initN}${initA}`;
+                return `${initN}${initA}`.toLowerCase();
             }
         }
 
@@ -164,18 +164,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 const partN = sn.split(/\s+/)[0];
                 const partA = sa.split(/\s+/)[0];
                 if (partN && partA) {
-                    return `${partN[0]}${partA[0]}`;
+                    return `${partN[0]}${partA[0]}`.toLowerCase();
                 }
             }
             const parts = fullName.split(/\s+/).filter(Boolean);
             if (parts.length >= 2) {
-                return `${parts[0][0]}${parts[1][0]}`;
+                return `${parts[0][0]}${parts[1][0]}`.toLowerCase();
             } else if (parts.length === 1) {
-                return `${parts[0][0]}X`;
+                return `${parts[0][0]}x`.toLowerCase();
             }
         }
 
-        return 'XX';
+        return 'xx';
     }
 
     // Cuentas institucionales oficiales predefinidas para respaldo y modelos de constancias
@@ -1925,7 +1925,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const gen = (user.genero || 'masculino').toLowerCase();
         modal.querySelector('#userFormTitle').innerHTML = `<i class="fas fa-user-edit"></i> Modificar Datos: ${user.nombre || username}`;
         modal.querySelector('#formUsername').value = user.username;
-        modal.querySelector('#formUsername').disabled = true;
+        modal.querySelector('#formUsername').disabled = false;
 
         // Botón Cambiar Contraseña en edición (oculto por defecto hasta pulsar botón)
         const passBtnWrapper = modal.querySelector('#changePasswordBtnWrapper');
@@ -2096,12 +2096,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let response;
             if (editingUsername) {
-                // Actualizar usuario existente: enviar a /users/update con username en payload
+                // Actualizar usuario existente: enviar a /users/update con username objetivo y new_username
+                const updatePayload = {
+                    ...userData,
+                    username: editingUsername,
+                    new_username: username
+                };
                 try {
                     response = await fetch(`${API_URL}/users/update`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ...userData, username: editingUsername })
+                        body: JSON.stringify(updatePayload)
                     });
                 } catch (e) {
                     response = null;
@@ -2113,7 +2118,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const fallbackRes = await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}/update`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ ...userData, username: editingUsername })
+                            body: JSON.stringify(updatePayload)
                         });
                         if (fallbackRes.ok || !response) response = fallbackRes;
                     } catch (e2) {}
@@ -2125,7 +2130,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const fallbackRes2 = await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(userData)
+                            body: JSON.stringify(updatePayload)
                         });
                         if (fallbackRes2.ok || !response) response = fallbackRes2;
                     } catch (e3) {}
@@ -2141,13 +2146,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (response && response.ok) {
                 const successMsg = editingUsername ? '¡Usuario actualizado exitosamente!' : '¡Usuario creado exitosamente!';
+                const finalUsername = username || editingUsername;
                 if (editingUsername) {
                     const idx = allUsersCache.findIndex(u => u.username.toLowerCase() === editingUsername.toLowerCase());
                     if (idx !== -1) {
-                        allUsersCache[idx] = { ...allUsersCache[idx], ...userData };
+                        allUsersCache[idx] = { ...allUsersCache[idx], ...userData, username: finalUsername };
                     }
                     if (currentUser && currentUser.username.toLowerCase() === editingUsername.toLowerCase()) {
-                        currentUser = { ...currentUser, ...userData };
+                        currentUser = { ...currentUser, ...userData, username: finalUsername };
                         localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
                     }
                 } else {
@@ -2407,7 +2413,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const inicialesSuscribe = 'EL';
-        const inicialesTrabajador = getWorkerInitials(user);
+        const inicialesTrabajador = (getWorkerInitials(user) || 'xx').toLowerCase();
         const iniciales = `${inicialesSuscribe}/${inicialesTrabajador}`;
 
         return {
@@ -2431,6 +2437,25 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // Cerrar modal de visualización de la constancia
+    window.closeConstanciaModal = () => {
+        const modal = document.getElementById('constanciaPrintModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        document.body.style.overflow = '';
+    };
+
+    // Escuchar Escape para cerrar modal de constancia si está abierto
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('constanciaPrintModal');
+            if (modal && modal.style.display !== 'none') {
+                window.closeConstanciaModal();
+            }
+        }
+    });
+
     // Modal oficial para visualización e impresión de la constancia (100% fiel a las imágenes oficiales)
     window.showConstanciaDocument = (cert) => {
         let modal = document.getElementById('constanciaPrintModal');
@@ -2441,6 +2466,15 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.appendChild(modal);
         }
         
+        // Formatear iniciales asegurando: Suscribe en MAYÚSCULAS (EL) / Trabajador en minúsculas (ej. la)
+        let displayInitials = cert.iniciales || 'EL/xx';
+        if (displayInitials.includes('/')) {
+            const parts = displayInitials.split('/');
+            const sus = (parts[0] || 'EL').trim().toUpperCase();
+            const trab = (parts.slice(1).join('/') || 'xx').trim().toLowerCase();
+            displayInitials = `${sus}/${trab}`;
+        }
+
         const paragraphs = (cert.cuerpo || '').split('\n\n').filter(p => p.trim());
         const cuerpoHTML = paragraphs.map(p => `
             <p style="margin-bottom: 26px; text-align: justify; text-justify: inter-word; font-family: Arial, sans-serif; font-size: 1.02rem; line-height: 1.85; color: #000; text-indent: 40px;">
@@ -2449,74 +2483,100 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
 
         modal.innerHTML = `
-            <div class="constancia-paper" id="constanciaPaperSheet">
-                <!-- Barra superior de control (no imprimible) -->
-                <div class="no-print" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 30px; font-family: sans-serif;">
-                    <span style="font-size: 0.92rem; color: #1e293b; font-weight: 700;">
-                        <i class="fas fa-file-contract" style="color: #6A0D25;"></i> Constancia Oficial Generada Exitosamente
+            <!-- Barra superior de control FLOTANTE / STICKY (no imprimible) -->
+            <div class="constancia-controls-bar no-print">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 0.95rem; color: #1e293b; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-file-contract" style="color: #6A0D25; font-size: 1.1rem;"></i> 
+                        <span>Constancia Oficial Generada Exitosamente</span>
                     </span>
-                    <div style="display: flex; gap: 10px;">
-                        <button onclick="window.print()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 20px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.25);">
-                            <i class="fas fa-print"></i> Imprimir / Guardar como PDF
-                        </button>
-                        <button onclick="document.getElementById('constanciaPrintModal').style.display='none'" style="background: #e2e8f0; color: #475569; border: none; padding: 10px 18px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer;">
-                            <i class="fas fa-times"></i> Cerrar
-                        </button>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <button type="button" onclick="window.print()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(106,13,37,0.3); transition: all 0.2s ease;">
+                        <i class="fas fa-print"></i> Imprimir / Guardar como PDF
+                    </button>
+                    <button type="button" onclick="window.closeConstanciaModal()" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 18px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
+                        <i class="fas fa-times"></i> Cerrar
+                    </button>
+                </div>
+            </div>
+
+            <div class="constancia-paper" id="constanciaPaperSheet">
+                <div class="constancia-top-block">
+                    <!-- 1. Encabezado Oficial: Escudo Centrado y RIF debajo -->
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <img src="assets/logo.png" alt="Escudo Oficial PGET" style="height: 85px; margin: 0 auto; display: block;" onerror="this.src='https://via.placeholder.com/85?text=PGET'">
+                        <div style="font-weight: 800; font-size: 0.95rem; color: #000; margin-top: 5px; letter-spacing: 0.5px;">G-20000417-7</div>
+                    </div>
+
+                    <!-- 2. Correlativo Oficial al margen izquierdo -->
+                    <div style="text-align: left; font-weight: 800; font-size: 0.95rem; color: #000; margin-bottom: 20px; font-family: Arial, sans-serif;">
+                        ${cert.correlativo || ('PGET  ' + new Date().getFullYear() + ' Nº S/N')}
+                    </div>
+
+                    <!-- 3. Título Centrado Oficial con Espaciado -->
+                    <div style="text-align: center; margin-bottom: 28px;">
+                        <h2 style="font-size: 1.15rem; font-weight: 900; color: #000; margin: 0; letter-spacing: 6px; font-family: Arial, sans-serif;">
+                            C O N S T A N C I A .
+                        </h2>
+                    </div>
+
+                    <!-- 4. Cuerpo de la Constancia Justificado con Indentación -->
+                    <div style="margin-bottom: 25px;">
+                        ${cuerpoHTML}
                     </div>
                 </div>
 
-                <!-- 1. Encabezado Oficial: Escudo Centrado y RIF debajo -->
-                <div style="text-align: center; margin-bottom: 25px;">
-                    <img src="assets/logo.png" alt="Escudo Oficial PGET" style="height: 95px; margin: 0 auto; display: block;" onerror="this.src='https://via.placeholder.com/95?text=PGET'">
-                    <div style="font-weight: 800; font-size: 0.98rem; color: #000; margin-top: 6px; letter-spacing: 0.5px;">G-20000417-7</div>
-                </div>
-
-                <!-- 2. Correlativo Oficial al margen izquierdo -->
-                <div style="text-align: left; font-weight: 800; font-size: 0.95rem; color: #000; margin-bottom: 25px; font-family: Arial, sans-serif;">
-                    ${cert.correlativo || ('PGET  ' + new Date().getFullYear() + ' Nº S/N')}
-                </div>
-
-                <!-- 3. Título Centrado Oficial con Espaciado -->
-                <div style="text-align: center; margin-bottom: 35px;">
-                    <h2 style="font-size: 1.15rem; font-weight: 900; color: #000; margin: 0; letter-spacing: 6px; font-family: Arial, sans-serif;">
-                        C O N S T A N C I A .
-                    </h2>
-                </div>
-
-                <!-- 4. Cuerpo de la Constancia Justificado con Indentación -->
-                <div style="margin-bottom: 55px;">
-                    ${cuerpoHTML}
-                </div>
-
-                <!-- 5. Bloque de Firma Centrado Oficial -->
-                <div style="text-align: center; margin-top: 60px; margin-bottom: 50px; font-family: Arial, sans-serif; font-size: 0.95rem; line-height: 1.35; color: #000;">
-                    <strong>ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.</strong><br>
-                    <strong>DIRECTORA (E) DE RECURSOS HUMANOS DE LA</strong><br>
-                    <strong>PROCURADURÍA GENERAL DEL ESTADO TRUJILLO.</strong>
-                </div>
-
-                <!-- 6. Iniciales de Transcripción al margen izquierdo (EL/XX: Quien suscribe / Trabajador) -->
-                <div style="font-size: 0.82rem; font-weight: 800; color: #000; margin-bottom: 10px; font-family: Arial, sans-serif;">
-                    ${cert.iniciales || 'EL/XX'}
-                </div>
-
-                <!-- 7. Línea divisoria horizontal -->
-                <hr style="border: none; border-top: 1px solid #000; margin: 0 0 8px 0;">
-
-                <!-- 8. Pie de Página Oficial PGET con Ley Contra la Corrupción -->
-                <div style="font-family: Arial, sans-serif; font-size: 0.64rem; line-height: 1.35; color: #334155;">
-                    <div style="text-align: center; margin-bottom: 4px;">
-                        Av. Independencia frente a la Plaza Bolívar, Palacio de Gobierno, 2do piso, Trujillo, edo. Trujillo<br>
-                        TELEFAX. (0272) 2365126, CORREO ELECTRÓNICO: procuraduríageneraltrujillo@gmail.com
+                <div class="constancia-bottom-block">
+                    <!-- 5. Bloque de Firma Centrado Oficial -->
+                    <div style="text-align: center; margin-top: 25px; margin-bottom: 35px; font-family: Arial, sans-serif; font-size: 0.95rem; line-height: 1.4; color: #000;">
+                        <strong>ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.</strong><br>
+                        <strong>DIRECTORA (E) DE RECURSOS HUMANOS DE LA</strong><br>
+                        <strong>PROCURADURÍA GENERAL DEL ESTADO TRUJILLO.</strong>
                     </div>
-                    <div style="text-align: justify; margin-top: 4px;">
-                        <strong>Documentación Oficial de Uso Restringido:</strong><br>
-                        <strong>Ley Contra la Corrupción: Art. 66:</strong> El funcionario público que utilice, para sí o para otro, informaciones o datos de carácter reservado de los cuales tenga conocimiento en razón de su cargo, será penado con prisión de uno (1) a seis (6) años y multa de hasta el cincuenta por ciento (50%) del beneficio perseguido u obtenido, siempre que el hecho no constituya otro delito. Si del hecho resultare algún perjuicio a la Administración Pública, la pena será aumentada de un tercio (1/3) a la mitad (1/2).
+
+                    <!-- 6. Iniciales de Transcripción al margen izquierdo (EL/xx: Quien suscribe en mayúscula / Trabajador en minúscula) -->
+                    <div style="font-size: 0.85rem; font-weight: 800; color: #000; margin-bottom: 8px; font-family: Arial, sans-serif; letter-spacing: 0.5px;">
+                        ${displayInitials}
                     </div>
+
+                    <!-- 7. Línea divisoria horizontal -->
+                    <hr style="border: none; border-top: 1px solid #000; margin: 0 0 8px 0;">
+
+                    <!-- 8. Pie de Página Oficial PGET con Ley Contra la Corrupción -->
+                    <div style="font-family: Arial, sans-serif; font-size: 0.64rem; line-height: 1.35; color: #334155;">
+                        <div style="text-align: center; margin-bottom: 4px;">
+                            Av. Independencia frente a la Plaza Bolívar, Palacio de Gobierno, 2do piso, Trujillo, edo. Trujillo<br>
+                            TELEFAX. (0272) 2365126, CORREO ELECTRÓNICO: procuraduríageneraltrujillo@gmail.com
+                        </div>
+                        <div style="text-align: justify; margin-top: 4px;">
+                            <strong>Documentación Oficial de Uso Restringido:</strong><br>
+                            <strong>Ley Contra la Corrupción: Art. 66:</strong> El funcionario público que utilice, para sí o para otro, informaciones o datos de carácter reservado de los cuales tenga conocimiento en razón de su cargo, será penado con prisión de uno (1) a seis (6) años y multa de hasta el cincuenta por ciento (50%) del beneficio perseguido u obtenido, siempre que el hecho no constituya otro delito. Si del hecho resultare algún perjuicio a la Administración Pública, la pena será aumentada de un tercio (1/3) a la mitad (1/2).
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barra inferior adicional de control (no imprimible) para facilidad al llegar al final del documento -->
+                <div class="no-print" style="margin-top: 25px; padding-top: 15px; border-top: 1px dashed #cbd5e1; display: flex; justify-content: flex-end; gap: 12px; align-items: center;">
+                    <button type="button" onclick="window.print()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.25);">
+                        <i class="fas fa-print"></i> Imprimir / Guardar como PDF
+                    </button>
+                    <button type="button" onclick="window.closeConstanciaModal()" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 18px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fas fa-times"></i> Cerrar
+                    </button>
                 </div>
             </div>
         `;
+
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                window.closeConstanciaModal();
+            }
+        };
+
         modal.style.display = 'flex';
+        modal.scrollTop = 0;
+        document.body.style.overflow = 'hidden';
     };
 
     // Solicitar Constancia (Solo Trabajador)

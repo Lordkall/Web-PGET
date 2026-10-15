@@ -86,6 +86,7 @@ class UserCreateRequest(BaseModel):
 
 class UserUpdateRequest(BaseModel):
     username: Optional[str] = None
+    new_username: Optional[str] = None
     nombres: Optional[str] = None
     apellidos: Optional[str] = None
     nombre: Optional[str] = None
@@ -273,7 +274,17 @@ async def update_user(request: UserUpdateRequest, username: Optional[str] = None
     if not clean_username:
         raise HTTPException(status_code=400, detail="Debe indicar el usuario a actualizar")
         
-    update_data = {k: v for k, v in request.dict().items() if v is not None and v != "" and k != "username"}
+    update_data = {k: v for k, v in request.dict().items() if v is not None and v != "" and k not in ["username", "new_username"]}
+    
+    # Permitir editar el correo electrónico / username
+    new_user = request.new_username or (request.username if username and request.username.strip().lower() != clean_username else None)
+    if new_user and new_user.strip().lower() != clean_username:
+        clean_new_user = new_user.strip().lower()
+        existing = await get_user_by_username(clean_new_user)
+        if existing and existing.get("username", "").strip().lower() != clean_username:
+            raise HTTPException(status_code=400, detail="El correo electrónico ya se encuentra registrado por otro usuario.")
+        update_data["username"] = clean_new_user
+
     if not update_data:
         raise HTTPException(status_code=400, detail="No se enviaron datos para actualizar")
     
@@ -460,7 +471,7 @@ def clean_text_initials(text: str) -> str:
 
 def get_worker_initials(user: dict) -> str:
     if not user:
-        return "XX"
+        return "xx"
     
     nombres = clean_text_initials(str(user.get("nombres") or ""))
     apellidos = clean_text_initials(str(user.get("apellidos") or ""))
@@ -469,7 +480,7 @@ def get_worker_initials(user: dict) -> str:
         part_n = nombres.split()[0] if nombres.split() else ""
         part_a = apellidos.split()[0] if apellidos.split() else ""
         if part_n and part_a:
-            return f"{part_n[0]}{part_a[0]}"
+            return f"{part_n[0]}{part_a[0]}".lower()
             
     # Si viene en nombre o nombres/apellidos combinados
     nombre_raw = clean_text_initials(str(user.get("nombre") or ""))
@@ -481,14 +492,14 @@ def get_worker_initials(user: dict) -> str:
         part_n = split_n.split()[0] if split_n.split() else ""
         part_a = split_a.split()[0] if split_a.split() else ""
         if part_n and part_a:
-            return f"{part_n[0]}{part_a[0]}"
+            return f"{part_n[0]}{part_a[0]}".lower()
         parts = nombre_raw.split()
         if len(parts) >= 2:
-            return f"{parts[0][0]}{parts[1][0]}"
+            return f"{parts[0][0]}{parts[1][0]}".lower()
         elif len(parts) == 1:
-            return f"{parts[0][0]}X"
+            return f"{parts[0][0]}x".lower()
             
-    return "XX"
+    return "xx"
 
 @app.get("/api/constancia")
 @app.get("/constancia")
@@ -609,7 +620,7 @@ async def solicitar_constancia(
         )
 
     iniciales_suscribe = "EL"
-    iniciales_trabajador = get_worker_initials(user)
+    iniciales_trabajador = str(get_worker_initials(user) or "xx").lower()
     iniciales = f"{iniciales_suscribe}/{iniciales_trabajador}"
 
     return {

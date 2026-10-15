@@ -702,57 +702,149 @@ h1, h2, h3 {
 .constancia-modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.75);
-    backdrop-filter: blur(4px);
+    background: rgba(15, 23, 42, 0.82);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     z-index: 100000;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
     align-items: center;
-    padding: 20px;
+    justify-content: flex-start;
+    padding: 25px 20px 60px;
     overflow-y: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Barra superior de control flotante / sticky para imprimir y cerrar */
+.constancia-controls-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100005;
+    width: 100%;
+    max-width: 820px;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+    border: 1px solid #e2e8f0;
+    padding: 12px 20px;
+    margin: 0 auto 16px auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-sizing: border-box;
+    flex-shrink: 0;
 }
 
 .constancia-paper {
     background: #ffffff;
     width: 100%;
     max-width: 820px;
-    padding: 45px 50px;
+    min-height: 1050px;
+    margin: 0 auto;
+    padding: 45px 50px 35px 50px;
     border-radius: 6px;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.25);
-    font-family: 'Times New Roman', Times, serif;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+    font-family: Arial, sans-serif;
     color: #111827;
     line-height: 1.65;
     position: relative;
     box-sizing: border-box;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.constancia-top-block {
+    flex: 1 1 auto;
+}
+
+.constancia-bottom-block {
+    flex: 0 0 auto;
+    margin-top: 30px;
 }
 
 @media print {
-    body * {
-        visibility: hidden !important;
+    @page {
+        size: letter portrait;
+        margin: 0;
     }
-    #constanciaPrintModal, #constanciaPrintModal * {
-        visibility: visible !important;
-    }
-    #constanciaPrintModal {
-        position: absolute !important;
-        left: 0 !important;
-        top: 0 !important;
+
+    html, body {
         width: 100% !important;
+        height: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
-        background: white !important;
-        box-shadow: none !important;
-        border: none !important;
+        background: #ffffff !important;
+        overflow: hidden !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }
-    .no-print {
+
+    /* Ocultar absolutamente todo el contenido exterior para garantizar exactamente 1 página sin hojas en blanco */
+    body > *:not(#constanciaPrintModal) {
         display: none !important;
     }
-    .constancia-paper {
+
+    #constanciaPrintModal {
+        display: block !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        max-height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
         border: none !important;
         box-shadow: none !important;
-        padding: 15mm 15mm !important;
+        overflow: hidden !important;
+    }
+
+    .no-print, .constancia-controls-bar {
+        display: none !important;
+    }
+
+    .constancia-paper {
+        position: relative !important;
         width: 100% !important;
         max-width: 100% !important;
+        height: 100% !important;
+        min-height: 100% !important;
+        max-height: 100% !important;
+        margin: 0 !important;
+        padding: 16mm 22mm 12mm 22mm !important;
+        box-sizing: border-box !important;
+        border: none !important;
+        box-shadow: none !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        page-break-after: avoid !important;
+        page-break-inside: avoid !important;
+        break-after: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    .constancia-top-block {
+        flex: 1 1 auto !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+    }
+
+    .constancia-bottom-block {
+        flex: 0 0 auto !important;
+        margin-top: auto !important;
+    }
+
+    .constancia-paper p {
+        font-size: 11pt !important;
+        line-height: 1.8 !important;
+        margin-bottom: 6mm !important;
     }
 }
 
@@ -2038,8 +2130,17 @@ footer {
 
     /* Vista previa de Constancia en móvil */
     .constancia-modal-backdrop {
-        padding: 10px 5px !important;
-        align-items: flex-start !important;
+        padding: 12px 8px 35px !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+    }
+
+    .constancia-controls-bar {
+        padding: 10px 14px !important;
+        margin-bottom: 12px !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        align-items: stretch !important;
     }
     
     .constancia-paper {
@@ -2139,39 +2240,6 @@ footer {
     }
 }
 
-@media print {
-    body * {
-        visibility: hidden;
-    }
-    .constancia-modal-backdrop {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: auto;
-        background: transparent;
-        padding: 0;
-        overflow: visible;
-        display: block !important;
-    }
-    .constancia-paper, .constancia-paper * {
-        visibility: visible;
-    }
-    .constancia-paper {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        max-width: 100%;
-        margin: 0;
-        padding: 25px 40px;
-        box-shadow: none;
-        border: none;
-    }
-    .no-print {
-        display: none !important;
-    }
-}
 
 /* ==========================================================================
    VENTANA FLOTANTE / DIÁLOGO CENTRAL DE NOTIFICACIONES Y CONFIRMACIÓN PGET
