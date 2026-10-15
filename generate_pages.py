@@ -245,7 +245,7 @@ template_quienes = """<!DOCTYPE html>
     <section class="info-section">
         <div class="container" style="max-width: 900px; background: white; padding: 40px; border-radius: 20px; box-shadow: var(--shadow-soft);">
             <p style="font-size: 1.15rem; color: #475569; line-height: 1.8; text-align: justify; margin-bottom: 40px;">
-                La Procuraduría General del Estado Trujillo es el Órgano Superior De Consulta, Asistencia, Representación Y Defensa de la Administración Pública Estadal.
+                La Procuraduría General del Estado Trujillo es el Órgano Superior de Consulta, Asistencia, Representación y Defensa de la Administración Pública Estadal.
             </p>
 
             <h2 class="section-title left">Nuestros Objetivos</h2>
