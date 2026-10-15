@@ -3593,6 +3593,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Desplazamiento suave para el indicador de scroll en la portada
+    const heroScrollIndicator = document.getElementById('heroScrollIndicator');
+    if (heroScrollIndicator) {
+        heroScrollIndicator.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetSection = document.getElementById('instagram-feed') || document.getElementById('quienes-somos');
+            if (targetSection) {
+                targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    }
+
     setupResponsiveMobileNav();
     restoreSavedSession();
 });

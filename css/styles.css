@@ -351,27 +351,161 @@ h1, h2, h3 {
     border-color: var(--accent-gold-light);
 }
 
-.scroll-down {
+/* =========================================================================
+   INDICADOR ANIMADO DE SCROLL PGET (Triple Chevron Cascada - Img 1, 2, 3)
+   ========================================================================= */
+.hero-scroll-indicator {
     position: absolute;
-    bottom: 30px;
+    bottom: 22px;
     left: 50%;
     transform: translateX(-50%);
-    color: white;
-    font-size: 1.5rem;
-    z-index: 4;
-    text-align: center;
-    line-height: 0.5;
-    animation: bounce 2s infinite;
+    z-index: 10;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 22px 8px 22px;
+    background: linear-gradient(135deg, rgba(106, 13, 37, 0.94) 0%, rgba(69, 6, 20, 0.96) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1.5px solid var(--accent-gold);
+    border-radius: 35px;
+    text-decoration: none;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(106, 13, 37, 0.35), 0 0 16px rgba(212, 175, 55, 0.25);
+    transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: indicatorFloat 2.6s ease-in-out infinite;
 }
 
-@keyframes fadeInLeft {
-    to { opacity: 1; transform: translateX(0); }
+.hero-scroll-indicator:hover {
+    transform: translateX(-50%) translateY(-5px) scale(1.03);
+    box-shadow: 0 12px 30px rgba(106, 13, 37, 0.45), 0 0 25px rgba(212, 175, 55, 0.45);
+    border-color: var(--accent-gold-light);
+    background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-dark) 100%);
 }
 
-@keyframes bounce {
-    0%, 20%, 50%, 80%, 100% { transform: translateY(0) translateX(-50%); }
-    40% { transform: translateY(-15px) translateX(-50%); }
-    60% { transform: translateY(-7px) translateX(-50%); }
+.hero-scroll-indicator .scroll-label {
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--accent-gold-light);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+.hero-scroll-indicator .scroll-label i {
+    font-size: 0.76rem;
+    color: var(--accent-gold);
+    transition: transform 0.2s;
+}
+
+.hero-scroll-indicator:hover .scroll-label i {
+    transform: translateY(2px);
+}
+
+/* Cascada de 3 Chevrons idéntica a la secuencia de img 1, 2, 3 */
+.hero-scroll-indicator .chevrons-cascade {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 26px;
+    justify-content: center;
+    position: relative;
+    width: 24px;
+}
+
+.hero-scroll-indicator .chevron-step {
+    display: block;
+    width: 14px;
+    height: 14px;
+    border-bottom: 2.6px solid #ffffff;
+    border-right: 2.6px solid #ffffff;
+    transform: rotate(45deg);
+    margin: -4px 0;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.hero-scroll-indicator .chevron-step:nth-child(1) {
+    animation: chevronAnimOne 2s infinite ease-in-out;
+}
+
+.hero-scroll-indicator .chevron-step:nth-child(2) {
+    border-color: var(--accent-gold-light);
+    animation: chevronAnimTwo 2s infinite ease-in-out;
+}
+
+.hero-scroll-indicator .chevron-step:nth-child(3) {
+    border-color: var(--accent-gold);
+    animation: chevronAnimThree 2s infinite ease-in-out;
+}
+
+/* 
+   Animación en 3 tiempos inspirada en img 1, 2 y 3:
+   0% a 25%: solo el chevron 1 está activo (Img 1)
+   25% a 50%: chevrons 1 y 2 están activos (Img 2)
+   50% a 75%: chevrons 1, 2 y 3 están activos (Img 3)
+   75% a 100%: desvanecen juntos hacia abajo y se reinicia el ciclo continuo
+*/
+@keyframes chevronAnimOne {
+    0% {
+        opacity: 0.1;
+        transform: rotate(45deg) translate(-4px, -4px);
+    }
+    20%, 70% {
+        opacity: 1;
+        transform: rotate(45deg) translate(0, 0);
+    }
+    90%, 100% {
+        opacity: 0.1;
+        transform: rotate(45deg) translate(4px, 4px);
+    }
+}
+
+@keyframes chevronAnimTwo {
+    0%, 20% {
+        opacity: 0.1;
+        transform: rotate(45deg) translate(-4px, -4px);
+    }
+    40%, 75% {
+        opacity: 1;
+        transform: rotate(45deg) translate(0, 0);
+    }
+    90%, 100% {
+        opacity: 0.1;
+        transform: rotate(45deg) translate(4px, 4px);
+    }
+}
+
+@keyframes chevronAnimThree {
+    0%, 40% {
+        opacity: 0.1;
+        transform: rotate(45deg) translate(-4px, -4px);
+    }
+    60%, 80% {
+        opacity: 1;
+        transform: rotate(45deg) translate(0, 0);
+    }
+    90%, 100% {
+        opacity: 0.1;
+        transform: rotate(45deg) translate(4px, 4px);
+    }
+}
+
+@keyframes indicatorFloat {
+    0%, 100% {
+        transform: translateX(-50%) translateY(0);
+    }
+    50% {
+        transform: translateX(-50%) translateY(-6px);
+    }
+}
+
+.scroll-down {
+    display: none;
 }
 
 /* Instagram Feed Section */
@@ -2137,8 +2271,25 @@ footer {
         color: white;
     }
     
+    .hero-scroll-indicator {
+        bottom: 14px !important;
+        padding: 8px 18px 7px 18px !important;
+        z-index: 10 !important;
+        display: inline-flex !important;
+    }
+    .hero-scroll-indicator .scroll-label {
+        font-size: 0.70rem !important;
+    }
+    .hero-scroll-indicator .chevrons-cascade {
+        height: 22px !important;
+    }
+    .hero-scroll-indicator .chevron-step {
+        width: 12px !important;
+        height: 12px !important;
+        margin: -3.5px 0 !important;
+    }
     .scroll-down {
-        display: none;
+        display: none !important;
     }
     
     /* Encabezados de páginas secundarias */
