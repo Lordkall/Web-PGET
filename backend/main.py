@@ -284,7 +284,12 @@ async def update_user(request: UserUpdateRequest, username: Optional[str] = None
     if not clean_username:
         raise HTTPException(status_code=400, detail="Debe indicar el usuario a actualizar")
         
-    update_data = {k: v for k, v in request.dict().items() if v is not None and v != "" and k not in ["username", "new_username"]}
+    raw_dict = request.dict()
+    update_data = {k: v for k, v in raw_dict.items() if v is not None and v != "" and k not in ["username", "new_username"]}
+    
+    # Si explícitamente se envió arc_file como null/None o vacío, registrar eliminación
+    if "arc_file" in request.__fields_set__ and (request.arc_file is None or request.arc_file == ""):
+        update_data["arc_file"] = None
     
     # Permitir editar el correo electrónico / username
     new_user = request.new_username or (request.username if username and request.username.strip().lower() != clean_username else None)

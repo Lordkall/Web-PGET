@@ -197,20 +197,36 @@ async def update_user_record(username: str, update_fields: dict):
 
     new_clean_name = update_fields.get("username", clean_name).strip().lower()
 
+    # Si arc_file es explícitamente None, preparar unset para MongoDB y memoria
+    unset_fields = {}
+    if "arc_file" in update_fields and update_fields["arc_file"] is None:
+        unset_fields["arc_file"] = ""
+        del update_fields["arc_file"]
+
     try:
-        res = await users_collection.update_one(
-            {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
-            {"$set": update_fields}
-        )
-        if res.matched_count > 0:
-            return await get_user_by_username(new_clean_name)
+        update_doc = {}
+        if update_fields:
+            update_doc["$set"] = update_fields
+        if unset_fields:
+            update_doc["$unset"] = unset_fields
+        if update_doc:
+            res = await users_collection.update_one(
+                {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
+                update_doc
+            )
+            if res.matched_count > 0:
+                return await get_user_by_username(new_clean_name)
     except Exception as e:
         print(f"MongoDB warning in update_user_record: {e}")
     
     # Fallback memoria
     for idx, u in enumerate(memory_users):
         if u["username"].lower() == clean_name:
-            memory_users[idx].update(update_fields)
+            if unset_fields:
+                for uf in unset_fields:
+                    memory_users[idx].pop(uf, None)
+            if update_fields:
+                memory_users[idx].update(update_fields)
             return dict(memory_users[idx])
     return None
 

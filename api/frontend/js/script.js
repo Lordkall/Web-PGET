@@ -1056,27 +1056,27 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
 
                                 <!-- Tarjeta Oficial Planillas de ARC -->
-                                <div class="arc-card" style="margin-top: 25px; background: white; border: 1px solid #cbd5e1; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                                    <div style="background: #15803d; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between;">
+                                <div class="arc-card" style="margin-top: 25px; background: white; border: 1.5px solid #D4AF37; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 18px rgba(106,13,37,0.08);">
+                                    <div style="background: linear-gradient(135deg, #6A0D25 0%, #83122F 100%); border-bottom: 2px solid #D4AF37; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between;">
                                         <div style="display: flex; align-items: center; gap: 12px; color: white;">
-                                            <i class="fas fa-file-medical" style="font-size: 1.35rem;"></i>
+                                            <i class="fas fa-file-invoice" style="font-size: 1.35rem; color: #D4AF37;"></i>
                                             <h4 style="margin: 0; color: white; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.3px;">Planillas de ARC</h4>
                                         </div>
-                                        <div style="background: white; border-radius: 20px; padding: 4px 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                                            <i class="fas fa-shield-alt" style="color: #15803d; font-size: 1.05rem;"></i>
+                                        <div style="background: white; border-radius: 20px; padding: 4px 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.15); border: 1px solid #D4AF37;">
+                                            <i class="fas fa-shield-alt" style="color: #6A0D25; font-size: 1.05rem;"></i>
                                         </div>
                                     </div>
                                     <div style="padding: 24px;">
                                         <p style="margin: 0 0 22px 0; font-size: 0.95rem; color: #334155; line-height: 1.6;">
                                             La Planilla ARC muestra el consolidado anual de sus asignaciones y deducciones de ley.
                                         </p>
-                                        <button id="viewWorkerArcBtn" type="button" style="width: 100%; background: #15803d; border: none; color: white; padding: 14px 20px; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(21,128,61,0.25);">
-                                            <i class="fas fa-folder-open"></i> Ver Planilla ARC
+                                        <button id="viewWorkerArcBtn" type="button" style="width: 100%; background: linear-gradient(135deg, #6A0D25 0%, #83122F 100%); border: 1.5px solid #D4AF37; color: white; padding: 14px 20px; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s; box-shadow: 0 4px 14px rgba(106,13,37,0.25);">
+                                            <i class="fas fa-folder-open" style="color: #F7E7B4;"></i> Ver Planilla ARC
                                         </button>
-                                        <div id="workerArcNotice" style="margin-top: 12px; font-size: 0.85rem; text-align: center; color: #64748b; font-weight: 600;"></div>
+                                        <div id="workerArcNotice" style="margin-top: 12px; font-size: 0.88rem; text-align: center; color: #64748b; font-weight: 600;"></div>
                                     </div>
-                                    <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 11px 22px; display: flex; align-items: center; gap: 8px; font-size: 0.86rem; color: #475569;">
-                                        <i class="fas fa-info-circle" style="color: #475569; font-size: 0.95rem;"></i>
+                                    <div style="background: #fdfaf6; border-top: 1px solid #f1f5f9; padding: 11px 22px; display: flex; align-items: center; gap: 8px; font-size: 0.86rem; color: #6A0D25; font-weight: 600;">
+                                        <i class="fas fa-info-circle" style="color: #D4AF37; font-size: 0.95rem;"></i>
                                         <span>Comprobante de retención anual</span>
                                     </div>
                                 </div>
@@ -1268,7 +1268,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                         </div>
                                     </div>
 
-                                    <div style="grid-column: span 2;">
+                                    <div id="formProfesionGroup" style="grid-column: span 2;">
                                         <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
                                             Profesión / Título Académico * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Prefijo: Abog., Ing., T.S.U., Lic.)</span>
                                         </label>
@@ -1284,119 +1284,122 @@ document.addEventListener('DOMContentLoaded', () => {
                                         </select>
                                     </div>
 
-                                    <div style="grid-column: span 2; margin-top: 15px;">
-                                        <h4 style="color: #6A0D25; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
-                                            <i class="fas fa-briefcase"></i> 3. Datos Laborales y Administrativos
-                                        </h4>
-                                    </div>
-
-                                    <!-- Cargo Institucional con Buscador y Desplegable -->
-                                    <div>
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                                            <label style="font-weight: 700; font-size: 0.85rem; color: #334155; margin: 0;">Cargo Institucional *</label>
-                                            <button type="button" onclick="window.openManageCargosModal()" style="background: none; border: none; color: #0284c7; font-size: 0.8rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 0;">
-                                                <i class="fas fa-plus-circle"></i> Gestionar Cargos
-                                            </button>
+                                    <!-- Sección 3: Datos Laborales y Planilla ARC (Oculta para rol Administrador) -->
+                                    <div id="formLaboralSection" style="grid-column: span 2; display: contents;">
+                                        <div style="grid-column: span 2; margin-top: 15px;">
+                                            <h4 style="color: #6A0D25; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
+                                                <i class="fas fa-briefcase"></i> 3. Datos Laborales y Administrativos
+                                            </h4>
                                         </div>
-                                        <div style="position: relative;">
-                                            <input type="text" id="formCargo" required autocomplete="off" placeholder="Escriba para buscar o seleccione un cargo..." style="width: 100%; padding: 11px 36px 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; text-transform: uppercase;">
-                                            <button type="button" id="toggleCargoDropdownBtn" style="position: absolute; right: 0; top: 0; bottom: 0; width: 36px; background: transparent; border: none; cursor: pointer; color: #64748b; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;" title="Ver todos los cargos">
-                                                <i class="fas fa-chevron-down"></i>
-                                            </button>
-                                            <div id="cargoDropdownList" class="cargo-dropdown-list"></div>
+
+                                        <!-- Cargo Institucional con Buscador y Desplegable -->
+                                        <div>
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                                <label style="font-weight: 700; font-size: 0.85rem; color: #334155; margin: 0;">Cargo Institucional *</label>
+                                                <button type="button" onclick="window.openManageCargosModal()" style="background: none; border: none; color: #0284c7; font-size: 0.8rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 0;">
+                                                    <i class="fas fa-plus-circle"></i> Gestionar Cargos
+                                                </button>
+                                            </div>
+                                            <div style="position: relative;">
+                                                <input type="text" id="formCargo" required autocomplete="off" placeholder="Escriba para buscar o seleccione un cargo..." style="width: 100%; padding: 11px 36px 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; text-transform: uppercase;">
+                                                <button type="button" id="toggleCargoDropdownBtn" style="position: absolute; right: 0; top: 0; bottom: 0; width: 36px; background: transparent; border: none; cursor: pointer; color: #64748b; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;" title="Ver todos los cargos">
+                                                    <i class="fas fa-chevron-down"></i>
+                                                </button>
+                                                <div id="cargoDropdownList" class="cargo-dropdown-list"></div>
+                                            </div>
+                                            <small style="color: #64748b; font-size: 0.78rem;">Escriba para buscar o use la flecha para ver el listado de cargos</small>
                                         </div>
-                                        <small style="color: #64748b; font-size: 0.78rem;">Escriba para buscar o use la flecha para ver el listado de cargos</small>
-                                    </div>
 
-                                    <div>
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                            Condición Laboral * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Define su modelo de constancia)</span>
-                                        </label>
-                                        <select id="formCondicion" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; font-weight: 600;">
-                                            <option value="FIJO">FIJO (Constancia de Trabajo - Personal Fijo)</option>
-                                            <option value="CONTRATADO">CONTRATADO (Constancia de Trabajo - Personal Contratado)</option>
-                                            <option value="JUBILADO">JUBILADO (Constancia de Jubilación - Personal Jubilado)</option>
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                            Salario / Remuneración Mensual * <span style="font-weight: 400; color: #64748b; font-size: 0.8rem;">(Ej. 1.000,00)</span>
-                                        </label>
-                                        <div style="display: flex; align-items: stretch; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: white; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);">
-                                            <span style="background: #f1f5f9; color: #6A0D25; font-weight: 700; font-size: 0.92rem; padding: 11px 14px; border-right: 1px solid #cbd5e1; display: flex; align-items: center; user-select: none;">
-                                                Bs.
-                                            </span>
-                                            <input type="text" id="formSalario" required placeholder="1.000,00" value="1.000,00" style="flex: 1; border: none; padding: 11px 14px; font-size: 0.92rem; outline: none; box-sizing: border-box; color: #1e293b; font-weight: 600;">
-                                        </div>
-                                        <small style="color: #64748b; font-size: 0.78rem;">El prefijo "Bs." es fijo e inamovible; escriba únicamente el monto numérico.</small>
-                                    </div>
-
-                                    <!-- Fecha de Ingreso con Selector Calendario Interactivo -->
-                                    <div>
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                            <i class="fas fa-calendar-alt" style="color: #6A0D25;"></i> Fecha de Ingreso * <span style="font-weight: 400; color: #64748b; font-size: 0.8rem;">(Seleccionar en el calendario)</span>
-                                        </label>
-                                        <input type="date" id="formFechaIngreso" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; color: #1e293b; cursor: pointer;">
-                                        <small style="color: #64748b; font-size: 0.78rem;">Haga clic para abrir el calendario y seleccionar la fecha exacta</small>
-                                    </div>
-
-                                    <div style="grid-column: span 2;">
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Años de Servicio <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Cálculo Automático)</span></label>
-                                        <input type="text" id="formAnos" readonly style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: #f1f5f9; color: #6A0D25; font-weight: 700; cursor: not-allowed;" placeholder="0">
-                                        <small style="color: #83122F; font-size: 0.78rem; font-weight: 600; display: block; margin-top: 2px;"><i class="fas fa-calculator"></i> Se calcula automáticamente según la fecha de ingreso</small>
-                                    </div>
-
-                                    <!-- Dependencia Administrativa como Ventana Desplegable con Valor Fijo -->
-                                    <div style="grid-column: span 2;">
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                            <i class="fas fa-landmark" style="color: #6A0D25;"></i> Dependencia Administrativa *
-                                        </label>
-                                        <select id="formDependencia" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; font-weight: 600; color: #1e293b; cursor: pointer;">
-                                            <option value="PROCURADURÍA GENERAL DEL ESTADO TRUJILLO" selected>PROCURADURÍA GENERAL DEL ESTADO TRUJILLO</option>
-                                        </select>
-                                    </div>
-
-                                    <div style="grid-column: span 2;">
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Dirección / Oficina Adscrita *</label>
-                                        <select id="formDireccion" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white;">
-                                            <option value="DESPACHO DEL PROCURADOR GENERAL">Despacho del Procurador o Procuradora General</option>
-                                            <option value="DIRECCIÓN GENERAL">Dirección General</option>
-                                            <option value="DIRECCIÓN DE RECURSOS HUMANOS">Dirección de Recursos Humanos</option>
-                                            <option value="DIRECCIÓN DE ASUNTOS JURÍDICOS">Dirección de Asuntos Jurídicos</option>
-                                            <option value="DIRECCIÓN DE ADMINISTRACIÓN">Dirección de Administración</option>
-                                            <option value="DIRECCIÓN DE BIENES Y SERVICIOS">Dirección de Bienes y Servicios</option>
-                                            <option value="UNIDAD DE AUDITORÍA INTERNA">Unidad de Auditoría Interna</option>
-                                            <option value="OFICINA DE ATENCIÓN AL CIUDADANO">Oficina de Atención al Ciudadano</option>
-                                        </select>
-                                    </div>
-
-                                    <!-- Planilla de ARC en el formulario de usuario -->
-                                    <div style="grid-column: span 2; background: #f0fdf4; border: 1.5px dashed #86efac; border-radius: 12px; padding: 20px; margin-top: 10px;">
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;">
-                                            <label style="font-weight: 700; font-size: 0.92rem; color: #166534; display: flex; align-items: center; gap: 8px; margin: 0;">
-                                                <i class="fas fa-file-invoice"></i> Planilla de ARC (Comprobante de Retención Anual)
+                                        <div>
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                Condición Laboral * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Define su modelo de constancia)</span>
                                             </label>
-                                            <span id="formArcStatusBadge" style="font-size: 0.78rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; background: #dcfce7; color: #166534; border: 1px solid #86efac;">
-                                                Sin archivo
-                                            </span>
+                                            <select id="formCondicion" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; font-weight: 600;">
+                                                <option value="FIJO">FIJO (Constancia de Trabajo - Personal Fijo)</option>
+                                                <option value="CONTRATADO">CONTRATADO (Constancia de Trabajo - Personal Contratado)</option>
+                                                <option value="JUBILADO">JUBILADO (Constancia de Jubilación - Personal Jubilado)</option>
+                                            </select>
                                         </div>
-                                        <div id="formArcFileInfo" style="font-size: 0.85rem; color: #334155; margin-bottom: 12px;">
-                                            Cargue la Planilla ARC (en formato PDF o Imagen) para que el trabajador pueda consultarla, descargarla o imprimirla desde su perfil.
+
+                                        <div>
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                Salario / Remuneración Mensual * <span style="font-weight: 400; color: #64748b; font-size: 0.8rem;">(Ej. 1.000,00)</span>
+                                            </label>
+                                            <div style="display: flex; align-items: stretch; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: white; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);">
+                                                <span style="background: #f1f5f9; color: #6A0D25; font-weight: 700; font-size: 0.92rem; padding: 11px 14px; border-right: 1px solid #cbd5e1; display: flex; align-items: center; user-select: none;">
+                                                    Bs.
+                                                </span>
+                                                <input type="text" id="formSalario" required placeholder="1.000,00" value="1.000,00" style="flex: 1; border: none; padding: 11px 14px; font-size: 0.92rem; outline: none; box-sizing: border-box; color: #1e293b; font-weight: 600;">
+                                            </div>
+                                            <small style="color: #64748b; font-size: 0.78rem;">El prefijo "Bs." es fijo e inamovible; escriba únicamente el monto numérico.</small>
                                         </div>
-                                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                                            <input type="file" id="formArcFileInput" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" style="display: none;">
-                                            <button type="button" id="formArcSelectBtn" style="background: white; border: 1.5px solid #16a34a; color: #15803d; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
-                                                <i class="fas fa-upload"></i> Seleccionar PDF o Imagen
-                                            </button>
-                                            <button type="button" id="formArcPreviewBtn" style="display: none; background: #15803d; border: none; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                                                <i class="fas fa-eye"></i> Ver Archivo Actual
-                                            </button>
-                                            <button type="button" id="formArcDeleteBtn" style="display: none; background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                                                <i class="fas fa-trash"></i> Quitar Planilla ARC
-                                            </button>
+
+                                        <!-- Fecha de Ingreso con Selector Calendario Interactivo -->
+                                        <div>
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                <i class="fas fa-calendar-alt" style="color: #6A0D25;"></i> Fecha de Ingreso * <span style="font-weight: 400; color: #64748b; font-size: 0.8rem;">(Seleccionar en el calendario)</span>
+                                            </label>
+                                            <input type="date" id="formFechaIngreso" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; color: #1e293b; cursor: pointer;">
+                                            <small style="color: #64748b; font-size: 0.78rem;">Haga clic para abrir el calendario y seleccionar la fecha exacta</small>
                                         </div>
-                                        <div id="formArcSelectedNotice" style="margin-top: 8px; font-size: 0.82rem; color: #15803d; font-weight: 600;"></div>
+
+                                        <div style="grid-column: span 2;">
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Años de Servicio <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Cálculo Automático)</span></label>
+                                            <input type="text" id="formAnos" readonly style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: #f1f5f9; color: #6A0D25; font-weight: 700; cursor: not-allowed;" placeholder="0">
+                                            <small style="color: #83122F; font-size: 0.78rem; font-weight: 600; display: block; margin-top: 2px;"><i class="fas fa-calculator"></i> Se calcula automáticamente según la fecha de ingreso</small>
+                                        </div>
+
+                                        <!-- Dependencia Administrativa como Ventana Desplegable con Valor Fijo -->
+                                        <div style="grid-column: span 2;">
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                <i class="fas fa-landmark" style="color: #6A0D25;"></i> Dependencia Administrativa *
+                                            </label>
+                                            <select id="formDependencia" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; font-weight: 600; color: #1e293b; cursor: pointer;">
+                                                <option value="PROCURADURÍA GENERAL DEL ESTADO TRUJILLO" selected>PROCURADURÍA GENERAL DEL ESTADO TRUJILLO</option>
+                                            </select>
+                                        </div>
+
+                                        <div style="grid-column: span 2;">
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Dirección / Oficina Adscrita *</label>
+                                            <select id="formDireccion" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white;">
+                                                <option value="DESPACHO DEL PROCURADOR GENERAL">Despacho del Procurador o Procuradora General</option>
+                                                <option value="DIRECCIÓN GENERAL">Dirección General</option>
+                                                <option value="DIRECCIÓN DE RECURSOS HUMANOS">Dirección de Recursos Humanos</option>
+                                                <option value="DIRECCIÓN DE ASUNTOS JURÍDICOS">Dirección de Asuntos Jurídicos</option>
+                                                <option value="DIRECCIÓN DE ADMINISTRACIÓN">Dirección de Administración</option>
+                                                <option value="DIRECCIÓN DE BIENES Y SERVICIOS">Dirección de Bienes y Servicios</option>
+                                                <option value="UNIDAD DE AUDITORÍA INTERNA">Unidad de Auditoría Interna</option>
+                                                <option value="OFICINA DE ATENCIÓN AL CIUDADANO">Oficina de Atención al Ciudadano</option>
+                                            </select>
+                                        </div>
+
+                                        <!-- Planilla de ARC en el formulario de usuario -->
+                                        <div style="grid-column: span 2; background: #fdfaf6; border: 1.5px dashed #D4AF37; border-radius: 12px; padding: 20px; margin-top: 10px; box-shadow: 0 2px 10px rgba(106,13,37,0.03);">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;">
+                                                <label style="font-weight: 700; font-size: 0.92rem; color: #6A0D25; display: flex; align-items: center; gap: 8px; margin: 0;">
+                                                    <i class="fas fa-file-invoice" style="color: #D4AF37;"></i> Planilla de ARC (Comprobante de Retención Anual)
+                                                </label>
+                                                <span id="formArcStatusBadge" style="font-size: 0.78rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1;">
+                                                    Sin archivo
+                                                </span>
+                                            </div>
+                                            <div id="formArcFileInfo" style="font-size: 0.85rem; color: #334155; margin-bottom: 12px;">
+                                                Cargue la Planilla ARC (en formato PDF o Imagen) para que el trabajador pueda consultarla, descargarla o imprimirla desde su perfil.
+                                            </div>
+                                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                                <input type="file" id="formArcFileInput" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" style="display: none;">
+                                                <button type="button" id="formArcSelectBtn" style="background: white; border: 1.5px solid #6A0D25; color: #6A0D25; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                                                    <i class="fas fa-upload"></i> Seleccionar PDF o Imagen
+                                                </button>
+                                                <button type="button" id="formArcPreviewBtn" style="display: none; background: linear-gradient(135deg, #6A0D25, #83122F); border: 1px solid #D4AF37; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                                    <i class="fas fa-eye"></i> Ver Archivo Actual
+                                                </button>
+                                                <button type="button" id="formArcDeleteBtn" style="display: none; background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                                    <i class="fas fa-trash"></i> Quitar Planilla ARC
+                                                </button>
+                                            </div>
+                                            <div id="formArcSelectedNotice" style="margin-top: 8px; font-size: 0.82rem; color: #6A0D25; font-weight: 600;"></div>
+                                        </div>
                                     </div>
 
                                 </div>
@@ -1544,6 +1547,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
+
+        const formRoleSelect = modal.querySelector('#formRole');
+        if (formRoleSelect) {
+            formRoleSelect.addEventListener('change', () => {
+                if (typeof updateAdminFormVisibility === 'function') {
+                    updateAdminFormVisibility(modal);
+                }
+            });
+        }
 
         const cedulaInput = modal.querySelector('#formCedula');
         if (cedulaInput) {
@@ -1778,9 +1790,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const viewArcBtn = modal.querySelector('#viewWorkerArcBtn');
         const targetArc = user.arc_file;
         if (targetArc && targetArc.data) {
-            if (arcNotice) arcNotice.innerHTML = `<span style="color:#15803d;"><i class="fas fa-check-circle"></i> Planilla ARC disponible (${escapeHtml(targetArc.name || 'Documento')})</span>`;
+            if (arcNotice) arcNotice.innerHTML = `<span style="color:#15803d; font-weight:600;"><i class="fas fa-check-circle"></i> Planilla ARC disponible (${escapeHtml(targetArc.name || 'Documento')})</span>`;
         } else {
-            if (arcNotice) arcNotice.innerHTML = `<span style="color:#64748b;"><i class="fas fa-clock"></i> Su Planilla ARC aún no ha sido cargada por la Dirección de Recursos Humanos.</span>`;
+            if (arcNotice) arcNotice.innerHTML = `<span style="color:#83122F; font-weight:700;"><i class="fas fa-info-circle"></i> Planilla ARC no disponible aún</span>`;
         }
 
         if (viewArcBtn) {
@@ -1790,11 +1802,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.showArcViewerModal(targetUser.arc_file, targetUser);
                 } else {
                     window.pgetAlert(
+                        `<div style="font-size: 1.05rem; font-weight: 700; color: #6A0D25; margin-bottom: 12px;"><i class="fas fa-exclamation-circle"></i> Planilla ARC no disponible aún</div>` +
                         `Estimado(a) <strong>${escapeHtml(targetUser.nombre || 'Trabajador')}</strong>:<br><br>` +
                         `Su <strong>Planilla de ARC</strong> aún no ha sido cargada en el sistema por la <strong>Dirección de Recursos Humanos</strong> para el ejercicio fiscal actual.<br><br>` +
                         `Por favor, comuníquese con Recursos Humanos para mayor información.`,
-                        'Planilla ARC No Disponible',
-                        'Entendido',
+                        'Planilla ARC no disponible aún',
+                        'Aceptar',
                         'info'
                     );
                 }
@@ -1886,7 +1899,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <strong style="color: #1e293b; display: block; font-size: 0.95rem;">${safeFullName}</strong>
                     <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap;">
                         <span style="color: #64748b; font-size: 0.82rem; font-weight: 600;"><i class="fas fa-id-card"></i> ${safeCedula}</span>
-                        <span class="condicion-badge ${safeCond.toLowerCase()}">${safeCond}</span>
+                        ${u.role !== 'admin' && safeCond ? `<span class="condicion-badge ${safeCond.toLowerCase()}">${safeCond}</span>` : ''}
                         <span style="font-size: 0.78rem; color: #475569; background: #e2e8f0; padding: 2px 7px; border-radius: 4px; font-weight: 600;">
                             <i class="fas ${gen === 'femenino' ? 'fa-venus' : 'fa-mars'}" style="color: ${gen === 'femenino' ? '#db2777' : '#0284c7'};"></i> ${gen === 'femenino' ? 'Femenino' : 'Masculino'}
                         </span>
@@ -1896,9 +1909,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span style="color: #0369a1; font-weight: 600;">${safeUsername}</span>
                 </td>
                 <td>
+                    ${u.role === 'admin' ? `
+                    <strong style="color: #6A0D25; display: block;">ADMINISTRADOR DEL SISTEMA</strong>
+                    <span style="color: #64748b; font-size: 0.82rem; font-weight: 600;">Gestión de Personal y Seguridad</span>
+                    ` : `
                     <strong style="color: #6A0D25; display: block;">${safeCargo}</strong>
                     <span style="color: #1e293b; font-size: 0.82rem; font-weight: 600; display: block;">${safeDireccion}</span>
                     <span style="color: #83122F; font-size: 0.82rem; font-weight: 700; display: block;">${safeSalario}</span>
+                    `}
                 </td>
                 <td>
                     <span class="role-badge ${u.role === 'admin' ? 'admin' : 'trabajador'}">
@@ -1906,10 +1924,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     </span>
                 </td>
                 <td style="text-align: right; white-space: nowrap;">
+                    ${u.role !== 'admin' && u.username !== 'admin' && u.username !== 'admin@pget.gob.ve' ? `
                     <button class="btn-action arc ${u.arc_file && u.arc_file.data ? 'has-arc' : ''}" data-user="${safeUsername}" title="${u.arc_file && u.arc_file.data ? 'Planilla ARC Cargada (Clic para ver/gestionar)' : 'Subir Planilla ARC para este trabajador'}">
                         <i class="fas ${u.arc_file && u.arc_file.data ? 'fa-file-invoice' : 'fa-upload'}"></i> ARC ${u.arc_file && u.arc_file.data ? '<i class="fas fa-check" style="font-size:0.75rem;"></i>' : ''}
                     </button>
-                    <button class="btn-action edit" data-user="${safeUsername}" title="Editar Cargo e Información">
+                    ` : ''}
+                    <button class="btn-action edit" data-user="${safeUsername}" title="Editar Información del Usuario">
                         <i class="fas fa-edit"></i> Editar
                     </button>
                     ${u.username !== 'admin@pget.gob.ve' && u.username !== 'admin' ? `
@@ -2014,6 +2034,47 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAdminUsersTable(filtered);
     };
 
+    // Conmutar campos visibles según rol (Administrador no debe tener profesión, datos laborales ni Planilla ARC)
+    function updateAdminFormVisibility(modal) {
+        if (!modal) modal = document.getElementById('loginModal');
+        if (!modal) return;
+        const roleSelect = modal.querySelector('#formRole');
+        const isAdmin = roleSelect && roleSelect.value === 'admin';
+
+        const profGroup = modal.querySelector('#formProfesionGroup');
+        const laboralSection = modal.querySelector('#formLaboralSection');
+
+        const profSelect = modal.querySelector('#formProfesion');
+        const cargoInput = modal.querySelector('#formCargo');
+        const condSelect = modal.querySelector('#formCondicion');
+        const salInput = modal.querySelector('#formSalario');
+        const fechaInput = modal.querySelector('#formFechaIngreso');
+        const depSelect = modal.querySelector('#formDependencia');
+        const dirSelect = modal.querySelector('#formDireccion');
+
+        if (isAdmin) {
+            if (profGroup) profGroup.style.display = 'none';
+            if (laboralSection) laboralSection.style.display = 'none';
+            if (profSelect) profSelect.required = false;
+            if (cargoInput) cargoInput.required = false;
+            if (condSelect) condSelect.required = false;
+            if (salInput) salInput.required = false;
+            if (fechaInput) fechaInput.required = false;
+            if (depSelect) depSelect.required = false;
+            if (dirSelect) dirSelect.required = false;
+        } else {
+            if (profGroup) profGroup.style.display = '';
+            if (laboralSection) laboralSection.style.display = 'contents';
+            if (profSelect) profSelect.required = true;
+            if (cargoInput) cargoInput.required = true;
+            if (condSelect) condSelect.required = true;
+            if (salInput) salInput.required = true;
+            if (fechaInput) fechaInput.required = true;
+            if (depSelect) depSelect.required = true;
+            if (dirSelect) dirSelect.required = true;
+        }
+    }
+
     // Abrir Formulario para Crear Usuario (Pantalla Completa)
     window.openCreateUserForm = () => {
         editingUsername = null;
@@ -2044,6 +2105,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.querySelector('#formPasswordConfirm').placeholder = 'Repita la contraseña para confirmar';
 
         modal.querySelector('#formRole').value = 'trabajador';
+        updateAdminFormVisibility(modal);
         modal.querySelector('#formNombres').value = '';
         modal.querySelector('#formApellidos').value = '';
         setFormGender('masculino');
@@ -2118,6 +2180,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.querySelector('#formPasswordConfirm').placeholder = 'Confirme la nueva contraseña';
 
         modal.querySelector('#formRole').value = user.role || 'trabajador';
+        updateAdminFormVisibility(modal);
         
         // Cargar nombres y apellidos por separado
         const userNombres = user.nombres || '';
@@ -2200,34 +2263,62 @@ document.addEventListener('DOMContentLoaded', () => {
         const errDiv = modal.querySelector('#formUserError');
         const submitBtn = modal.querySelector('#saveUserSubmitBtn');
 
-        const rawFechaIng = modal.querySelector('#formFechaIngreso').value.trim();
-        const fechaIng = toDisplayDateValue(rawFechaIng);
-        const autoYears = calculateYearsOfService(rawFechaIng || fechaIng).toString();
-        modal.querySelector('#formAnos').value = autoYears;
-        const gen = getFormGender();
-        const profVal = modal.querySelector('#formProfesion').value;
-        const profNormalized = formatProfessionByGender(profVal, gen);
-
         const username = modal.querySelector('#formUsername').value.trim().toLowerCase();
         const role = modal.querySelector('#formRole').value;
+        const isAdmin = role === 'admin';
         const nombres = modal.querySelector('#formNombres').value.trim().toUpperCase();
         const apellidos = modal.querySelector('#formApellidos').value.trim().toUpperCase();
         const cedula = cleanCedula(modal.querySelector('#formCedula').value);
-        const cargo = modal.querySelector('#formCargo').value.trim().toUpperCase();
-        const condicion = modal.querySelector('#formCondicion').value;
-        const salario = formatSalarioBs(modal.querySelector('#formSalario').value);
-        const dependencia = (modal.querySelector('#formDependencia').value || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO').trim().toUpperCase();
-        const direccion = modal.querySelector('#formDireccion').value;
+        const gen = getFormGender();
 
-        if (cargo) {
-            addCargoToCatalog(cargo);
-        }
+        let profNormalized = '';
+        let cargo = '';
+        let condicion = '';
+        let salario = '';
+        let dependencia = '';
+        let direccion = '';
+        let fechaIng = '';
+        let autoYears = '0';
 
-        // Validación: Todos los campos deben ser obligatorios
-        if (!username || !nombres || !apellidos || !cedula || !cargo || !condicion || !salario || !fechaIng || !dependencia || !direccion || !profVal) {
-            errDiv.style.display = 'block';
-            errDiv.textContent = 'Todos los campos son obligatorios. Por favor complete toda la información requerida.';
-            return;
+        if (!isAdmin) {
+            const rawFechaIng = modal.querySelector('#formFechaIngreso').value.trim();
+            fechaIng = toDisplayDateValue(rawFechaIng);
+            autoYears = calculateYearsOfService(rawFechaIng || fechaIng).toString();
+            modal.querySelector('#formAnos').value = autoYears;
+            const profVal = modal.querySelector('#formProfesion').value;
+            profNormalized = formatProfessionByGender(profVal, gen);
+
+            cargo = modal.querySelector('#formCargo').value.trim().toUpperCase();
+            condicion = modal.querySelector('#formCondicion').value;
+            salario = formatSalarioBs(modal.querySelector('#formSalario').value);
+            dependencia = (modal.querySelector('#formDependencia').value || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO').trim().toUpperCase();
+            direccion = modal.querySelector('#formDireccion').value;
+
+            if (cargo) {
+                addCargoToCatalog(cargo);
+            }
+
+            // Validación: Todos los campos deben ser obligatorios para trabajador
+            if (!username || !nombres || !apellidos || !cedula || !cargo || !condicion || !salario || !fechaIng || !dependencia || !direccion || !profVal) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'Todos los campos son obligatorios. Por favor complete toda la información requerida.';
+                return;
+            }
+        } else {
+            // Perfil Administrador: No debe tener esos datos ni profesion ni planilla ARC
+            if (!username || !nombres || !apellidos || !cedula) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'Todos los campos de acceso y datos personales son obligatorios: Correo, Nombres, Apellidos y Cédula.';
+                return;
+            }
+            profNormalized = '';
+            cargo = 'ADMINISTRADOR DEL SISTEMA';
+            condicion = '';
+            salario = '';
+            dependencia = 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO';
+            direccion = 'DIRECCIÓN GENERAL';
+            fechaIng = '';
+            autoYears = '0';
         }
 
         // Validación de cédula: admite solo números
@@ -2250,14 +2341,16 @@ document.addEventListener('DOMContentLoaded', () => {
             cedula: cedula,
             cargo: cargo,
             condicion: condicion,
-            salario: salario || 'Bs. 1.000,00',
+            salario: salario,
             dependencia: dependencia,
             direccion: direccion,
             fecha_ingreso: fechaIng,
             anos_servicio: autoYears
         };
 
-        if (formSelectedArcFile !== undefined) {
+        if (isAdmin) {
+            userData.arc_file = null;
+        } else if (formSelectedArcFile !== undefined) {
             userData.arc_file = formSelectedArcFile;
         }
 
@@ -2304,6 +2397,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let response;
             if (editingUsername) {
+                // Si se marcó explícitamente para quitar la Planilla ARC o el usuario es Administrador, eliminar en backend
+                if (formSelectedArcFile === null || isAdmin) {
+                    try {
+                        await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}/arc`, {
+                            method: 'DELETE'
+                        });
+                    } catch (eArcDel) {}
+                }
+
                 // Actualizar usuario existente: enviar a /users/update con username objetivo y new_username
                 const updatePayload = {
                     ...userData,
@@ -2359,9 +2461,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     const idx = allUsersCache.findIndex(u => u.username.toLowerCase() === editingUsername.toLowerCase());
                     if (idx !== -1) {
                         allUsersCache[idx] = { ...allUsersCache[idx], ...userData, username: finalUsername };
+                        if (formSelectedArcFile === null || isAdmin) {
+                            delete allUsersCache[idx].arc_file;
+                            allUsersCache[idx].arc_file = null;
+                        }
                     }
                     if (currentUser && currentUser.username.toLowerCase() === editingUsername.toLowerCase()) {
                         currentUser = { ...currentUser, ...userData, username: finalUsername };
+                        if (formSelectedArcFile === null || isAdmin) {
+                            delete currentUser.arc_file;
+                            currentUser.arc_file = null;
+                        }
                         localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
                     }
                 } else {
@@ -2394,6 +2504,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const idx = allUsersCache.findIndex(u => u.username.toLowerCase() === editingUsername.toLowerCase());
                 if (idx !== -1) {
                     allUsersCache[idx] = { ...allUsersCache[idx], ...userData };
+                    if (formSelectedArcFile === null || isAdmin) {
+                        delete allUsersCache[idx].arc_file;
+                        allUsersCache[idx].arc_file = null;
+                    }
                 }
             } else {
                 allUsersCache.push(userData);
@@ -2931,12 +3045,14 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.innerHTML = `
             <div class="arc-viewer-container">
                 <!-- Header -->
-                <div style="background: #15803d; color: white; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #D4AF37; flex-wrap: wrap; gap: 10px;">
+                <div style="background: linear-gradient(135deg, #6A0D25 0%, #83122F 100%); color: white; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #D4AF37; flex-wrap: wrap; gap: 10px;">
                     <div style="display: flex; align-items: center; gap: 12px;">
-                        <i class="fas fa-file-invoice" style="font-size: 1.3rem;"></i>
+                        <div style="background: white; border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; color: #6A0D25; box-shadow: 0 2px 6px rgba(0,0,0,0.15); border: 1px solid #D4AF37;">
+                            <i class="fas fa-file-invoice" style="font-size: 1.15rem;"></i>
+                        </div>
                         <div>
                             <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: white;">Planilla de ARC &bull; ${userName}</h3>
-                            <span style="font-size: 0.82rem; color: #dcfce7;">${fileName} &bull; ${uploadDate}</span>
+                            <span style="font-size: 0.82rem; color: #F7E7B4;">${fileName} &bull; ${uploadDate}</span>
                         </div>
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px;">
@@ -3000,15 +3116,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         modal.innerHTML = `
             <div style="background: white; width: 100%; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); border: 1px solid #e2e8f0; display: flex; flex-direction: column;">
-                <!-- Header -->
-                <div style="background: linear-gradient(135deg, #15803d, #166534); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center;">
+                <!-- Header Vinotinto Institucional -->
+                <div style="background: linear-gradient(135deg, #6A0D25 0%, #83122F 100%); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center;">
                     <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="background: white; border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; color: #15803d;">
-                            <i class="fas fa-file-invoice" style="font-size: 1.15rem;"></i>
+                        <div style="background: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: #6A0D25; box-shadow: 0 2px 6px rgba(0,0,0,0.15); border: 1.5px solid #D4AF37;">
+                            <i class="fas fa-file-invoice" style="font-size: 1.2rem;"></i>
                         </div>
                         <div>
                             <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: white;">Planilla de ARC</h3>
-                            <span style="font-size: 0.8rem; opacity: 0.9; color: #f0fdf4;">Comprobante de Retención Anual del Trabajador</span>
+                            <span style="font-size: 0.8rem; opacity: 0.95; color: #F7E7B4;">Comprobante de Retención Anual del Trabajador</span>
                         </div>
                     </div>
                     <button type="button" onclick="window.closeAdminArcModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
@@ -3017,23 +3133,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
 
                 <!-- Info Usuario -->
-                <div style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div style="background: #fdfaf6; border-bottom: 1px solid #e2e8f0; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
                     <div>
                         <strong style="color: #1e293b; font-size: 0.95rem; display: block;">${safeName}</strong>
                         <span style="font-size: 0.82rem; color: #64748b;">${safeCargo} &bull; ${safeCedula}</span>
                     </div>
-                    <span style="font-size: 0.78rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; ${hasArc ? 'background: #dcfce7; color: #166534; border: 1px solid #86efac;' : 'background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1;'}">
-                        ${hasArc ? '<i class="fas fa-check-circle"></i> Planilla ARC Asignada' : '<i class="fas fa-clock"></i> Pendiente por Cargar'}
+                    <span style="font-size: 0.78rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; ${hasArc ? 'background: #fdf2f4; color: #6A0D25; border: 1.5px solid #D4AF37;' : 'background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1;'}">
+                        ${hasArc ? '<i class="fas fa-check-circle" style="color: #D4AF37;"></i> Planilla ARC Asignada' : '<i class="fas fa-clock"></i> Pendiente por Cargar'}
                     </span>
                 </div>
 
                 <div style="padding: 24px; overflow-y: auto; max-height: 70vh;">
                     ${hasArc ? `
                     <!-- Detalle de la Planilla ARC Actual -->
-                    <div style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; padding: 18px; margin-bottom: 22px;">
+                    <div style="background: #fdfaf6; border: 1.5px solid #D4AF37; border-radius: 12px; padding: 18px; margin-bottom: 22px; box-shadow: 0 2px 8px rgba(106,13,37,0.04);">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-                            <span style="font-weight: 700; font-size: 0.9rem; color: #166534; display: flex; align-items: center; gap: 8px;">
-                                <i class="fas ${user.arc_file.type && user.arc_file.type.includes('pdf') ? 'fa-file-pdf' : 'fa-file-image'}" style="font-size: 1.15rem; color: #15803d;"></i>
+                            <span style="font-weight: 700; font-size: 0.9rem; color: #6A0D25; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas ${user.arc_file.type && user.arc_file.type.includes('pdf') ? 'fa-file-pdf' : 'fa-file-image'}" style="font-size: 1.2rem; color: #83122F;"></i>
                                 ${escapeHtml(user.arc_file.name || 'Planilla_ARC')}
                             </span>
                             <span style="font-size: 0.78rem; color: #64748b; font-weight: 600;">
@@ -3041,10 +3157,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             </span>
                         </div>
                         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                            <button type="button" id="adminPreviewArcBtn" style="background: #15803d; border: none; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.2s;">
-                                <i class="fas fa-eye"></i> Ver / Imprimir
+                            <button type="button" id="adminPreviewArcBtn" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1px solid #D4AF37; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.2s;">
+                                <i class="fas fa-eye" style="color: #F7E7B4;"></i> Ver / Imprimir
                             </button>
-                            <button type="button" id="adminDownloadArcBtn" style="background: #D4AF37; border: none; color: #1e293b; padding: 8px 16px; border-radius: 6px; font-weight: 800; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                            <button type="button" id="adminDownloadArcBtn" style="background: #D4AF37; border: 1px solid #c59b27; color: #1e293b; padding: 8px 16px; border-radius: 6px; font-weight: 800; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                                 <i class="fas fa-download"></i> Descargar
                             </button>
                             <button type="button" onclick="window.deleteUserArc('${user.username}')" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px; margin-left: auto;">
@@ -3057,25 +3173,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     <!-- Subir o Reemplazar Documento -->
                     <div>
                         <h4 style="margin: 0 0 10px 0; color: #1e293b; font-size: 0.95rem; font-weight: 700;">
-                            ${hasArc ? '<i class="fas fa-sync-alt"></i> Reemplazar Planilla de ARC:' : '<i class="fas fa-upload"></i> Subir Planilla de ARC:'}
+                            ${hasArc ? '<i class="fas fa-sync-alt" style="color:#6A0D25;"></i> Reemplazar Planilla de ARC:' : '<i class="fas fa-upload" style="color:#6A0D25;"></i> Subir Planilla de ARC:'}
                         </h4>
                         
-                        <div id="adminArcDropzone" style="border: 2px dashed #cbd5e1; border-radius: 12px; padding: 25px; text-align: center; background: #fafafa; cursor: pointer; transition: all 0.2s;">
-                            <i class="fas fa-cloud-upload-alt" style="font-size: 2.2rem; color: #15803d; margin-bottom: 10px;"></i>
-                            <div style="font-weight: 700; color: #1e293b; font-size: 0.92rem; margin-bottom: 4px;">
+                        <!-- Input File fuera del dropzone para evitar doble click / bloqueo del selector nativo -->
+                        <input type="file" id="adminArcFileInput" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" style="display: none;">
+                        
+                        <div id="adminArcDropzone" style="border: 2px dashed #D4AF37; border-radius: 12px; padding: 25px; text-align: center; background: #fdfaf6; cursor: pointer; transition: all 0.2s;">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 2.4rem; color: #6A0D25; margin-bottom: 8px;"></i>
+                            <div style="font-weight: 700; color: #1e293b; font-size: 0.95rem; margin-bottom: 4px;">
                                 Haga clic para seleccionar archivo o arrástrelo aquí
                             </div>
-                            <div style="font-size: 0.8rem; color: #64748b;">
+                            <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 12px;">
                                 Formatos aceptados: Documentos PDF o Imágenes (JPG, PNG, WEBP) &bull; Máx. 10 MB
                             </div>
-                            <input type="file" id="adminArcFileInput" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" style="display: none;">
+                            <button type="button" id="adminArcBrowseBtn" style="background: white; border: 1.5px solid #6A0D25; color: #6A0D25; padding: 8px 18px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                                <i class="fas fa-folder-open" style="color: #83122F;"></i> Explorar Archivo
+                            </button>
                         </div>
 
-                        <div id="adminArcSelectedFileBox" style="display: none; margin-top: 15px; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px 16px; align-items: center; justify-content: space-between;">
+                        <div id="adminArcSelectedFileBox" style="display: none; margin-top: 15px; background: #fdf2f4; border: 1px solid #fecdd3; border-radius: 8px; padding: 12px 16px; align-items: center; justify-content: space-between;">
                             <div style="display: flex; align-items: center; gap: 10px;">
-                                <i class="fas fa-check-circle" style="color: #15803d; font-size: 1.2rem;"></i>
+                                <i class="fas fa-check-circle" style="color: #6A0D25; font-size: 1.2rem;"></i>
                                 <div>
-                                    <strong id="adminArcSelectedName" style="color: #166534; font-size: 0.88rem; display: block;">archivo.pdf</strong>
+                                    <strong id="adminArcSelectedName" style="color: #6A0D25; font-size: 0.88rem; display: block;">archivo.pdf</strong>
                                     <span id="adminArcSelectedSize" style="font-size: 0.78rem; color: #64748b;">0 KB</span>
                                 </div>
                             </div>
@@ -3086,7 +3207,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         <div id="adminArcUploadMsg" style="display: none; margin-top: 12px; font-size: 0.85rem; text-align: center; font-weight: 600;"></div>
 
-                        <button type="button" id="adminUploadArcBtn" disabled style="width: 100%; margin-top: 18px; background: #15803d; opacity: 0.6; border: none; color: white; padding: 13px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: not-allowed; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;">
+                        <button type="button" id="adminUploadArcBtn" disabled style="width: 100%; margin-top: 18px; background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; opacity: 0.6; color: white; padding: 13px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: not-allowed; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(106,13,37,0.2);">
                             <i class="fas fa-cloud-upload-alt"></i> Subir y Asignar Planilla ARC
                         </button>
                     </div>
@@ -3110,6 +3231,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const dropzone = modal.querySelector('#adminArcDropzone');
         const fileInput = modal.querySelector('#adminArcFileInput');
+        const browseBtn = modal.querySelector('#adminArcBrowseBtn');
         const selectedBox = modal.querySelector('#adminArcSelectedFileBox');
         const selectedName = modal.querySelector('#adminArcSelectedName');
         const selectedSize = modal.querySelector('#adminArcSelectedSize');
@@ -3118,13 +3240,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let pendingFile = null;
 
-        dropzone.onclick = () => fileInput.click();
-        dropzone.ondragover = (e) => { e.preventDefault(); dropzone.style.borderColor = '#15803d'; dropzone.style.background = '#f0fdf4'; };
-        dropzone.ondragleave = () => { dropzone.style.borderColor = '#cbd5e1'; dropzone.style.background = '#fafafa'; };
+        if (browseBtn) {
+            browseBtn.onclick = (e) => {
+                e.stopPropagation();
+                fileInput.click();
+            };
+        }
+
+        dropzone.onclick = (e) => {
+            if (e.target !== fileInput && e.target !== browseBtn) {
+                fileInput.click();
+            }
+        };
+
+        fileInput.onclick = (e) => {
+            e.stopPropagation();
+        };
+
+        dropzone.ondragover = (e) => { 
+            e.preventDefault(); 
+            dropzone.style.borderColor = '#6A0D25'; 
+            dropzone.style.background = '#fdf2f4'; 
+        };
+        dropzone.ondragleave = () => { 
+            dropzone.style.borderColor = '#D4AF37'; 
+            dropzone.style.background = '#fdfaf6'; 
+        };
         dropzone.ondrop = (e) => {
             e.preventDefault();
-            dropzone.style.borderColor = '#cbd5e1';
-            dropzone.style.background = '#fafafa';
+            dropzone.style.borderColor = '#D4AF37';
+            dropzone.style.background = '#fdfaf6';
             if (e.dataTransfer.files && e.dataTransfer.files[0]) {
                 handleFileSelection(e.dataTransfer.files[0]);
             }
@@ -3176,14 +3321,27 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
 
                 try {
-                    await fetch(`${API_URL}/users/${encodeURIComponent(username)}/arc`, {
+                    const postRes = await fetch(`${API_URL}/users/${encodeURIComponent(username)}/arc`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(arcPayload)
                     });
-                } catch (err) {}
+                    if (!postRes.ok) throw new Error('Fallback update');
+                } catch (err) {
+                    try {
+                        await fetch(`${API_URL}/users/update`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username: username, arc_file: arcPayload })
+                        });
+                    } catch (e2) {}
+                }
 
                 user.arc_file = arcPayload;
+                const uIdx = allUsersCache.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
+                if (uIdx !== -1) {
+                    allUsersCache[uIdx].arc_file = arcPayload;
+                }
                 localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
                 if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
                     currentUser.arc_file = arcPayload;
@@ -3232,10 +3390,25 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } catch (e) {}
 
+        try {
+            await fetch(`${API_URL}/users/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username, arc_file: null })
+            });
+        } catch (e2) {}
+
         user.arc_file = null;
+        delete user.arc_file;
+        const uIdx = allUsersCache.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
+        if (uIdx !== -1) {
+            allUsersCache[uIdx].arc_file = null;
+            delete allUsersCache[uIdx].arc_file;
+        }
         localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
         if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
             currentUser.arc_file = null;
+            delete currentUser.arc_file;
             localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
         }
         renderAdminUsersTable(allUsersCache);
