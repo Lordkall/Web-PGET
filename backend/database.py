@@ -39,7 +39,13 @@ memory_users = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DESPACHO DEL PROCURADOR GENERAL",
         "fecha_ingreso": "01/01/2020",
-        "anos_servicio": "6"
+        "anos_servicio": "6",
+        "codigo_rac": "0001000001",
+        "telefono_codigo": "0414",
+        "telefono_numero": "1234567",
+        "telefono": "0414-1234567",
+        "banco": "Banco de Venezuela",
+        "cuenta": "01020001234567891267"
     },
     {
         "username": "victoria@pget.gob.ve",
@@ -57,7 +63,13 @@ memory_users = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
         "fecha_ingreso": "01/04/2024",
-        "anos_servicio": "2"
+        "anos_servicio": "2",
+        "codigo_rac": "0001827492",
+        "telefono_codigo": "0414",
+        "telefono_numero": "7251622",
+        "telefono": "0414-7251622",
+        "banco": "Banco de Venezuela",
+        "cuenta": "01020384910029381267"
     },
     {
         "username": "lorenzo@pget.gob.ve",
@@ -75,7 +87,13 @@ memory_users = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
         "fecha_ingreso": "21/11/2022",
-        "anos_servicio": "4"
+        "anos_servicio": "4",
+        "codigo_rac": "0002500661",
+        "telefono_codigo": "0412",
+        "telefono_numero": "5006611",
+        "telefono": "0412-5006611",
+        "banco": "Banco de Venezuela",
+        "cuenta": "01020492817263541267"
     },
     {
         "username": "mario@pget.gob.ve",
@@ -93,7 +111,13 @@ memory_users = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "UNIDAD DE AUDITORÍA INTERNA",
         "fecha_ingreso": "15/03/1998",
-        "anos_servicio": "25"
+        "anos_servicio": "25",
+        "codigo_rac": "0000901985",
+        "telefono_codigo": "0416",
+        "telefono_numero": "9019850",
+        "telefono": "0416-9019850",
+        "banco": "Banco de Venezuela",
+        "cuenta": "01020192837465011267"
     }
 ]
 
@@ -267,7 +291,13 @@ async def create_initial_users():
             "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
             "direccion": "DESPACHO DEL PROCURADOR GENERAL",
             "fecha_ingreso": "01/01/2020",
-            "anos_servicio": "6"
+            "anos_servicio": "6",
+            "codigo_rac": "0001000001",
+            "telefono_codigo": "0414",
+            "telefono_numero": "1234567",
+            "telefono": "0414-1234567",
+            "banco": "Banco de Venezuela",
+            "cuenta": "01020001234567891267"
         },
         {
             "username": "victoria@pget.gob.ve",
@@ -285,7 +315,13 @@ async def create_initial_users():
             "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
             "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
             "fecha_ingreso": "01/04/2024",
-            "anos_servicio": "2"
+            "anos_servicio": "2",
+            "codigo_rac": "0001827492",
+            "telefono_codigo": "0414",
+            "telefono_numero": "7251622",
+            "telefono": "0414-7251622",
+            "banco": "Banco de Venezuela",
+            "cuenta": "01020384910029381267"
         },
         {
             "username": "lorenzo@pget.gob.ve",
@@ -303,7 +339,13 @@ async def create_initial_users():
             "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
             "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
             "fecha_ingreso": "21/11/2022",
-            "anos_servicio": "4"
+            "anos_servicio": "4",
+            "codigo_rac": "0002500661",
+            "telefono_codigo": "0412",
+            "telefono_numero": "5006611",
+            "telefono": "0412-5006611",
+            "banco": "Banco de Venezuela",
+            "cuenta": "01020492817263541267"
         },
         {
             "username": "mario@pget.gob.ve",
@@ -321,7 +363,13 @@ async def create_initial_users():
             "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
             "direccion": "UNIDAD DE AUDITORÍA INTERNA",
             "fecha_ingreso": "15/03/1998",
-            "anos_servicio": "25"
+            "anos_servicio": "25",
+            "codigo_rac": "0000901985",
+            "telefono_codigo": "0416",
+            "telefono_numero": "9019850",
+            "telefono": "0416-9019850",
+            "banco": "Banco de Venezuela",
+            "cuenta": "01020192837465011267"
         }
     ]
 
@@ -411,18 +459,33 @@ async def delete_cargo_record(nombre: str):
         print(f"MongoDB warning in delete_cargo_record: {e}")
         return False
 
-async def delete_user_arc(username: str):
+async def delete_user_arc(username: str, year: Optional[str] = None):
     clean_name = unquote(str(username or "")).strip().lower()
     try:
-        await users_collection.update_one(
-            {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
-            {"$unset": {"arc_file": ""}}
-        )
+        if year:
+            clean_year = str(year).strip()
+            await users_collection.update_one(
+                {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
+                {"$unset": {f"arc_files.{clean_year}": ""}}
+            )
+        else:
+            await users_collection.update_one(
+                {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
+                {"$unset": {"arc_file": "", "arc_files": ""}}
+            )
     except Exception as e:
         print(f"MongoDB warning in delete_user_arc: {e}")
     for idx, u in enumerate(memory_users):
         if u["username"].lower() == clean_name:
-            memory_users[idx].pop("arc_file", None)
+            if year:
+                clean_year = str(year).strip()
+                if "arc_files" in memory_users[idx] and isinstance(memory_users[idx]["arc_files"], dict):
+                    memory_users[idx]["arc_files"].pop(clean_year, None)
+                if memory_users[idx].get("arc_file", {}).get("year") == clean_year:
+                    memory_users[idx].pop("arc_file", None)
+            else:
+                memory_users[idx].pop("arc_file", None)
+                memory_users[idx].pop("arc_files", None)
             return True
     return True
 

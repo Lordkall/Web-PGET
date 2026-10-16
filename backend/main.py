@@ -82,8 +82,13 @@ class UserCreateRequest(BaseModel):
     direccion: Optional[str] = "DIRECCIÓN DE RECURSOS HUMANOS"
     fecha_ingreso: Optional[str] = ""
     anos_servicio: Optional[str] = "0"
+    codigo_rac: Optional[str] = ""
+    telefono_codigo: Optional[str] = ""
+    telefono_numero: Optional[str] = ""
+    telefono: Optional[str] = ""
     banco: Optional[str] = ""
     cuenta: Optional[str] = ""
+    arc_files: Optional[Dict[str, Any]] = None
     arc_file: Optional[Any] = None
 
 class UserUpdateRequest(BaseModel):
@@ -102,13 +107,19 @@ class UserUpdateRequest(BaseModel):
     direccion: Optional[str] = None
     fecha_ingreso: Optional[str] = None
     anos_servicio: Optional[str] = None
+    codigo_rac: Optional[str] = None
+    telefono_codigo: Optional[str] = None
+    telefono_numero: Optional[str] = None
+    telefono: Optional[str] = None
     banco: Optional[str] = None
     cuenta: Optional[str] = None
     role: Optional[str] = None
     password: Optional[str] = None
+    arc_files: Optional[Dict[str, Any]] = None
     arc_file: Optional[Any] = None
 
 class ArcUploadRequest(BaseModel):
+    year: Optional[str] = "2025"
     name: str
     type: str
     data: str
@@ -315,40 +326,62 @@ async def update_user(request: UserUpdateRequest, username: Optional[str] = None
     safe_user.pop("_id", None)
     return {"message": "Usuario actualizado exitosamente", "user": safe_user}
 
-# Rutas para Subida, Consulta y Eliminación de Planillas ARC por Usuario
+# Rutas para Subida, Consulta y Eliminación de Planillas ARC por Usuario (Soporte por Año)
 @app.post("/api/users/{username}/arc")
 @app.post("/users/{username}/arc")
 async def upload_arc(username: str, req: ArcUploadRequest):
     clean_username = unquote(str(username)).strip().lower()
+    year = str(req.year or "2025").strip()
     arc_dict = {
+        "year": year,
         "name": req.name,
         "type": req.type,
         "data": req.data,
         "size": req.size,
         "uploaded_at": req.uploaded_at or datetime.now().strftime("%d/%m/%Y %H:%M")
     }
-    user = await update_user_record(clean_username, {"arc_file": arc_dict})
+    user = await get_user_by_username(clean_username)
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    return {"message": "Planilla ARC subida exitosamente", "arc_file": arc_dict}
+        
+    arc_files = user.get("arc_files") or {}
+    if not isinstance(arc_files, dict):
+        arc_files = {}
+    arc_files[year] = arc_dict
+
+    updated = await update_user_record(clean_username, {
+        "arc_file": arc_dict,
+        "arc_files": arc_files
+    })
+    if not updated:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    return {"message": f"Planilla ARC del año {year} subida exitosamente", "arc_file": arc_dict, "arc_files": arc_files}
 
 @app.get("/api/users/{username}/arc")
 @app.get("/users/{username}/arc")
-async def get_arc(username: str):
+async def get_arc(username: str, year: Optional[str] = None):
     clean_username = unquote(str(username)).strip().lower()
     user = await get_user_by_username(clean_username)
     if not user:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    return {"arc_file": user.get("arc_file")}
+    arc_files = user.get("arc_files") or {}
+    if year:
+        clean_y = str(year).strip()
+        matched = arc_files.get(clean_y)
+        if not matched and user.get("arc_file") and str(user.get("arc_file", {}).get("year")) == clean_y:
+            matched = user.get("arc_file")
+        return {"arc_file": matched, "year": clean_y}
+    return {"arc_file": user.get("arc_file"), "arc_files": arc_files}
 
 @app.delete("/api/users/{username}/arc")
 @app.delete("/users/{username}/arc")
 @app.post("/api/users/{username}/arc/delete")
 @app.post("/users/{username}/arc/delete")
-async def remove_arc(username: str):
+async def remove_arc(username: str, year: Optional[str] = None):
     clean_username = unquote(str(username)).strip().lower()
-    await delete_user_arc(clean_username)
-    return {"message": "Planilla ARC eliminada exitosamente"}
+    await delete_user_arc(clean_username, year=year)
+    msg = f"Planilla ARC del año {year} eliminada exitosamente" if year else "Planilla ARC eliminada exitosamente"
+    return {"message": msg}
 
 def format_cedula_oficial(cedula: str) -> str:
     if not cedula:
@@ -557,10 +590,22 @@ async def solicitar_constancia(
     token: Optional[str] = None,
     username: Optional[str] = None,
     nota: Optional[str] = None,
-    con_salario: Optional[str] = "true"
+    con_salario: Optional[str] = "true",
+    motivo: Optional[str] = "Trámites personales"
 ):
     if not token or not str(token).strip():
         raise HTTPException(status_code=401, detail="No autorizado: token requerido")
+    
+    valid_motivos = [
+        "Trámites bancarios",
+        "Trámites personales",
+        "Fines legales",
+        "Otros trámites"
+    ]
+    motivo_limpio = (motivo or "Trámites personales").strip()
+    matched_m = next((m for m in valid_motivos if m.lower() == motivo_limpio.lower()), None)
+    if matched_m:
+        motivo_limpio = matched_m
     
     token_user_key = str(token).replace("pget-token-", "").strip().lower()
     token_user = await get_user_by_username(token_user_key)
@@ -698,6 +743,7 @@ async def solicitar_constancia(
         "firmante_nombre": "ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.",
         "firmante_cargo": "DIRECTORA (E) DE RECURSOS HUMANOS DE LA\nPROCURADURÍA GENERAL DEL ESTADO TRUJILLO.",
         "iniciales": iniciales,
+        "motivo": motivo_limpio,
         "cuerpo": cuerpo
     }
 

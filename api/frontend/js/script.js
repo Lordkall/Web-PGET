@@ -209,6 +209,12 @@ document.addEventListener('DOMContentLoaded', () => {
             profesion: 'Abogada',
             genero: 'femenino',
             cedula: '27251622',
+            codigo_rac: '0001429810',
+            telefono_codigo: '0414',
+            telefono_numero: '7251622',
+            telefono: '0414-7251622',
+            banco: 'Banco de Venezuela',
+            cuenta: '01020000000000001267',
             cargo: 'ADMINISTRADOR PROFESIONAL I',
             condicion: 'FIJO',
             salario: 'Bs. 1.000,00',
@@ -227,6 +233,12 @@ document.addEventListener('DOMContentLoaded', () => {
             profesion: 'Ingeniero',
             genero: 'masculino',
             cedula: '25006611',
+            codigo_rac: '0002819405',
+            telefono_codigo: '0412',
+            telefono_numero: '5006611',
+            telefono: '0412-5006611',
+            banco: 'Banco de Venezuela',
+            cuenta: '01020345120000004589',
             cargo: 'ANALISTA CENTRAL DE COMPUTACIÓN Y SISTEMAS',
             condicion: 'CONTRATADO',
             salario: 'Bs. 1.000,00',
@@ -245,6 +257,12 @@ document.addEventListener('DOMContentLoaded', () => {
             profesion: 'Licenciado',
             genero: 'masculino',
             cedula: '9019850',
+            codigo_rac: '0000512890',
+            telefono_codigo: '0416',
+            telefono_numero: '9019850',
+            telefono: '0416-9019850',
+            banco: 'Banco Bicentenario',
+            cuenta: '01750012900000007812',
             cargo: 'AUDITOR JEFE',
             condicion: 'JUBILADO',
             salario: 'Bs. 142,00',
@@ -368,6 +386,25 @@ document.addEventListener('DOMContentLoaded', () => {
             return nombre;
         }
         return `${prefix}${nombre}`;
+    }
+
+    // Helper para enmascarar número de cuenta para trabajadores: 0102**************1267 (Fiel a img 3)
+    function formatMaskedAccount(cuenta) {
+        if (!cuenta) return 'No registrada';
+        const clean = String(cuenta).replace(/[^0-9]/g, '');
+        if (clean.length < 8) return clean || 'No registrada';
+        const first4 = clean.slice(0, 4);
+        const last4 = clean.slice(-4);
+        return `${first4}**************${last4}`;
+    }
+
+    // Helper para formatear número de teléfono (código + 7 dígitos)
+    function formatTelefono(cod, num) {
+        const c = String(cod || '').trim();
+        const n = String(num || '').trim().replace(/[^0-9]/g, '');
+        if (c && n) return `${c}-${n}`;
+        if (n) return n;
+        return 'No registrado';
     }
 
     // Actualiza dinámicamente las opciones del desplegable de profesión según el género seleccionado
@@ -996,6 +1033,22 @@ document.addEventListener('DOMContentLoaded', () => {
                                             <strong id="workerCedula" style="color: #1e293b; font-size: 1.05rem;">-</strong>
                                         </div>
                                         <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Código RAC:</span>
+                                            <strong id="workerCodigoRac" style="color: #1e293b; font-size: 1.05rem;">-</strong>
+                                        </div>
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Número de Teléfono:</span>
+                                            <strong id="workerTelefono" style="color: #1e293b; font-size: 1.05rem;">-</strong>
+                                        </div>
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Entidad Bancaria:</span>
+                                            <strong id="workerBanco" style="color: #1e293b; font-size: 1.05rem;">-</strong>
+                                        </div>
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Número de Cuenta:</span>
+                                            <strong id="workerCuenta" class="masked-account-text">-</strong>
+                                        </div>
+                                        <div>
                                             <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Profesión / Titulación:</span>
                                             <strong id="workerProfesion" style="color: #0369a1; font-size: 1rem;">-</strong>
                                         </div>
@@ -1038,6 +1091,19 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <p id="workerCertDesc" style="font-size: 0.92rem; color: #64748b; margin-bottom: 20px;">
                                         Modelo oficial adaptado automáticamente a su condición laboral.
                                     </p>
+
+                                    <!-- Lista desplegable para seleccionar el motivo de la constancia -->
+                                    <div style="margin-bottom: 18px;">
+                                        <label style="display: block; font-weight: 700; font-size: 0.88rem; color: #334155; margin-bottom: 8px;">
+                                            <i class="fas fa-list-ul" style="color: #D4AF37;"></i> Motivo de la Solicitud: *
+                                        </label>
+                                        <select id="certMotivoSelect" style="width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; font-weight: 600; color: #1e293b; cursor: pointer;">
+                                            <option value="Trámites bancarios">Trámites bancarios</option>
+                                            <option value="Trámites personales" selected>Trámites personales</option>
+                                            <option value="Fines legales">Fines legales</option>
+                                            <option value="Otros trámites">Otros trámites</option>
+                                        </select>
+                                    </div>
                                     
                                     <div style="margin-bottom: 20px;">
                                         <label style="display: block; font-weight: 700; font-size: 0.88rem; color: #334155; margin-bottom: 8px;">
@@ -1053,31 +1119,42 @@ document.addEventListener('DOMContentLoaded', () => {
                                         <i class="fas fa-file-alt"></i> Generar y Ver Constancia Oficial
                                     </button>
                                     <div id="certMessage" style="margin-top: 15px; font-size: 0.95rem; text-align: center; font-weight: 600;"></div>
+
+                                    <!-- Aviso informativo para constancias (Fiel a img 2) -->
+                                    <div class="constancia-mobile-alert">
+                                        <i class="fas fa-info-circle"></i>
+                                        <div>
+                                            <strong>Aviso:</strong> si estás generando la constancia desde un celular o tablet, la descarga puede realizarse en segundo plano sin mostrar ningún aviso visible. Si no ves nada después de presionar el botón, revisa la carpeta <strong>Descargas</strong> de tu dispositivo o el gestor de descargas de tu navegador antes de volver a intentarlo.
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <!-- Tarjeta Oficial Planillas de ARC -->
-                                <div class="arc-card" style="margin-top: 25px; background: white; border: 1.5px solid #D4AF37; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 18px rgba(106,13,37,0.08);">
-                                    <div style="background: linear-gradient(135deg, #6A0D25 0%, #83122F 100%); border-bottom: 2px solid #D4AF37; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between;">
-                                        <div style="display: flex; align-items: center; gap: 12px; color: white;">
-                                            <i class="fas fa-file-invoice" style="font-size: 1.35rem; color: #D4AF37;"></i>
-                                            <h4 style="margin: 0; color: white; font-size: 1.15rem; font-weight: 800; letter-spacing: 0.3px;">Planillas de ARC</h4>
-                                        </div>
-                                        <div style="background: white; border-radius: 20px; padding: 4px 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.15); border: 1px solid #D4AF37;">
-                                            <i class="fas fa-shield-alt" style="color: #6A0D25; font-size: 1.05rem;"></i>
-                                        </div>
+                                <!-- Sección Oficial Planilla ARC por Año (Fiel a img 1) -->
+                                <div class="arc-year-section">
+                                    <h3 class="arc-year-title">Planilla ARC</h3>
+                                    
+                                    <!-- Selector interactivo de Año Fiscal -->
+                                    <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
+                                        <span style="font-size: 0.88rem; font-weight: 700; color: #475569; margin-right: 4px;">Año Fiscal:</span>
+                                        <button type="button" class="arc-year-tab-btn active" data-year="2025" onclick="window.setWorkerArcYear('2025')" style="border: 1.5px solid #1b8a5a; background: #1b8a5a; color: white; padding: 6px 16px; border-radius: 20px; font-size: 0.88rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">2025</button>
+                                        <button type="button" class="arc-year-tab-btn" data-year="2026" onclick="window.setWorkerArcYear('2026')" style="border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; padding: 6px 16px; border-radius: 20px; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">2026</button>
+                                        <button type="button" class="arc-year-tab-btn" data-year="2024" onclick="window.setWorkerArcYear('2024')" style="border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; padding: 6px 16px; border-radius: 20px; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">2024</button>
+                                        <button type="button" class="arc-year-tab-btn" data-year="2023" onclick="window.setWorkerArcYear('2023')" style="border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; padding: 6px 16px; border-radius: 20px; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">2023</button>
                                     </div>
-                                    <div style="padding: 24px;">
-                                        <p style="margin: 0 0 22px 0; font-size: 0.95rem; color: #334155; line-height: 1.6;">
-                                            La Planilla ARC muestra el consolidado anual de sus asignaciones y deducciones de ley.
-                                        </p>
-                                        <button id="viewWorkerArcBtn" type="button" style="width: 100%; background: linear-gradient(135deg, #6A0D25 0%, #83122F 100%); border: 1.5px solid #D4AF37; color: white; padding: 14px 20px; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s; box-shadow: 0 4px 14px rgba(106,13,37,0.25);">
-                                            <i class="fas fa-folder-open" style="color: #F7E7B4;"></i> Ver Planilla ARC
+
+                                    <!-- Tarjeta Centrada Exacta a img 1 -->
+                                    <div class="arc-year-card">
+                                        <div id="workerArcDisplayYear" class="arc-year-number">2025</div>
+                                        <div class="arc-year-subtitle">Planilla ARC</div>
+                                        <button type="button" id="btnDownloadArcYear" class="btn-arc-download-green" onclick="window.downloadWorkerArcSelectedYear()">
+                                            <i class="fas fa-download"></i> Descargar
                                         </button>
-                                        <div id="workerArcNotice" style="margin-top: 12px; font-size: 0.88rem; text-align: center; color: #64748b; font-weight: 600;"></div>
                                     </div>
-                                    <div style="background: #fdfaf6; border-top: 1px solid #f1f5f9; padding: 11px 22px; display: flex; align-items: center; gap: 8px; font-size: 0.86rem; color: #6A0D25; font-weight: 600;">
-                                        <i class="fas fa-info-circle" style="color: #D4AF37; font-size: 0.95rem;"></i>
-                                        <span>Comprobante de retención anual</span>
+
+                                    <!-- Banner de Información debajo del botón (Fiel a img 1) -->
+                                    <div class="arc-info-banner">
+                                        <i class="fas fa-info-circle"></i>
+                                        <span><strong>Información:</strong> La Planilla ARC muestra el consolidado anual de sus asignaciones y deducciones de ley.</span>
                                     </div>
                                 </div>
                             </div>
@@ -1268,6 +1345,30 @@ document.addEventListener('DOMContentLoaded', () => {
                                         </div>
                                     </div>
 
+                                    <div id="formCodigoRacGroup">
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                            Código RAC * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Máx. 10 dígitos numéricos)</span>
+                                        </label>
+                                        <input type="text" id="formCodigoRac" maxlength="10" inputmode="numeric" pattern="[0-9]*" placeholder="Solo números (ej. 0001234567)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
+                                    </div>
+
+                                    <div id="formTelefonoGroup">
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                            Número de Teléfono * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Código + 7 dígitos numéricos)</span>
+                                        </label>
+                                        <div style="display: flex; gap: 0; align-items: stretch; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: white;">
+                                            <select id="formTelefonoCodigo" style="width: 95px; padding: 11px 8px; border: none; border-right: 1px solid #cbd5e1; font-size: 0.92rem; background: #f8fafc; font-weight: 700; color: #1e293b; outline: none; cursor: pointer;">
+                                                <option value="0416">0416</option>
+                                                <option value="0426">0426</option>
+                                                <option value="0414" selected>0414</option>
+                                                <option value="0424">0424</option>
+                                                <option value="0412">0412</option>
+                                                <option value="0422">0422</option>
+                                            </select>
+                                            <input type="text" id="formTelefonoNumero" maxlength="7" inputmode="numeric" pattern="[0-9]*" placeholder="7 dígitos (ej. 1234567)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="flex: 1; padding: 11px 14px; border: none; font-size: 0.92rem; box-sizing: border-box; outline: none;">
+                                        </div>
+                                    </div>
+
                                     <div id="formProfesionGroup" style="grid-column: span 2;">
                                         <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
                                             Profesión / Título Académico * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Prefijo: Abog., Ing., T.S.U., Lic.)</span>
@@ -1373,6 +1474,42 @@ document.addEventListener('DOMContentLoaded', () => {
                                             </select>
                                         </div>
 
+                                        <!-- Datos Bancarios: Banco y Número de Cuenta (El administrador ve completo) -->
+                                        <div>
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                <i class="fas fa-university" style="color: #6A0D25;"></i> Banco / Entidad Financiera *
+                                            </label>
+                                            <select id="formBanco" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; font-weight: 600; color: #1e293b;">
+                                                <option value="Banco de Venezuela" selected>Banco de Venezuela (0102)</option>
+                                                <option value="Banesco">Banesco (0134)</option>
+                                                <option value="Banco Mercantil">Banco Mercantil (0105)</option>
+                                                <option value="Banco Provincial">Banco Provincial - BBVA (0108)</option>
+                                                <option value="Banco Bicentenario">Banco Bicentenario (0175)</option>
+                                                <option value="Banco del Tesoro">Banco del Tesoro (0163)</option>
+                                                <option value="Banco Nacional de Crédito">Banco Nacional de Crédito - BNC (0191)</option>
+                                                <option value="Bancaribe">Bancaribe (0114)</option>
+                                                <option value="Bancamiga">Bancamiga (0172)</option>
+                                                <option value="Banco Exterior">Banco Exterior (0115)</option>
+                                                <option value="Banco Fondo Común">Banco Fondo Común - BFC (0151)</option>
+                                                <option value="100% Banco">100% Banco (0156)</option>
+                                                <option value="Banplus">Banplus (0174)</option>
+                                                <option value="Banco Activo">Banco Activo (0171)</option>
+                                                <option value="Banco Agrícola de Venezuela">Banco Agrícola de Venezuela (0166)</option>
+                                                <option value="Banco Plaza">Banco Plaza (0138)</option>
+                                                <option value="Banco Caroní">Banco Caroní (0128)</option>
+                                                <option value="Banco Venezolano de Crédito">Banco Venezolano de Crédito (0104)</option>
+                                                <option value="Otro Banco">Otro Banco</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                <i class="fas fa-credit-card" style="color: #6A0D25;"></i> Número de Cuenta Bancaria * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Máx. 20 dígitos numéricos)</span>
+                                            </label>
+                                            <input type="text" id="formCuenta" required maxlength="20" inputmode="numeric" pattern="[0-9]*" placeholder="20 dígitos numéricos (ej. 01020000000000001267)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; font-family: monospace; letter-spacing: 0.8px;">
+                                            <small style="color: #64748b; font-size: 0.78rem;">El Administrador ve los 20 dígitos completos; el trabajador verá los 4 primeros y 4 últimos enmascarados.</small>
+                                        </div>
+
                                         <!-- Planilla de ARC en el formulario de usuario -->
                                         <div style="grid-column: span 2; background: #fdfaf6; border: 1.5px dashed #D4AF37; border-radius: 12px; padding: 20px; margin-top: 10px; box-shadow: 0 2px 10px rgba(106,13,37,0.03);">
                                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;">
@@ -1384,7 +1521,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                                 </span>
                                             </div>
                                             <div id="formArcFileInfo" style="font-size: 0.85rem; color: #334155; margin-bottom: 12px;">
-                                                Cargue la Planilla ARC (en formato PDF o Imagen) para que el trabajador pueda consultarla, descargarla o imprimirla desde su perfil.
+                                                Cargue la Planilla ARC (en formato PDF o Imagen) para que el trabajador pueda consultarla y descargarla por año fiscal desde su perfil.
+                                            </div>
+                                            <!-- Selector de año fiscal de la planilla -->
+                                            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap;">
+                                                <label style="font-weight: 700; font-size: 0.85rem; color: #334155; margin: 0;">Año Fiscal de la Planilla ARC:</label>
+                                                <select id="formArcYear" style="padding: 7px 14px; border: 1.5px solid #D4AF37; border-radius: 6px; font-weight: 700; font-size: 0.9rem; background: white; color: #6A0D25; cursor: pointer;">
+                                                    <option value="2026">2026</option>
+                                                    <option value="2025" selected>2025</option>
+                                                    <option value="2024">2024</option>
+                                                    <option value="2023">2023</option>
+                                                    <option value="2022">2022</option>
+                                                </select>
                                             </div>
                                             <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                                                 <input type="file" id="formArcFileInput" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" style="display: none;">
@@ -1727,6 +1875,62 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    let selectedWorkerArcYear = '2025';
+
+    window.setWorkerArcYear = (year) => {
+        selectedWorkerArcYear = String(year);
+        const modal = document.getElementById('loginModal');
+        if (!modal) return;
+        const displayYear = modal.querySelector('#workerArcDisplayYear');
+        if (displayYear) displayYear.textContent = selectedWorkerArcYear;
+
+        // Actualizar botones de pestañas de año
+        const tabBtns = modal.querySelectorAll('.arc-year-tab-btn');
+        tabBtns.forEach(btn => {
+            if (btn.getAttribute('data-year') === selectedWorkerArcYear) {
+                btn.classList.add('active');
+                btn.style.border = '1.5px solid #1b8a5a';
+                btn.style.background = '#1b8a5a';
+                btn.style.color = 'white';
+                btn.style.fontWeight = '700';
+            } else {
+                btn.classList.remove('active');
+                btn.style.border = '1px solid #cbd5e1';
+                btn.style.background = '#f8fafc';
+                btn.style.color = '#475569';
+                btn.style.fontWeight = '600';
+            }
+        });
+    };
+
+    window.downloadWorkerArcSelectedYear = () => {
+        const targetUser = (allUsersCache && currentUser && allUsersCache.find(u => u.username.toLowerCase() === currentUser.username.toLowerCase())) || currentUser;
+        if (!targetUser) return;
+
+        const year = selectedWorkerArcYear || '2025';
+        let arcFile = null;
+
+        if (targetUser.arc_files && targetUser.arc_files[year]) {
+            arcFile = targetUser.arc_files[year];
+        } else if (targetUser.arc_file && (String(targetUser.arc_file.year) === String(year) || (!targetUser.arc_file.year && year === '2025'))) {
+            arcFile = targetUser.arc_file;
+        }
+
+        if (arcFile && arcFile.data) {
+            window.downloadArcFile(arcFile, targetUser);
+        } else {
+            window.pgetAlert(
+                `<div style="font-size: 1.05rem; font-weight: 700; color: #6A0D25; margin-bottom: 12px;"><i class="fas fa-exclamation-circle"></i> Planilla ARC ${year} no disponible</div>` +
+                `Estimado(a) <strong>${escapeHtml(targetUser.nombre || 'Trabajador')}</strong>:<br><br>` +
+                `Su <strong>Planilla de ARC para el ejercicio fiscal ${year}</strong> aún no ha sido cargada en el sistema por la <strong>Dirección de Recursos Humanos</strong>.<br><br>` +
+                `Por favor, comuníquese con Recursos Humanos para mayor información.`,
+                `Planilla ARC ${year} no disponible`,
+                'Aceptar',
+                'info'
+            );
+        }
+    };
+
     function populateWorkerData(user) {
         const modal = document.getElementById('loginModal');
         const cond = (user.condicion || 'FIJO').toUpperCase();
@@ -1736,6 +1940,18 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.querySelector('#workerName').textContent = formatFullNameWithTitle(user.nombre, prof, genero) || 'No registrado';
         modal.querySelector('#workerCedula').textContent = formatCedulaOficial(user.cedula) || 'No registrada';
         
+        const racEl = modal.querySelector('#workerCodigoRac');
+        if (racEl) racEl.textContent = user.codigo_rac || 'No registrado';
+
+        const tlfEl = modal.querySelector('#workerTelefono');
+        if (tlfEl) tlfEl.textContent = formatTelefono(user.telefono_codigo, user.telefono_numero) || user.telefono || 'No registrado';
+
+        const bancoEl = modal.querySelector('#workerBanco');
+        if (bancoEl) bancoEl.textContent = user.banco || 'Banco de Venezuela';
+
+        const cuentaEl = modal.querySelector('#workerCuenta');
+        if (cuentaEl) cuentaEl.textContent = formatMaskedAccount(user.cuenta);
+
         const profEl = modal.querySelector('#workerProfesion');
         if (profEl) profEl.textContent = prof || 'No especificada';
 
@@ -1785,34 +2001,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const certMsg = modal.querySelector('#certMessage');
         if (certMsg) certMsg.textContent = '';
 
-        // Configurar tarjeta de Planilla ARC
-        const arcNotice = modal.querySelector('#workerArcNotice');
-        const viewArcBtn = modal.querySelector('#viewWorkerArcBtn');
-        const targetArc = user.arc_file;
-        if (targetArc && targetArc.data) {
-            if (arcNotice) arcNotice.innerHTML = `<span style="color:#15803d; font-weight:600;"><i class="fas fa-check-circle"></i> Planilla ARC disponible (${escapeHtml(targetArc.name || 'Documento')})</span>`;
-        } else {
-            if (arcNotice) arcNotice.innerHTML = `<span style="color:#83122F; font-weight:700;"><i class="fas fa-info-circle"></i> Planilla ARC no disponible aún</span>`;
-        }
-
-        if (viewArcBtn) {
-            viewArcBtn.onclick = () => {
-                const targetUser = (allUsersCache && allUsersCache.find(u => u.username.toLowerCase() === user.username.toLowerCase())) || user;
-                if (targetUser.arc_file && targetUser.arc_file.data) {
-                    window.showArcViewerModal(targetUser.arc_file, targetUser);
-                } else {
-                    window.pgetAlert(
-                        `<div style="font-size: 1.05rem; font-weight: 700; color: #6A0D25; margin-bottom: 12px;"><i class="fas fa-exclamation-circle"></i> Planilla ARC no disponible aún</div>` +
-                        `Estimado(a) <strong>${escapeHtml(targetUser.nombre || 'Trabajador')}</strong>:<br><br>` +
-                        `Su <strong>Planilla de ARC</strong> aún no ha sido cargada en el sistema por la <strong>Dirección de Recursos Humanos</strong> para el ejercicio fiscal actual.<br><br>` +
-                        `Por favor, comuníquese con Recursos Humanos para mayor información.`,
-                        'Planilla ARC no disponible aún',
-                        'Aceptar',
-                        'info'
-                    );
-                }
-            };
-        }
+        // Inicializar sección ARC en año 2025
+        window.setWorkerArcYear('2025');
     }
 
     // Cargar Usuarios en el Panel de Administrador
@@ -1904,6 +2094,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             <i class="fas ${gen === 'femenino' ? 'fa-venus' : 'fa-mars'}" style="color: ${gen === 'femenino' ? '#db2777' : '#0284c7'};"></i> ${gen === 'femenino' ? 'Femenino' : 'Masculino'}
                         </span>
                     </div>
+                    ${u.role !== 'admin' && (u.banco || u.cuenta) ? `
+                    <div style="margin-top: 5px; font-size: 0.8rem; color: #1e293b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; font-family: monospace;">
+                        <i class="fas fa-university" style="color: #6A0D25;"></i> ${escapeHtml(u.banco || 'Banco')}: <strong style="color: #0369a1; letter-spacing: 0.5px;">${escapeHtml(u.cuenta || 'Sin cuenta')}</strong>
+                    </div>` : ''}
+                    ${u.role !== 'admin' && (u.codigo_rac || u.telefono || u.telefono_numero) ? `
+                    <div style="margin-top: 3px; font-size: 0.78rem; color: #475569; display: flex; gap: 8px; flex-wrap: wrap;">
+                        ${u.codigo_rac ? `<span><strong style="color: #6A0D25;">RAC:</strong> ${escapeHtml(u.codigo_rac)}</span>` : ''}
+                        ${(u.telefono || u.telefono_numero) ? `<span><i class="fas fa-phone-alt" style="color: #6A0D25; font-size: 0.72rem;"></i> ${escapeHtml(formatTelefono(u.telefono_codigo, u.telefono_numero) || u.telefono)}</span>` : ''}
+                    </div>` : ''}
                 </td>
                 <td>
                     <span style="color: #0369a1; font-weight: 600;">${safeUsername}</span>
@@ -2043,6 +2242,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const profGroup = modal.querySelector('#formProfesionGroup');
         const laboralSection = modal.querySelector('#formLaboralSection');
+        const racGroup = modal.querySelector('#formCodigoRacGroup');
+        const tlfGroup = modal.querySelector('#formTelefonoGroup');
 
         const profSelect = modal.querySelector('#formProfesion');
         const cargoInput = modal.querySelector('#formCargo');
@@ -2051,10 +2252,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const fechaInput = modal.querySelector('#formFechaIngreso');
         const depSelect = modal.querySelector('#formDependencia');
         const dirSelect = modal.querySelector('#formDireccion');
+        const racInput = modal.querySelector('#formCodigoRac');
+        const tlfNumInput = modal.querySelector('#formTelefonoNumero');
+        const bancoSelect = modal.querySelector('#formBanco');
+        const cuentaInput = modal.querySelector('#formCuenta');
 
         if (isAdmin) {
             if (profGroup) profGroup.style.display = 'none';
             if (laboralSection) laboralSection.style.display = 'none';
+            if (racGroup) racGroup.style.display = 'none';
+            if (tlfGroup) tlfGroup.style.display = 'none';
             if (profSelect) profSelect.required = false;
             if (cargoInput) cargoInput.required = false;
             if (condSelect) condSelect.required = false;
@@ -2062,9 +2269,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (fechaInput) fechaInput.required = false;
             if (depSelect) depSelect.required = false;
             if (dirSelect) dirSelect.required = false;
+            if (racInput) racInput.required = false;
+            if (tlfNumInput) tlfNumInput.required = false;
+            if (bancoSelect) bancoSelect.required = false;
+            if (cuentaInput) cuentaInput.required = false;
         } else {
             if (profGroup) profGroup.style.display = '';
             if (laboralSection) laboralSection.style.display = 'contents';
+            if (racGroup) racGroup.style.display = '';
+            if (tlfGroup) tlfGroup.style.display = '';
             if (profSelect) profSelect.required = true;
             if (cargoInput) cargoInput.required = true;
             if (condSelect) condSelect.required = true;
@@ -2072,6 +2285,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (fechaInput) fechaInput.required = true;
             if (depSelect) depSelect.required = true;
             if (dirSelect) dirSelect.required = true;
+            if (racInput) racInput.required = true;
+            if (tlfNumInput) tlfNumInput.required = true;
+            if (bancoSelect) bancoSelect.required = true;
+            if (cuentaInput) cuentaInput.required = true;
         }
     }
 
@@ -2111,6 +2328,13 @@ document.addEventListener('DOMContentLoaded', () => {
         setFormGender('masculino');
         updateFormProfesionOptions('masculino', 'Abogado');
         modal.querySelector('#formCedula').value = '';
+        modal.querySelector('#formCodigoRac').value = '';
+        modal.querySelector('#formTelefonoCodigo').value = '0414';
+        modal.querySelector('#formTelefonoNumero').value = '';
+        modal.querySelector('#formBanco').value = 'Banco de Venezuela';
+        modal.querySelector('#formCuenta').value = '';
+        const formArcYear = modal.querySelector('#formArcYear');
+        if (formArcYear) formArcYear.value = '2025';
         modal.querySelector('#formCargo').value = '';
         modal.querySelector('#formCondicion').value = 'FIJO';
         modal.querySelector('#formSalario').value = '1.000,00';
@@ -2197,6 +2421,30 @@ document.addEventListener('DOMContentLoaded', () => {
         setFormGender(gen);
         updateFormProfesionOptions(gen, user.profesion || 'Abogado');
         modal.querySelector('#formCedula').value = cleanCedula(user.cedula);
+        modal.querySelector('#formCodigoRac').value = (user.codigo_rac || '').replace(/\D/g, '').slice(0, 10);
+
+        // Teléfono: código y número
+        let telCod = user.telefono_codigo || '';
+        let telNum = user.telefono_numero || '';
+        if (!telCod && user.telefono) {
+            const m = String(user.telefono).match(/^(0416|0426|0414|0424|0412|0422)[-\s]?(\d{7})$/);
+            if (m) {
+                telCod = m[1];
+                telNum = m[2];
+            } else {
+                telNum = String(user.telefono).replace(/\D/g, '').slice(-7);
+            }
+        }
+        modal.querySelector('#formTelefonoCodigo').value = telCod || '0414';
+        modal.querySelector('#formTelefonoNumero').value = (telNum || '').replace(/\D/g, '').slice(0, 7);
+
+        // Banco y Cuenta
+        modal.querySelector('#formBanco').value = user.banco || 'Banco de Venezuela';
+        modal.querySelector('#formCuenta').value = (user.cuenta || '').replace(/\D/g, '').slice(0, 20);
+
+        const formArcYear = modal.querySelector('#formArcYear');
+        if (formArcYear) formArcYear.value = (user.arc_file && user.arc_file.year) ? String(user.arc_file.year) : '2025';
+
         modal.querySelector('#formCargo').value = user.cargo || '';
         modal.querySelector('#formCondicion').value = (user.condicion || 'FIJO').toUpperCase();
         modal.querySelector('#formSalario').value = cleanSalarioAmount(user.salario);
@@ -2279,6 +2527,12 @@ document.addEventListener('DOMContentLoaded', () => {
         let direccion = '';
         let fechaIng = '';
         let autoYears = '0';
+        let codigoRac = '';
+        let telCodigo = '';
+        let telNumero = '';
+        let telefonoCompleto = '';
+        let banco = '';
+        let cuenta = '';
 
         if (!isAdmin) {
             const rawFechaIng = modal.querySelector('#formFechaIngreso').value.trim();
@@ -2294,6 +2548,16 @@ document.addEventListener('DOMContentLoaded', () => {
             dependencia = (modal.querySelector('#formDependencia').value || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO').trim().toUpperCase();
             direccion = modal.querySelector('#formDireccion').value;
 
+            codigoRac = (modal.querySelector('#formCodigoRac').value || '').trim().replace(/\D/g, '').slice(0, 10);
+            telCodigo = (modal.querySelector('#formTelefonoCodigo').value || '0414').trim();
+            telNumero = (modal.querySelector('#formTelefonoNumero').value || '').trim().replace(/\D/g, '').slice(0, 7);
+            banco = (modal.querySelector('#formBanco').value || 'Banco de Venezuela').trim();
+            cuenta = (modal.querySelector('#formCuenta').value || '').trim().replace(/\D/g, '').slice(0, 20);
+
+            if (telCodigo && telNumero) {
+                telefonoCompleto = `${telCodigo}-${telNumero}`;
+            }
+
             if (cargo) {
                 addCargoToCatalog(cargo);
             }
@@ -2302,6 +2566,30 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!username || !nombres || !apellidos || !cedula || !cargo || !condicion || !salario || !fechaIng || !dependencia || !direccion || !profVal) {
                 errDiv.style.display = 'block';
                 errDiv.textContent = 'Todos los campos son obligatorios. Por favor complete toda la información requerida.';
+                return;
+            }
+
+            if (!codigoRac) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'El Código RAC es obligatorio (máximo 10 dígitos numéricos).';
+                return;
+            }
+
+            if (!telNumero || telNumero.length !== 7) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'El Número de Teléfono debe contener exactamente 7 dígitos numéricos tras el código seleccionado.';
+                return;
+            }
+
+            if (!banco) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'Debe seleccionar una Entidad Bancaria.';
+                return;
+            }
+
+            if (!cuenta) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'El Número de Cuenta Bancaria es obligatorio (máximo 20 dígitos numéricos).';
                 return;
             }
         } else {
@@ -2319,6 +2607,12 @@ document.addEventListener('DOMContentLoaded', () => {
             direccion = 'DIRECCIÓN GENERAL';
             fechaIng = '';
             autoYears = '0';
+            codigoRac = '';
+            telCodigo = '';
+            telNumero = '';
+            telefonoCompleto = '';
+            banco = '';
+            cuenta = '';
         }
 
         // Validación de cédula: admite solo números
@@ -2339,6 +2633,12 @@ document.addEventListener('DOMContentLoaded', () => {
             genero: gen,
             profesion: profNormalized,
             cedula: cedula,
+            codigo_rac: codigoRac,
+            telefono_codigo: telCodigo,
+            telefono_numero: telNumero,
+            telefono: telefonoCompleto,
+            banco: banco,
+            cuenta: cuenta,
             cargo: cargo,
             condicion: condicion,
             salario: salario,
@@ -2348,10 +2648,20 @@ document.addEventListener('DOMContentLoaded', () => {
             anos_servicio: autoYears
         };
 
+        const formArcYearSelect = modal.querySelector('#formArcYear');
+        const selectedYear = formArcYearSelect ? formArcYearSelect.value : '2025';
+
         if (isAdmin) {
             userData.arc_file = null;
         } else if (formSelectedArcFile !== undefined) {
-            userData.arc_file = formSelectedArcFile;
+            if (formSelectedArcFile) {
+                formSelectedArcFile.year = selectedYear;
+                userData.arc_file = formSelectedArcFile;
+                if (!userData.arc_files) userData.arc_files = {};
+                userData.arc_files[selectedYear] = formSelectedArcFile;
+            } else {
+                userData.arc_file = null;
+            }
         }
 
         // Validación de Contraseña
@@ -2699,7 +3009,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Helper para construir la constancia en el cliente (idéntico a las 3 imágenes reales)
-    function buildClientCertificate(user, conSalario = true) {
+    function buildClientCertificate(user, conSalario = true, motivo = 'Trámites personales') {
         const cond = (user.condicion || 'FIJO').toUpperCase();
         const genero = (user.genero || 'masculino').toLowerCase();
         const esFemenino = genero === 'femenino';
@@ -2742,6 +3052,7 @@ document.addEventListener('DOMContentLoaded', () => {
             titulo: 'C O N S T A N C I A .',
             correlativo,
             cuerpo,
+            motivo: motivo || 'Trámites personales',
             beneficiario: nombreConTitulo,
             cedula: cedulaOficial,
             cargo,
@@ -2913,6 +3224,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     <!-- Cuerpo de la Constancia Justificado con Indentación -->
                     <div class="constancia-paragraphs">
                         ${cuerpoHTML}
+                    </div>
+
+                    <!-- Motivo de la Solicitud (Fiel al formato oficial requerido) -->
+                    <div class="constancia-motivo">
+                        Motivo: ${escapeHtml(cert.motivo || 'Trámites personales')}
                     </div>
 
                     <!-- Bloque de Firma Centrado Oficial -->
@@ -3096,7 +3412,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modal) modal.style.display = 'none';
     };
 
-    window.openAdminArcModal = (username) => {
+    window.openAdminArcModal = (username, targetYear = '2025') => {
         const user = allUsersCache.find(u => u.username.toLowerCase() === username.toLowerCase());
         if (!user) return;
 
@@ -3112,10 +3428,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const safeName = escapeHtml(user.nombre || user.username);
         const safeCargo = escapeHtml(user.cargo || 'Sin cargo');
         const safeCedula = escapeHtml(formatCedulaOficial(user.cedula) || user.cedula || 'N/A');
-        const hasArc = user.arc_file && user.arc_file.data;
+        
+        const yearArc = (user.arc_files && user.arc_files[targetYear]) || (String(targetYear) === '2025' && user.arc_file && (!user.arc_file.year || String(user.arc_file.year) === '2025') ? user.arc_file : null);
+        const hasArc = yearArc && yearArc.data;
 
         modal.innerHTML = `
-            <div style="background: white; width: 100%; max-width: 600px; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); border: 1px solid #e2e8f0; display: flex; flex-direction: column;">
+            <div style="background: white; width: 100%; max-width: 620px; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); border: 1px solid #e2e8f0; display: flex; flex-direction: column;">
                 <!-- Header Vinotinto Institucional -->
                 <div style="background: linear-gradient(135deg, #6A0D25 0%, #83122F 100%); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center;">
                     <div style="display: flex; align-items: center; gap: 12px;">
@@ -3123,7 +3441,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <i class="fas fa-file-invoice" style="font-size: 1.2rem;"></i>
                         </div>
                         <div>
-                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: white;">Planilla de ARC</h3>
+                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: white;">Planilla de ARC por Año</h3>
                             <span style="font-size: 0.8rem; opacity: 0.95; color: #F7E7B4;">Comprobante de Retención Anual del Trabajador</span>
                         </div>
                     </div>
@@ -3138,22 +3456,41 @@ document.addEventListener('DOMContentLoaded', () => {
                         <strong style="color: #1e293b; font-size: 0.95rem; display: block;">${safeName}</strong>
                         <span style="font-size: 0.82rem; color: #64748b;">${safeCargo} &bull; ${safeCedula}</span>
                     </div>
-                    <span style="font-size: 0.78rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; ${hasArc ? 'background: #fdf2f4; color: #6A0D25; border: 1.5px solid #D4AF37;' : 'background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1;'}">
-                        ${hasArc ? '<i class="fas fa-check-circle" style="color: #D4AF37;"></i> Planilla ARC Asignada' : '<i class="fas fa-clock"></i> Pendiente por Cargar'}
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span style="font-size: 0.78rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; ${hasArc ? 'background: #fdf2f4; color: #6A0D25; border: 1.5px solid #D4AF37;' : 'background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1;'}">
+                            ${hasArc ? `<i class="fas fa-check-circle" style="color: #D4AF37;"></i> ARC ${targetYear} Asignada` : `<i class="fas fa-clock"></i> Pendiente para ${targetYear}`}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Selector de Año Fiscal de la Planilla -->
+                <div style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-weight: 700; font-size: 0.88rem; color: #334155;">Seleccionar Año Fiscal:</span>
+                        <select id="adminArcYearSelect" style="padding: 6px 14px; border: 1.5px solid #D4AF37; border-radius: 6px; font-weight: 700; color: #6A0D25; background: white; cursor: pointer; font-size: 0.9rem;">
+                            <option value="2026" ${String(targetYear) === '2026' ? 'selected' : ''}>2026</option>
+                            <option value="2025" ${String(targetYear) === '2025' ? 'selected' : ''}>2025</option>
+                            <option value="2024" ${String(targetYear) === '2024' ? 'selected' : ''}>2024</option>
+                            <option value="2023" ${String(targetYear) === '2023' ? 'selected' : ''}>2023</option>
+                            <option value="2022" ${String(targetYear) === '2022' ? 'selected' : ''}>2022</option>
+                        </select>
+                    </div>
+                    <span style="font-size: 0.8rem; color: #64748b; font-weight: 600;">
+                        Consolidado anual de asignaciones y deducciones
                     </span>
                 </div>
 
                 <div style="padding: 24px; overflow-y: auto; max-height: 70vh;">
                     ${hasArc ? `
-                    <!-- Detalle de la Planilla ARC Actual -->
+                    <!-- Detalle de la Planilla ARC del Año Seleccionado -->
                     <div style="background: #fdfaf6; border: 1.5px solid #D4AF37; border-radius: 12px; padding: 18px; margin-bottom: 22px; box-shadow: 0 2px 8px rgba(106,13,37,0.04);">
                         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
                             <span style="font-weight: 700; font-size: 0.9rem; color: #6A0D25; display: flex; align-items: center; gap: 8px;">
-                                <i class="fas ${user.arc_file.type && user.arc_file.type.includes('pdf') ? 'fa-file-pdf' : 'fa-file-image'}" style="font-size: 1.2rem; color: #83122F;"></i>
-                                ${escapeHtml(user.arc_file.name || 'Planilla_ARC')}
+                                <i class="fas ${yearArc.type && yearArc.type.includes('pdf') ? 'fa-file-pdf' : 'fa-file-image'}" style="font-size: 1.2rem; color: #83122F;"></i>
+                                ${escapeHtml(yearArc.name || `Planilla_ARC_${targetYear}`)} <span style="font-size: 0.8rem; color: #15803d; font-weight: 700;">(Año ${targetYear})</span>
                             </span>
                             <span style="font-size: 0.78rem; color: #64748b; font-weight: 600;">
-                                ${user.arc_file.uploaded_at ? `Subida: ${user.arc_file.uploaded_at}` : ''}
+                                ${yearArc.uploaded_at ? `Subida: ${yearArc.uploaded_at}` : ''}
                             </span>
                         </div>
                         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
@@ -3163,17 +3500,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button type="button" id="adminDownloadArcBtn" style="background: #D4AF37; border: 1px solid #c59b27; color: #1e293b; padding: 8px 16px; border-radius: 6px; font-weight: 800; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
                                 <i class="fas fa-download"></i> Descargar
                             </button>
-                            <button type="button" onclick="window.deleteUserArc('${user.username}')" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px; margin-left: auto;">
-                                <i class="fas fa-trash"></i> Eliminar
+                            <button type="button" onclick="window.deleteUserArc('${user.username}', '${targetYear}')" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px; margin-left: auto;">
+                                <i class="fas fa-trash"></i> Eliminar (${targetYear})
                             </button>
                         </div>
                     </div>
                     ` : ''}
 
-                    <!-- Subir o Reemplazar Documento -->
+                    <!-- Subir o Reemplazar Documento para el Año Seleccionado -->
                     <div>
                         <h4 style="margin: 0 0 10px 0; color: #1e293b; font-size: 0.95rem; font-weight: 700;">
-                            ${hasArc ? '<i class="fas fa-sync-alt" style="color:#6A0D25;"></i> Reemplazar Planilla de ARC:' : '<i class="fas fa-upload" style="color:#6A0D25;"></i> Subir Planilla de ARC:'}
+                            ${hasArc ? `<i class="fas fa-sync-alt" style="color:#6A0D25;"></i> Reemplazar Planilla ARC para el Año ${targetYear}:` : `<i class="fas fa-upload" style="color:#6A0D25;"></i> Subir Planilla ARC para el Año ${targetYear}:`}
                         </h4>
                         
                         <!-- Input File fuera del dropzone para evitar doble click / bloqueo del selector nativo -->
@@ -3208,7 +3545,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div id="adminArcUploadMsg" style="display: none; margin-top: 12px; font-size: 0.85rem; text-align: center; font-weight: 600;"></div>
 
                         <button type="button" id="adminUploadArcBtn" disabled style="width: 100%; margin-top: 18px; background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; opacity: 0.6; color: white; padding: 13px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: not-allowed; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(106,13,37,0.2);">
-                            <i class="fas fa-cloud-upload-alt"></i> Subir y Asignar Planilla ARC
+                            <i class="fas fa-cloud-upload-alt"></i> Subir y Asignar Planilla ARC (${targetYear})
                         </button>
                     </div>
                 </div>
@@ -3222,11 +3559,19 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
+        // Conectar selector de año fiscal
+        const yearSelectEl = modal.querySelector('#adminArcYearSelect');
+        if (yearSelectEl) {
+            yearSelectEl.onchange = (e) => {
+                window.openAdminArcModal(username, e.target.value);
+            };
+        }
+
         if (hasArc) {
             const previewBtn = modal.querySelector('#adminPreviewArcBtn');
-            if (previewBtn) previewBtn.onclick = () => window.showArcViewerModal(user.arc_file, user);
+            if (previewBtn) previewBtn.onclick = () => window.showArcViewerModal(yearArc, user);
             const downloadBtn = modal.querySelector('#adminDownloadArcBtn');
-            if (downloadBtn) downloadBtn.onclick = () => window.downloadArcFile(user.arc_file, user);
+            if (downloadBtn) downloadBtn.onclick = () => window.downloadArcFile(yearArc, user);
         }
 
         const dropzone = modal.querySelector('#adminArcDropzone');
@@ -3317,6 +3662,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: pendingFile.type || (pendingFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
                     data: dataUrl,
                     size: pendingFile.size,
+                    year: targetYear,
                     uploaded_at: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
                 };
 
@@ -3337,21 +3683,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     } catch (e2) {}
                 }
 
-                user.arc_file = arcPayload;
+                if (!user.arc_files) user.arc_files = {};
+                user.arc_files[targetYear] = arcPayload;
+                if (String(targetYear) === '2025' || !user.arc_file) {
+                    user.arc_file = arcPayload;
+                }
+
                 const uIdx = allUsersCache.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
                 if (uIdx !== -1) {
-                    allUsersCache[uIdx].arc_file = arcPayload;
+                    allUsersCache[uIdx] = { ...user };
                 }
                 localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
                 if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
-                    currentUser.arc_file = arcPayload;
+                    currentUser = { ...user };
                     localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
                 }
 
                 renderAdminUsersTable(allUsersCache);
-                window.openAdminArcModal(username);
+                window.openAdminArcModal(username, targetYear);
                 window.pgetAlert(
-                    `La Planilla ARC (<strong>${escapeHtml(pendingFile.name)}</strong>) fue subida y asignada exitosamente al usuario <strong>${safeName}</strong>.`,
+                    `La Planilla ARC del año ${targetYear} (<strong>${escapeHtml(pendingFile.name)}</strong>) fue subida y asignada exitosamente al usuario <strong>${safeName}</strong>.`,
                     'Planilla ARC Guardada',
                     'Aceptar',
                     'success'
@@ -3372,12 +3723,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modal) modal.style.display = 'none';
     };
 
-    window.deleteUserArc = async (username) => {
+    window.deleteUserArc = async (username, year = null) => {
         const user = allUsersCache.find(u => u.username.toLowerCase() === username.toLowerCase());
         if (!user) return;
+        const targetYear = year || (document.getElementById('adminArcYearSelect') ? document.getElementById('adminArcYearSelect').value : '2025');
         const ok = await window.pgetConfirm(
-            `¿Está seguro de que desea eliminar la Planilla de ARC de <strong>${escapeHtml(user.nombre || user.username)}</strong>?<br><br>El trabajador ya no podrá verla ni descargarla en su perfil hasta que se cargue una nueva.`,
-            'Eliminar Planilla ARC',
+            `¿Está seguro de que desea eliminar la Planilla de ARC del año <strong>${targetYear}</strong> de <strong>${escapeHtml(user.nombre || user.username)}</strong>?<br><br>El trabajador ya no podrá verla ni descargarla en su perfil para ese año fiscal.`,
+            `Eliminar Planilla ARC ${targetYear}`,
             'Sí, Eliminar',
             'Cancelar',
             'danger'
@@ -3385,7 +3737,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!ok) return;
 
         try {
-            await fetch(`${API_URL}/users/${encodeURIComponent(username)}/arc`, {
+            await fetch(`${API_URL}/users/${encodeURIComponent(username)}/arc?year=${encodeURIComponent(targetYear)}`, {
                 method: 'DELETE'
             });
         } catch (e) {}
@@ -3398,22 +3750,25 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } catch (e2) {}
 
-        user.arc_file = null;
-        delete user.arc_file;
+        if (user.arc_files && user.arc_files[targetYear]) {
+            delete user.arc_files[targetYear];
+        }
+        if (String(targetYear) === '2025') {
+            user.arc_file = null;
+            delete user.arc_file;
+        }
         const uIdx = allUsersCache.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
         if (uIdx !== -1) {
-            allUsersCache[uIdx].arc_file = null;
-            delete allUsersCache[uIdx].arc_file;
+            allUsersCache[uIdx] = { ...user };
         }
         localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
         if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
-            currentUser.arc_file = null;
-            delete currentUser.arc_file;
+            currentUser = { ...user };
             localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
         }
         renderAdminUsersTable(allUsersCache);
-        window.openAdminArcModal(username);
-        window.pgetAlert('La Planilla de ARC fue eliminada exitosamente.', 'Operación Exitosa', 'Aceptar', 'success');
+        window.openAdminArcModal(username, targetYear);
+        window.pgetAlert(`La Planilla de ARC del año ${targetYear} fue eliminada exitosamente.`, 'Operación Exitosa', 'Aceptar', 'success');
     };
 
     // Solicitar Constancia (Solo Trabajador)
@@ -3423,6 +3778,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const certMsg = modal.querySelector('#certMessage');
         const conSalarioSelect = modal.querySelector('#conSalarioSelect');
         const conSalarioVal = conSalarioSelect ? conSalarioSelect.value : 'true';
+        const certMotivoSelect = modal.querySelector('#certMotivoSelect');
+        const motivoVal = certMotivoSelect ? certMotivoSelect.value : 'Trámites personales';
 
         if (currentUser && currentUser.role === 'admin') {
             certMsg.style.color = '#dc2626';
@@ -3436,7 +3793,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let certData = null;
             try {
-                const response = await fetch(`${API_URL}/constancia?token=${currentToken}&username=${currentUser ? currentUser.username : ''}&con_salario=${encodeURIComponent(conSalarioVal)}`);
+                const response = await fetch(`${API_URL}/constancia?token=${currentToken}&username=${currentUser ? currentUser.username : ''}&con_salario=${encodeURIComponent(conSalarioVal)}&motivo=${encodeURIComponent(motivoVal)}`);
                 if (response.ok) {
                     certData = await response.json();
                 }
@@ -3446,7 +3803,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!certData) {
                 // Fallback cliente garantizado
-                certData = buildClientCertificate(currentUser, conSalarioVal);
+                certData = buildClientCertificate(currentUser, conSalarioVal, motivoVal);
+            }
+
+            if (!certData.motivo) {
+                certData.motivo = motivoVal;
             }
 
             certMsg.style.color = '#6A0D25';
