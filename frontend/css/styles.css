@@ -3091,3 +3091,21 @@ footer {
     line-height: 1.6;
 }
 
+/* 5. Modal de Gestión ARC en Administración */
+.admin-arc-management-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999999 !important;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    padding: 15px;
+    box-sizing: border-box;
+}
+

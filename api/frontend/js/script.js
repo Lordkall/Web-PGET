@@ -1023,7 +1023,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                             FIJO
                                         </span>
                                     </div>
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 0.95rem;">
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; font-size: 0.95rem;">
                                         <div>
                                             <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Nombres y Apellidos (con Título):</span>
                                             <strong id="workerName" style="color: #1e293b; font-size: 1.1rem;">-</strong>
@@ -1064,19 +1064,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                             <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Fecha de Ingreso:</span>
                                             <strong id="workerFechaIngreso" style="color: #1e293b; font-size: 1rem;">-</strong>
                                         </div>
-                                        <div>
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Salario / Remuneración Mensual:</span>
-                                            <strong id="workerSalario" style="color: #83122F; font-size: 1.05rem;">Bs. 1.000,00</strong>
+                                        <div style="display: none;">
+                                            <strong id="workerSalario">Bs. 0,00</strong>
                                         </div>
                                         <div>
                                             <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Años de Servicio:</span>
                                             <strong id="workerYears" style="color: #1e293b; font-size: 1.05rem;">-</strong>
                                         </div>
-                                        <div style="grid-column: span 2;">
+                                        <div style="grid-column: 1 / -1;">
                                             <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Dependencia Administrativa:</span>
                                             <strong id="workerDep" style="color: #1e293b;">-</strong>
                                         </div>
-                                        <div style="grid-column: span 2;">
+                                        <div style="grid-column: 1 / -1;">
                                             <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Dirección / Oficina Adscrita:</span>
                                             <strong id="workerDireccion" style="color: #6A0D25; font-size: 1.02rem;">-</strong>
                                         </div>
@@ -1084,9 +1083,9 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
 
                                 <!-- Generador de Constancia (Solo para trabajadores) -->
-                                <div style="background: white; border: 2px dashed #D4AF37; border-radius: 16px; padding: 30px; box-shadow: 0 4px 15px rgba(106,13,37,0.06);">
-                                    <h4 id="workerCertHeader" style="color: #6A0D25; font-size: 1.15rem; margin-bottom: 8px; display: flex; align-items: center; gap: 10px;">
-                                        <i class="fas fa-file-invoice" style="color: #D4AF37;"></i> Generar Constancia Oficial (<span id="workerCertModelBadge">Personal Fijo</span>)
+                                <div style="background: white; border: 2px dashed #D4AF37; border-radius: 16px; padding: clamp(16px, 3vw, 28px); box-shadow: 0 4px 15px rgba(106,13,37,0.06);">
+                                    <h4 id="workerCertHeader" style="color: #6A0D25; font-size: clamp(1rem, 2.5vw, 1.15rem); margin-bottom: 8px; line-height: 1.45; font-weight: 700; word-break: normal;">
+                                        <i class="fas fa-file-invoice" style="color: #D4AF37; margin-right: 6px;"></i> Generar Constancia Oficial <span style="display: inline-block; white-space: nowrap;">(<span id="workerCertModelBadge">Personal Fijo</span>)</span>
                                     </h4>
                                     <p id="workerCertDesc" style="font-size: 0.92rem; color: #64748b; margin-bottom: 20px;">
                                         Modelo oficial adaptado automáticamente a su condición laboral.
@@ -2124,7 +2123,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
                 <td style="text-align: right; white-space: nowrap;">
                     ${u.role !== 'admin' && u.username !== 'admin' && u.username !== 'admin@pget.gob.ve' ? `
-                    <button class="btn-action arc ${u.arc_file && u.arc_file.data ? 'has-arc' : ''}" data-user="${safeUsername}" title="${u.arc_file && u.arc_file.data ? 'Planilla ARC Cargada (Clic para ver/gestionar)' : 'Subir Planilla ARC para este trabajador'}">
+                    <button type="button" class="btn-action arc ${u.arc_file && u.arc_file.data ? 'has-arc' : ''}" onclick="window.openAdminArcModal('${safeUsername}')" data-user="${safeUsername}" title="${u.arc_file && u.arc_file.data ? 'Planilla ARC Cargada (Clic para ver/gestionar)' : 'Subir Planilla ARC para este trabajador'}">
                         <i class="fas ${u.arc_file && u.arc_file.data ? 'fa-file-invoice' : 'fa-upload'}"></i> ARC ${u.arc_file && u.arc_file.data ? '<i class="fas fa-check" style="font-size:0.75rem;"></i>' : ''}
                     </button>
                     ` : ''}
@@ -3413,17 +3412,36 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.openAdminArcModal = (username, targetYear = '2025') => {
-        const user = allUsersCache.find(u => u.username.toLowerCase() === username.toLowerCase());
-        if (!user) return;
+        const user = (allUsersCache && allUsersCache.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()))
+            || (typeof defaultAccounts !== 'undefined' && defaultAccounts.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()));
+        if (!user) {
+            console.warn('Usuario no encontrado para modal ARC:', username);
+            if (typeof window.pgetAlert === 'function') {
+                window.pgetAlert(`No se pudo encontrar al usuario ${username}.`, 'Usuario No Encontrado', 'Aceptar', 'warning');
+            }
+            return;
+        }
 
         let modal = document.getElementById('adminArcManagementModal');
         if (!modal) {
             modal = document.createElement('div');
             modal.id = 'adminArcManagementModal';
-            modal.className = 'login-modal-overlay';
-            modal.style.cssText = 'display: none; align-items: center; justify-content: center; z-index: 999999; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); padding: 15px; box-sizing: border-box;';
             document.body.appendChild(modal);
         }
+        modal.className = 'admin-arc-management-backdrop';
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = '100vw';
+        modal.style.height = '100vh';
+        modal.style.zIndex = '99999999';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        modal.style.background = 'rgba(15, 23, 42, 0.75)';
+        modal.style.backdropFilter = 'blur(6px)';
+        modal.style.webkitBackdropFilter = 'blur(6px)';
+        modal.style.padding = '15px';
+        modal.style.boxSizing = 'border-box';
 
         const safeName = escapeHtml(user.nombre || user.username);
         const safeCargo = escapeHtml(user.cargo || 'Sin cargo');
@@ -3715,16 +3733,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target === modal) window.closeAdminArcModal();
         };
 
-        modal.style.display = 'flex';
+        modal.style.setProperty('display', 'flex', 'important');
     };
 
     window.closeAdminArcModal = () => {
         const modal = document.getElementById('adminArcManagementModal');
-        if (modal) modal.style.display = 'none';
+        if (modal) {
+            modal.style.setProperty('display', 'none', 'important');
+        }
     };
 
     window.deleteUserArc = async (username, year = null) => {
-        const user = allUsersCache.find(u => u.username.toLowerCase() === username.toLowerCase());
+        const user = (allUsersCache && allUsersCache.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()))
+            || (typeof defaultAccounts !== 'undefined' && defaultAccounts.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()));
         if (!user) return;
         const targetYear = year || (document.getElementById('adminArcYearSelect') ? document.getElementById('adminArcYearSelect').value : '2025');
         const ok = await window.pgetConfirm(
