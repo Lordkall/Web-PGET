@@ -2996,10 +2996,37 @@ footer {
     margin-bottom: 20px;
 }
 
-.btn-arc-download-green {
-    background: #1b8a5a;
+.arc-year-tab-btn {
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #475569;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.arc-year-tab-btn:hover {
+    border-color: #6A0D25;
+    color: #6A0D25;
+    background: #fdf2f4;
+}
+
+.arc-year-tab-btn.active {
+    border: 1.5px solid #D4AF37 !important;
+    background: linear-gradient(135deg, #6A0D25 0%, #83122F 100%) !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    box-shadow: 0 2px 8px rgba(106, 13, 37, 0.3) !important;
+}
+
+.btn-arc-download-green,
+.btn-arc-download-vinotinto {
+    background: linear-gradient(135deg, #6A0D25 0%, #83122F 100%);
     color: #ffffff;
-    border: none;
+    border: 1.5px solid #D4AF37;
     border-radius: 6px;
     padding: 11px 26px;
     font-weight: 700;
@@ -3009,19 +3036,23 @@ footer {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    box-shadow: 0 3px 8px rgba(27, 138, 90, 0.3);
+    box-shadow: 0 3px 8px rgba(106, 13, 37, 0.25);
     transition: all 0.2s ease;
     text-decoration: none;
 }
 
-.btn-arc-download-green:hover:not(:disabled) {
-    background: #157347;
+.btn-arc-download-green:hover:not(:disabled),
+.btn-arc-download-vinotinto:hover:not(:disabled) {
+    background: linear-gradient(135deg, #83122F 0%, #520a1d 100%);
+    border-color: #F7E7B4;
     transform: translateY(-1px);
-    box-shadow: 0 5px 12px rgba(27, 138, 90, 0.4);
+    box-shadow: 0 5px 12px rgba(106, 13, 37, 0.4);
 }
 
-.btn-arc-download-green:disabled {
+.btn-arc-download-green:disabled,
+.btn-arc-download-vinotinto:disabled {
     background: #94a3b8;
+    border-color: #cbd5e1;
     cursor: not-allowed;
     opacity: 0.7;
     box-shadow: none;
@@ -3081,13 +3112,35 @@ footer {
     letter-spacing: 0.4px;
 }
 
-/* 4. Línea de Motivo en Constancia Oficial */
+/* 4. Bloque Oficial de Motivo en Constancia (Fiel a img 2: caja amarilla con fuente Arial) */
+.constancia-motivo-box {
+    background: #fff9db;
+    border: 1.5px solid #facc15;
+    border-radius: 4px;
+    padding: 8px 18px;
+    margin: 22px 0 16px 0;
+    text-align: center;
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-weight: 700;
+    font-size: 11.5pt;
+    color: #1e293b;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.constancia-cierre-italic {
+    font-style: italic !important;
+    text-indent: 0 !important;
+    margin-top: 0 !important;
+    line-height: 1.8 !important;
+}
+
 .constancia-motivo {
     margin: 18px 0 8px 0;
     font-size: 11pt;
-    font-family: "Bookman Old Style", Georgia, "Times New Roman", serif;
+    font-family: Arial, Helvetica, sans-serif;
     color: #000000;
-    text-align: justify;
+    text-align: center;
     line-height: 1.6;
 }
 

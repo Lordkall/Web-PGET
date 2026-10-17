@@ -646,6 +646,10 @@ async def solicitar_constancia(
     salario_en_letras, salario_formato_bs = formatear_salario_letras(salario_raw)
 
     now = datetime.now()
+    meses_mayus = ["ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO", "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"]
+    dia_expedicion = now.day
+    mes_expedicion = meses_mayus[now.month - 1]
+    ano_expedicion = now.year
     fecha_cierre_txt = fecha_a_letras_expedicion(now)
     correlativo = f"PGET {now.year} Nº S/N"
 
@@ -744,6 +748,9 @@ async def solicitar_constancia(
         "firmante_cargo": "DIRECTORA (E) DE RECURSOS HUMANOS DE LA\nPROCURADURÍA GENERAL DEL ESTADO TRUJILLO.",
         "iniciales": iniciales,
         "motivo": motivo_limpio,
+        "dia_expedicion": dia_expedicion,
+        "mes_expedicion": mes_expedicion,
+        "ano_expedicion": ano_expedicion,
         "cuerpo": cuerpo
     }
 

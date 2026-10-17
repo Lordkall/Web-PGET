@@ -1132,20 +1132,17 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <div class="arc-year-section">
                                     <h3 class="arc-year-title">Planilla ARC</h3>
                                     
-                                    <!-- Selector interactivo de Año Fiscal -->
-                                    <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
+                                    <!-- Selector interactivo de Año Fiscal (Ordenados desde 2026 en adelante) -->
+                                    <div id="workerArcYearTabsContainer" style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
                                         <span style="font-size: 0.88rem; font-weight: 700; color: #475569; margin-right: 4px;">Año Fiscal:</span>
-                                        <button type="button" class="arc-year-tab-btn active" data-year="2025" onclick="window.setWorkerArcYear('2025')" style="border: 1.5px solid #1b8a5a; background: #1b8a5a; color: white; padding: 6px 16px; border-radius: 20px; font-size: 0.88rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">2025</button>
-                                        <button type="button" class="arc-year-tab-btn" data-year="2026" onclick="window.setWorkerArcYear('2026')" style="border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; padding: 6px 16px; border-radius: 20px; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">2026</button>
-                                        <button type="button" class="arc-year-tab-btn" data-year="2024" onclick="window.setWorkerArcYear('2024')" style="border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; padding: 6px 16px; border-radius: 20px; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">2024</button>
-                                        <button type="button" class="arc-year-tab-btn" data-year="2023" onclick="window.setWorkerArcYear('2023')" style="border: 1px solid #cbd5e1; background: #f8fafc; color: #475569; padding: 6px 16px; border-radius: 20px; font-size: 0.88rem; font-weight: 600; cursor: pointer; transition: all 0.2s;">2023</button>
+                                        <button type="button" class="arc-year-tab-btn active" data-year="2026" onclick="window.setWorkerArcYear('2026')">2026</button>
                                     </div>
 
-                                    <!-- Tarjeta Centrada Exacta a img 1 -->
+                                    <!-- Tarjeta Centrada Exacta a img 1 (Estilo Vinotinto Institucional) -->
                                     <div class="arc-year-card">
-                                        <div id="workerArcDisplayYear" class="arc-year-number">2025</div>
+                                        <div id="workerArcDisplayYear" class="arc-year-number">2026</div>
                                         <div class="arc-year-subtitle">Planilla ARC</div>
-                                        <button type="button" id="btnDownloadArcYear" class="btn-arc-download-green" onclick="window.downloadWorkerArcSelectedYear()">
+                                        <button type="button" id="btnDownloadArcYear" class="btn-arc-download-vinotinto" onclick="window.downloadWorkerArcSelectedYear()">
                                             <i class="fas fa-download"></i> Descargar
                                         </button>
                                     </div>
@@ -1874,7 +1871,46 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    let selectedWorkerArcYear = '2025';
+    let selectedWorkerArcYear = '2026';
+
+    function getArcAvailableYears(user = null) {
+        const START_YEAR = 2026;
+        const currentYear = new Date().getFullYear();
+        const maxYear = Math.max(START_YEAR, currentYear);
+        const yearsSet = new Set();
+        for (let y = START_YEAR; y <= maxYear; y++) {
+            yearsSet.add(String(y));
+        }
+        if (user && user.arc_files) {
+            Object.keys(user.arc_files).forEach(y => {
+                const yNum = parseInt(y, 10);
+                if (!isNaN(yNum) && yNum >= START_YEAR) {
+                    yearsSet.add(String(y));
+                }
+            });
+        }
+        // Ordenados ascendentemente desde 2026 en adelante
+        return Array.from(yearsSet).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+    }
+
+    function renderWorkerArcYearTabs(user) {
+        const modal = document.getElementById('loginModal');
+        if (!modal) return;
+        const container = modal.querySelector('#workerArcYearTabsContainer');
+        if (!container) return;
+
+        const years = getArcAvailableYears(user);
+        if (!years.includes(selectedWorkerArcYear)) {
+            selectedWorkerArcYear = years[0] || '2026';
+        }
+
+        container.innerHTML = `
+            <span style="font-size: 0.88rem; font-weight: 700; color: #475569; margin-right: 4px;">Año Fiscal:</span>
+            ${years.map(y => `
+                <button type="button" class="arc-year-tab-btn ${y === selectedWorkerArcYear ? 'active' : ''}" data-year="${y}" onclick="window.setWorkerArcYear('${y}')">${y}</button>
+            `).join('')}
+        `;
+    }
 
     window.setWorkerArcYear = (year) => {
         selectedWorkerArcYear = String(year);
@@ -1883,21 +1919,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const displayYear = modal.querySelector('#workerArcDisplayYear');
         if (displayYear) displayYear.textContent = selectedWorkerArcYear;
 
-        // Actualizar botones de pestañas de año
+        // Actualizar botones de pestañas de año con color Vinotinto Institucional (no verde)
         const tabBtns = modal.querySelectorAll('.arc-year-tab-btn');
         tabBtns.forEach(btn => {
             if (btn.getAttribute('data-year') === selectedWorkerArcYear) {
                 btn.classList.add('active');
-                btn.style.border = '1.5px solid #1b8a5a';
-                btn.style.background = '#1b8a5a';
-                btn.style.color = 'white';
+                btn.style.border = '1.5px solid #D4AF37';
+                btn.style.background = 'linear-gradient(135deg, #6A0D25 0%, #83122F 100%)';
+                btn.style.color = '#ffffff';
                 btn.style.fontWeight = '700';
+                btn.style.boxShadow = '0 2px 8px rgba(106, 13, 37, 0.3)';
             } else {
                 btn.classList.remove('active');
                 btn.style.border = '1px solid #cbd5e1';
                 btn.style.background = '#f8fafc';
                 btn.style.color = '#475569';
                 btn.style.fontWeight = '600';
+                btn.style.boxShadow = 'none';
             }
         });
     };
@@ -1906,12 +1944,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetUser = (allUsersCache && currentUser && allUsersCache.find(u => u.username.toLowerCase() === currentUser.username.toLowerCase())) || currentUser;
         if (!targetUser) return;
 
-        const year = selectedWorkerArcYear || '2025';
+        const year = selectedWorkerArcYear || '2026';
         let arcFile = null;
 
         if (targetUser.arc_files && targetUser.arc_files[year]) {
             arcFile = targetUser.arc_files[year];
-        } else if (targetUser.arc_file && (String(targetUser.arc_file.year) === String(year) || (!targetUser.arc_file.year && year === '2025'))) {
+        } else if (targetUser.arc_file && (String(targetUser.arc_file.year) === String(year) || (!targetUser.arc_file.year && year === '2026'))) {
             arcFile = targetUser.arc_file;
         }
 
@@ -2000,8 +2038,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const certMsg = modal.querySelector('#certMessage');
         if (certMsg) certMsg.textContent = '';
 
-        // Inicializar sección ARC en año 2025
-        window.setWorkerArcYear('2025');
+        // Inicializar sección ARC en año 2026 y renderizar pestañas ordenadas
+        renderWorkerArcYearTabs(user);
+        window.setWorkerArcYear('2026');
     }
 
     // Cargar Usuarios en el Panel de Administrador
@@ -3034,14 +3073,19 @@ document.addEventListener('DOMContentLoaded', () => {
         let cuerpo = '';
         if (cond === 'JUBILADO') {
             const clausulaSal = incluirSalario ? `, devengando una asignación mensual por jubilación de Bolívares **${salarioLetras} (${salarioBs})**.` : '.';
-            cuerpo = `Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de **DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **${cedulaOficial}**, prestó sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** actualmente es ${jubiladoTxt} de este organismo${clausulaSal}\n\nConstancia que se expide a instancia de parte interesada en la ciudad de Trujillo, a ${fechaExpedicion}.`;
+            cuerpo = `Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de **DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **${cedulaOficial}**, prestó sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** actualmente es ${jubiladoTxt} de este organismo${clausulaSal}`;
         } else if (cond === 'CONTRATADO') {
             const clausulaSal = incluirSalario ? `, con una Asignación Mensual de Bolívares **${salarioLetras} (${salarioBs})**.` : '.';
-            cuerpo = `Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de **DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la cédula de Identidad Nº. **${cedulaOficial}**, presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** desde el **${fIngreso}**, desempeñándose en la actualidad como **${cargo} (CONTRATADO)**, ${adscritoTxt} a la ${dir} de la Procuraduría General del Estado Trujillo${clausulaSal}\n\nConstancia que se expide a instancia de parte interesada en la ciudad de Trujillo, a ${fechaExpedicion}.`;
+            cuerpo = `Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de **DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la cédula de Identidad Nº. **${cedulaOficial}**, presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** desde el **${fIngreso}**, desempeñándose en la actualidad como **${cargo} (CONTRATADO)**, ${adscritoTxt} a la ${dir} de la Procuraduría General del Estado Trujillo${clausulaSal}`;
         } else { // FIJO
             const clausulaSal = incluirSalario ? `, con una Asignación Mensual de Bolívares **${salarioLetras} (${salarioBs})**.` : '.';
-            cuerpo = `Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de **DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **${cedulaOficial}** presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, desde el **${fIngreso}** desempeñándose como **${cargo}**, ${adscritoTxt} a la ${dir} P.G.E.T.${clausulaSal}\n\nConstancia que se expide a instancia de parte interesada en la ciudad de Trujillo, a ${fechaExpedicion}.`;
+            cuerpo = `Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de **DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **${cedulaOficial}** presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, desde el **${fIngreso}** desempeñándose como **${cargo}**, ${adscritoTxt} a la ${dir} P.G.E.T.${clausulaSal}`;
         }
+
+        const mesesMayusculas = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+        const diaExpedicion = now.getDate();
+        const mesExpedicion = mesesMayusculas[now.getMonth()];
+        const anoExpedicion = now.getFullYear();
 
         const inicialesSuscribe = 'EL';
         const inicialesTrabajador = (getWorkerInitials(user) || 'xx').toLowerCase();
@@ -3052,6 +3096,9 @@ document.addEventListener('DOMContentLoaded', () => {
             correlativo,
             cuerpo,
             motivo: motivo || 'Trámites personales',
+            dia_expedicion: diaExpedicion,
+            mes_expedicion: mesExpedicion,
+            ano_expedicion: anoExpedicion,
             beneficiario: nombreConTitulo,
             cedula: cedulaOficial,
             cargo,
@@ -3170,12 +3217,20 @@ document.addEventListener('DOMContentLoaded', () => {
             displayInitials = `${sus}/${trab}`;
         }
 
-        const paragraphs = (cert.cuerpo || '').split('\n\n').filter(p => p.trim());
-        const cuerpoHTML = paragraphs.map(p => `
+        const rawParagraphs = (cert.cuerpo || '').split('\n\n').filter(p => p.trim());
+        const mainParagraphs = rawParagraphs.filter(p => !p.toLowerCase().includes('constancia que se expide'));
+        const cuerpoHTML = (mainParagraphs.length > 0 ? mainParagraphs : rawParagraphs.slice(0, 1)).map(p => `
             <p class="constancia-paragraph">
                 ${p.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}
             </p>
         `).join('');
+
+        const mesesMayus = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+        const nowObj = new Date();
+        const diaCierre = cert.dia_expedicion || nowObj.getDate();
+        const mesCierre = cert.mes_expedicion || mesesMayus[nowObj.getMonth()];
+        const anoCierre = cert.ano_expedicion || nowObj.getFullYear();
+        const motivoOficial = (cert.motivo || 'Trámites personales').trim().toUpperCase();
 
         modal.innerHTML = `
             <!-- Barra superior de control FLOTANTE / STICKY (no imprimible) -->
@@ -3225,10 +3280,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         ${cuerpoHTML}
                     </div>
 
-                    <!-- Motivo de la Solicitud (Fiel al formato oficial requerido) -->
-                    <div class="constancia-motivo">
-                        Motivo: ${escapeHtml(cert.motivo || 'Trámites personales')}
+                    <!-- Bloque Oficial de Motivo (Fiel a img 2: en caja amarilla institucional, tipografía Arial) -->
+                    <div class="constancia-motivo-box" style="background: #fff9db; border: 1.5px solid #facc15; border-radius: 4px; padding: 8px 18px; margin: 22px 0 16px 0; text-align: center; font-family: Arial, Helvetica, sans-serif !important; font-weight: 700; font-size: 11.5pt; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">
+                        MOTIVO: ${escapeHtml(motivoOficial)}
                     </div>
+
+                    <!-- Párrafo de Cierre y Fecha (Fiel a img 2: cursiva con negritas) -->
+                    <p class="constancia-paragraph constancia-cierre-italic" style="font-style: italic; text-indent: 0; margin-top: 0; line-height: 1.8;">
+                        Constancia que se expide en la ciudad de Trujillo, a los <strong>${diaCierre}</strong> días del mes de <strong>${mesCierre}</strong> de <strong>${anoCierre}</strong>. Válida por <strong>un (1) mes</strong>.
+                    </p>
 
                     <!-- Bloque de Firma Centrado Oficial -->
                     <div class="constancia-firma">
@@ -3411,7 +3471,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modal) modal.style.display = 'none';
     };
 
-    window.openAdminArcModal = (username, targetYear = '2025') => {
+    window.openAdminArcModal = (username, targetYear = '2026') => {
         const user = (allUsersCache && allUsersCache.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()))
             || (typeof defaultAccounts !== 'undefined' && defaultAccounts.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()));
         if (!user) {
@@ -3447,7 +3507,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const safeCargo = escapeHtml(user.cargo || 'Sin cargo');
         const safeCedula = escapeHtml(formatCedulaOficial(user.cedula) || user.cedula || 'N/A');
         
-        const yearArc = (user.arc_files && user.arc_files[targetYear]) || (String(targetYear) === '2025' && user.arc_file && (!user.arc_file.year || String(user.arc_file.year) === '2025') ? user.arc_file : null);
+        const availableYearsAdmin = getArcAvailableYears(user);
+        const yearArc = (user.arc_files && user.arc_files[targetYear]) || (String(targetYear) === '2026' && user.arc_file && (!user.arc_file.year || String(user.arc_file.year) === '2026') ? user.arc_file : null);
         const hasArc = yearArc && yearArc.data;
 
         modal.innerHTML = `
@@ -3486,11 +3547,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <span style="font-weight: 700; font-size: 0.88rem; color: #334155;">Seleccionar Año Fiscal:</span>
                         <select id="adminArcYearSelect" style="padding: 6px 14px; border: 1.5px solid #D4AF37; border-radius: 6px; font-weight: 700; color: #6A0D25; background: white; cursor: pointer; font-size: 0.9rem;">
-                            <option value="2026" ${String(targetYear) === '2026' ? 'selected' : ''}>2026</option>
-                            <option value="2025" ${String(targetYear) === '2025' ? 'selected' : ''}>2025</option>
-                            <option value="2024" ${String(targetYear) === '2024' ? 'selected' : ''}>2024</option>
-                            <option value="2023" ${String(targetYear) === '2023' ? 'selected' : ''}>2023</option>
-                            <option value="2022" ${String(targetYear) === '2022' ? 'selected' : ''}>2022</option>
+                            ${availableYearsAdmin.map(y => `<option value="${y}" ${String(targetYear) === String(y) ? 'selected' : ''}>${y}</option>`).join('')}
                         </select>
                     </div>
                     <span style="font-size: 0.8rem; color: #64748b; font-weight: 600;">
@@ -3747,7 +3804,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const user = (allUsersCache && allUsersCache.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()))
             || (typeof defaultAccounts !== 'undefined' && defaultAccounts.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()));
         if (!user) return;
-        const targetYear = year || (document.getElementById('adminArcYearSelect') ? document.getElementById('adminArcYearSelect').value : '2025');
+        const targetYear = year || (document.getElementById('adminArcYearSelect') ? document.getElementById('adminArcYearSelect').value : '2026');
         const ok = await window.pgetConfirm(
             `¿Está seguro de que desea eliminar la Planilla de ARC del año <strong>${targetYear}</strong> de <strong>${escapeHtml(user.nombre || user.username)}</strong>?<br><br>El trabajador ya no podrá verla ni descargarla en su perfil para ese año fiscal.`,
             `Eliminar Planilla ARC ${targetYear}`,
@@ -3774,7 +3831,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (user.arc_files && user.arc_files[targetYear]) {
             delete user.arc_files[targetYear];
         }
-        if (String(targetYear) === '2025') {
+        if (String(targetYear) === '2026' || !user.arc_files || Object.keys(user.arc_files).length === 0) {
             user.arc_file = null;
             delete user.arc_file;
         }
