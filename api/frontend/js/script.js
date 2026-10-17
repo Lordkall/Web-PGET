@@ -4073,7 +4073,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <i class="fas fa-chevron-down"></i>
                         </div>
                         <div class="mobile-submenu-items" id="subOrgItems">
-                            <a href="organigrama.html" class="mobile-submenu-item ${currentPath === 'organigrama.html' ? 'active' : ''}">
+                            <a href="organigrama.html?v=3" class="mobile-submenu-item ${currentPath.includes('organigrama') ? 'active' : ''}">
                                 &bull; Organigrama Oficial
                             </a>
                             <a href="direcciones.html" class="mobile-submenu-item ${currentPath === 'direcciones.html' ? 'active' : ''}">
