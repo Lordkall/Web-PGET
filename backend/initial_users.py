@@ -64,26 +64,6 @@ INITIAL_USERS = [
         "cuenta": "01020000000000000000"
     },
     {
-        "username": "admin@pget.gob.ve",
-        "password": "admin123",
-        "role": "admin",
-        "nombres": "ADMINISTRADOR GENERAL",
-        "apellidos": "PGET",
-        "nombre": "ADMINISTRADOR GENERAL PGET",
-        "profesion": "Ingeniero",
-        "genero": "masculino",
-        "cedula": "12345678",
-        "cargo": "ADMINISTRADOR DEL SISTEMA",
-        "condicion": "FIJO",
-        "salario": "Bs. 1.500,00",
-        "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-        "direccion": "DESPACHO DEL PROCURADOR GENERAL",
-        "fecha_ingreso": "01/01/2020",
-        "anos_servicio": "6",
-        "banco": "BANCO DE VENEZUELA",
-        "cuenta": "01020000000000000000"
-    },
-    {
         "username": "dora.matheus@pget.com",
         "password": "Pget10035929",
         "role": "trabajador",

@@ -222,26 +222,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 "cuenta": "01020000000000000000"
         },
         {
-                "username": "admin@pget.gob.ve",
-                "password": "admin123",
-                "role": "admin",
-                "nombres": "ADMINISTRADOR GENERAL",
-                "apellidos": "PGET",
-                "nombre": "ADMINISTRADOR GENERAL PGET",
-                "profesion": "Ingeniero",
-                "genero": "masculino",
-                "cedula": "12345678",
-                "cargo": "ADMINISTRADOR DEL SISTEMA",
-                "condicion": "FIJO",
-                "salario": "Bs. 1.500,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DESPACHO DEL PROCURADOR GENERAL",
-                "fecha_ingreso": "01/01/2020",
-                "anos_servicio": "6",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020000000000000000"
-        },
-        {
                 "username": "dora.matheus@pget.com",
                 "password": "Pget10035929",
                 "role": "trabajador",
@@ -3409,7 +3389,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (res.ok) {
                     const data = await res.json();
                     if (Array.isArray(data)) {
-                        users = data.filter(u => u.username.toLowerCase() !== 'admin' && u.username.toLowerCase() !== 'trabajador1');
+                        users = data.filter(u => u.username.toLowerCase() !== 'admin' && u.username.toLowerCase() !== 'admin@pget.gob.ve' && u.username.toLowerCase() !== 'trabajador1');
                     }
                 }
             } catch (err) {
@@ -3465,7 +3445,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Garantizar siempre que no aparezca el duplicado 'admin' o 'trabajador1'
-            users = users.filter(u => u.username.toLowerCase() !== 'admin' && u.username.toLowerCase() !== 'trabajador1');
+            users = users.filter(u => u.username.toLowerCase() !== 'admin' && u.username.toLowerCase() !== 'admin@pget.gob.ve' && u.username.toLowerCase() !== 'trabajador1');
 
             // Deduplicación estricta por username y cédula
             const seenKeys = new Set();

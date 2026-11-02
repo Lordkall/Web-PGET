@@ -488,7 +488,7 @@ async def delete_user(request: Optional[UserDeleteRequest] = None, username: Opt
 
         
 
-    if clean_username in ["admin@pget.gob.ve", "admin@pget.com", "admin"]:
+    if clean_username in ["admin@pget.com", "admin"]:
 
         raise HTTPException(
 
