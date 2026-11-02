@@ -1,15 +1,28 @@
 from typing import Optional, List, Dict, Any
+import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import re
+import sys
+import time
 from urllib.parse import unquote
+
+# Importar nómina oficial de trabajadores y cargos institucionales
+_cur_dir = os.path.dirname(os.path.abspath(__file__))
+if _cur_dir not in sys.path:
+    sys.path.insert(0, _cur_dir)
+from initial_users import INITIAL_USERS, INITIAL_CARGOS
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://lorenzoavila07_db_user:Jso40aJ1Z38xkmbV@pgetweb.npkuwlb.mongodb.net/?appName=pgetweb")
 
-client = AsyncIOMotorClient(MONGO_URI)
-db = client.pget_db
-users_collection = db.users
-cargos_collection = db.cargos
+_client = None
+
+def get_collections():
+    global _client
+    if _client is None:
+        _client = AsyncIOMotorClient(MONGO_URI, serverSelectionTimeoutMS=1500, connectTimeoutMS=1500)
+    db = _client.pget_db
+    return db.users, db.cargos
 
 def split_nombre_apellidos(nombre_completo: str):
     parts = (nombre_completo or "").strip().split()
@@ -22,105 +35,11 @@ def split_nombre_apellidos(nombre_completo: str):
     mid = len(parts) // 2
     return " ".join(parts[:mid]), " ".join(parts[mid:])
 
-# Fallback en memoria por si hay fallas de red con MongoDB Atlas
-memory_users = [
-    {
-        "username": "admin@pget.gob.ve",
-        "password": "admin123",
-        "role": "admin",
-        "nombres": "ADMINISTRADOR GENERAL",
-        "apellidos": "PGET",
-        "nombre": "ADMINISTRADOR GENERAL PGET",
-        "profesion": "Ingeniero",
-        "genero": "masculino",
-        "cedula": "12345678",
-        "cargo": "ADMINISTRADOR DEL SISTEMA",
-        "condicion": "FIJO",
-        "salario": "Bs. 1.500,00",
-        "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-        "direccion": "DESPACHO DEL PROCURADOR GENERAL",
-        "fecha_ingreso": "01/01/2020",
-        "anos_servicio": "6",
-        "codigo_rac": "0001000001",
-        "telefono_codigo": "0414",
-        "telefono_numero": "1234567",
-        "telefono": "0414-1234567",
-        "banco": "Banco de Venezuela",
-        "cuenta": "01020001234567891267"
-    },
-    {
-        "username": "victoria@pget.gob.ve",
-        "password": "password123",
-        "role": "trabajador",
-        "nombres": "VICTORIA ALEJANDRA",
-        "apellidos": "CARMONA TORRES",
-        "nombre": "VICTORIA ALEJANDRA CARMONA TORRES",
-        "profesion": "Abogada",
-        "genero": "femenino",
-        "cedula": "27251622",
-        "cargo": "ADMINISTRADOR PROFESIONAL I",
-        "condicion": "FIJO",
-        "salario": "Bs. 1.000,00",
-        "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-        "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-        "fecha_ingreso": "01/04/2024",
-        "anos_servicio": "2",
-        "codigo_rac": "0001827492",
-        "telefono_codigo": "0414",
-        "telefono_numero": "7251622",
-        "telefono": "0414-7251622",
-        "banco": "Banco de Venezuela",
-        "cuenta": "01020384910029381267"
-    },
-    {
-        "username": "lorenzo@pget.gob.ve",
-        "password": "password123",
-        "role": "trabajador",
-        "nombres": "LORENZO FABIÁN",
-        "apellidos": "ÁVILA GONZÁLEZ",
-        "nombre": "ÁVILA GONZÁLEZ LORENZO FABIÁN",
-        "profesion": "Ingeniero",
-        "genero": "masculino",
-        "cedula": "25006611",
-        "cargo": "ANALISTA CENTRAL DE COMPUTACIÓN Y SISTEMAS",
-        "condicion": "CONTRATADO",
-        "salario": "Bs. 1.000,00",
-        "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-        "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
-        "fecha_ingreso": "21/11/2022",
-        "anos_servicio": "4",
-        "codigo_rac": "0002500661",
-        "telefono_codigo": "0412",
-        "telefono_numero": "5006611",
-        "telefono": "0412-5006611",
-        "banco": "Banco de Venezuela",
-        "cuenta": "01020492817263541267"
-    },
-    {
-        "username": "mario@pget.gob.ve",
-        "password": "password123",
-        "role": "trabajador",
-        "nombres": "MARIO ANTONIO",
-        "apellidos": "MAZZEY CASTELLANOS",
-        "nombre": "MAZZEY CASTELLANOS MARIO ANTONIO",
-        "profesion": "Licenciado",
-        "genero": "masculino",
-        "cedula": "9019850",
-        "cargo": "AUDITOR JEFE",
-        "condicion": "JUBILADO",
-        "salario": "Bs. 142,00",
-        "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-        "direccion": "UNIDAD DE AUDITORÍA INTERNA",
-        "fecha_ingreso": "15/03/1998",
-        "anos_servicio": "25",
-        "codigo_rac": "0000901985",
-        "telefono_codigo": "0416",
-        "telefono_numero": "9019850",
-        "telefono": "0416-9019850",
-        "banco": "Banco de Venezuela",
-        "cuenta": "01020192837465011267"
-    }
-]
+# Base de datos local en memoria (67 trabajadores + admin)
+memory_users = [dict(u) for u in INITIAL_USERS]
+
+# Catálogo predeterminado de cargos institucionales
+DEFAULT_CARGOS = list(INITIAL_CARGOS)
 
 def format_user_doc(doc):
     if not doc:
@@ -138,47 +57,81 @@ def format_user_doc(doc):
         d["nombre"] = f"{d.get('nombres', '')} {d.get('apellidos', '')}".strip()
     return d
 
+def find_in_memory(clean_name: str):
+    # 1. Admin aliases
+    if clean_name in ["admin", "admin@pget.com", "admin@pget.gob.ve"]:
+        for u in memory_users:
+            if u["username"].lower() in ["admin@pget.com", "admin@pget.gob.ve"]:
+                return dict(u)
+
+    # 2. Cédula
+    if clean_name.isdigit():
+        for u in memory_users:
+            if str(u.get("cedula", "")).strip() == clean_name:
+                return dict(u)
+
+    # 3. Exact username match
+    for u in memory_users:
+        if u["username"].lower() == clean_name:
+            return dict(u)
+
+    # 4. Username without domain or with @pget.com
+    target_pget = f"{clean_name}@pget.com" if "@" not in clean_name else clean_name
+    target_prefix = clean_name.split("@")[0]
+    for u in memory_users:
+        u_clean = u["username"].lower()
+        if u_clean == target_pget or u_clean.split("@")[0] == target_prefix:
+            return dict(u)
+
+    return None
+
 async def get_user_by_username(username: str):
     clean_name = unquote(str(username or "")).strip().lower()
     if not clean_name:
         return None
+
+    # Búsqueda instantánea en almacenamiento de memoria
+    mem_user = find_in_memory(clean_name)
+    if mem_user:
+        return mem_user
+
+    # Fallback opcional a MongoDB si se registró remotamente y no está en memoria
     try:
-        user = await users_collection.find_one({"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}})
+        users_col, _ = get_collections()
+        query = {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}}
+        if clean_name.isdigit():
+            query = {"cedula": clean_name}
+        user = await asyncio.wait_for(users_col.find_one(query), timeout=1.0)
         if user:
             return format_user_doc(user)
-    except Exception as e:
-        print(f"MongoDB warning in get_user_by_username: {e}")
-    # Fallback memoria
-    for u in memory_users:
-        if u["username"].lower() == clean_name:
-            return dict(u)
+    except Exception:
+        pass
+
     return None
 
 async def authenticate_user(username: str, password: str):
-    # Soporte para alias simples
-    effective_username = username
-    if username == "admin":
-        effective_username = "admin@pget.gob.ve"
-    elif username == "trabajador1":
+    clean_user = (username or "").strip()
+    effective_username = clean_user
+    if clean_user == "admin":
+        effective_username = "admin@pget.com"
+    elif clean_user == "trabajador1":
         effective_username = "victoria@pget.gob.ve"
 
     user = await get_user_by_username(effective_username)
-    if not user and effective_username != username:
-        user = await get_user_by_username(username)
+    if not user and effective_username != clean_user:
+        user = await get_user_by_username(clean_user)
 
-    if user and user.get("password") == password:
-        return user
+    if user:
+        stored_pass = str(user.get("password", "")).strip()
+        input_pass = str(password or "").strip()
+        if stored_pass == input_pass or stored_pass.lower() == input_pass.lower():
+            return user
     return None
 
 async def get_all_users():
-    try:
-        cursor = users_collection.find({})
-        docs = await cursor.to_list(length=200)
-        valid_docs = [d for d in docs if d.get("username") not in ["admin", "trabajador1"]]
-        return [format_user_doc(d) for d in valid_docs]
-    except Exception as e:
-        print(f"MongoDB warning in get_all_users: {e}")
-    return [dict(u) for u in memory_users if u.get("username") not in ["admin", "trabajador1"]]
+    # Retornar usuarios vigentes (excluyendo alias deprecados)
+    valid_users = [dict(u) for u in memory_users if u.get("username") not in ["admin", "trabajador1"]]
+    return valid_users
 
 async def create_user_record(user_data: dict):
     # Asegurar consistencia de nombres, apellidos y nombre completo
@@ -196,13 +149,15 @@ async def create_user_record(user_data: dict):
     if existing:
         return None, "El correo electrónico o usuario ya se encuentra registrado."
 
+    # Guardar en memoria inmediatamente
+    memory_users.append(dict(user_data))
+
+    # Persistir asíncronamente en MongoDB si está disponible
     try:
-        await users_collection.insert_one(user_data)
-    except Exception as e:
-        print(f"MongoDB warning in create_user_record: {e}")
-        # Guardar en memoria
-        memory_users.append(user_data)
-        return user_data, None
+        users_col, _ = get_collections()
+        await asyncio.wait_for(users_col.insert_one(dict(user_data)), timeout=1.0)
+    except Exception:
+        pass
 
     return user_data, None
 
@@ -228,265 +183,127 @@ async def update_user_record(username: str, update_fields: dict):
         unset_fields["arc_file"] = ""
         del update_fields["arc_file"]
 
+    # Actualizar en memoria inmediatamente
+    for idx, u in enumerate(memory_users):
+        u_name = u["username"].lower()
+        if u_name == clean_name or u_name.split("@")[0] == clean_name:
+            if unset_fields:
+                for uf in unset_fields:
+                    memory_users[idx].pop(uf, None)
+            if update_fields:
+                memory_users[idx].update(update_fields)
+            break
+
+    # Persistir asíncronamente en MongoDB si está disponible
     try:
+        users_col, _ = get_collections()
         update_doc = {}
         if update_fields:
             update_doc["$set"] = update_fields
         if unset_fields:
             update_doc["$unset"] = unset_fields
         if update_doc:
-            res = await users_collection.update_one(
+            await asyncio.wait_for(users_col.update_one(
                 {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
                 update_doc
-            )
-            if res.matched_count > 0:
-                return await get_user_by_username(new_clean_name)
-    except Exception as e:
-        print(f"MongoDB warning in update_user_record: {e}")
-    
-    # Fallback memoria
-    for idx, u in enumerate(memory_users):
-        if u["username"].lower() == clean_name:
-            if unset_fields:
-                for uf in unset_fields:
-                    memory_users[idx].pop(uf, None)
-            if update_fields:
-                memory_users[idx].update(update_fields)
-            return dict(memory_users[idx])
-    return None
+            ), timeout=1.0)
+    except Exception:
+        pass
+
+    return await get_user_by_username(new_clean_name)
 
 async def delete_user_record(username: str):
     clean_name = unquote(str(username or "")).strip().lower()
     if not clean_name:
         return False
-    deleted = False
-    try:
-        res = await users_collection.delete_one({"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}})
-        if res.deleted_count > 0:
-            deleted = True
-    except Exception as e:
-        print(f"MongoDB warning in delete_user_record: {e}")
-    
-    # Sincronizar siempre con memoria
+
     initial_len = len(memory_users)
-    memory_users[:] = [u for u in memory_users if u["username"].lower() != clean_name]
-    if len(memory_users) < initial_len:
-        deleted = True
+    memory_users[:] = [u for u in memory_users if u["username"].lower() != clean_name and u["username"].split("@")[0].lower() != clean_name]
+    deleted = len(memory_users) < initial_len
+
+    try:
+        users_col, _ = get_collections()
+        await asyncio.wait_for(users_col.delete_one({"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}}), timeout=1.0)
+    except Exception:
+        pass
+
     return deleted
 
 async def create_initial_users():
-    initial_accounts = [
-        {
-            "username": "admin@pget.gob.ve",
-            "password": "admin123",
-            "role": "admin",
-            "nombres": "ADMINISTRADOR GENERAL",
-            "apellidos": "PGET",
-            "nombre": "ADMINISTRADOR GENERAL PGET",
-            "profesion": "Ingeniero",
-            "genero": "masculino",
-            "cedula": "12345678",
-            "cargo": "ADMINISTRADOR DEL SISTEMA",
-            "condicion": "FIJO",
-            "salario": "Bs. 1.500,00",
-            "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-            "direccion": "DESPACHO DEL PROCURADOR GENERAL",
-            "fecha_ingreso": "01/01/2020",
-            "anos_servicio": "6",
-            "codigo_rac": "0001000001",
-            "telefono_codigo": "0414",
-            "telefono_numero": "1234567",
-            "telefono": "0414-1234567",
-            "banco": "Banco de Venezuela",
-            "cuenta": "01020001234567891267"
-        },
-        {
-            "username": "victoria@pget.gob.ve",
-            "password": "password123",
-            "role": "trabajador",
-            "nombres": "VICTORIA ALEJANDRA",
-            "apellidos": "CARMONA TORRES",
-            "nombre": "VICTORIA ALEJANDRA CARMONA TORRES",
-            "profesion": "Abogada",
-            "genero": "femenino",
-            "cedula": "27251622",
-            "cargo": "ADMINISTRADOR PROFESIONAL I",
-            "condicion": "FIJO",
-            "salario": "Bs. 1.000,00",
-            "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-            "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-            "fecha_ingreso": "01/04/2024",
-            "anos_servicio": "2",
-            "codigo_rac": "0001827492",
-            "telefono_codigo": "0414",
-            "telefono_numero": "7251622",
-            "telefono": "0414-7251622",
-            "banco": "Banco de Venezuela",
-            "cuenta": "01020384910029381267"
-        },
-        {
-            "username": "lorenzo@pget.gob.ve",
-            "password": "password123",
-            "role": "trabajador",
-            "nombres": "LORENZO FABIÁN",
-            "apellidos": "ÁVILA GONZÁLEZ",
-            "nombre": "ÁVILA GONZÁLEZ LORENZO FABIÁN",
-            "profesion": "Ingeniero",
-            "genero": "masculino",
-            "cedula": "25006611",
-            "cargo": "ANALISTA CENTRAL DE COMPUTACIÓN Y SISTEMAS",
-            "condicion": "CONTRATADO",
-            "salario": "Bs. 1.000,00",
-            "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-            "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
-            "fecha_ingreso": "21/11/2022",
-            "anos_servicio": "4",
-            "codigo_rac": "0002500661",
-            "telefono_codigo": "0412",
-            "telefono_numero": "5006611",
-            "telefono": "0412-5006611",
-            "banco": "Banco de Venezuela",
-            "cuenta": "01020492817263541267"
-        },
-        {
-            "username": "mario@pget.gob.ve",
-            "password": "password123",
-            "role": "trabajador",
-            "nombres": "MARIO ANTONIO",
-            "apellidos": "MAZZEY CASTELLANOS",
-            "nombre": "MAZZEY CASTELLANOS MARIO ANTONIO",
-            "profesion": "Licenciado",
-            "genero": "masculino",
-            "cedula": "9019850",
-            "cargo": "AUDITOR JEFE",
-            "condicion": "JUBILADO",
-            "salario": "Bs. 142,00",
-            "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-            "direccion": "UNIDAD DE AUDITORÍA INTERNA",
-            "fecha_ingreso": "15/03/1998",
-            "anos_servicio": "25",
-            "codigo_rac": "0000901985",
-            "telefono_codigo": "0416",
-            "telefono_numero": "9019850",
-            "telefono": "0416-9019850",
-            "banco": "Banco de Venezuela",
-            "cuenta": "01020192837465011267"
-        }
-    ]
+    """
+    Inicializa y sincroniza en MongoDB Atlas todas las cuentas oficiales de la Procuraduría
+    extraídas de la nómina en Excel, asegurando que admin@pget.com y cada trabajador existan.
+    """
+    initial_accounts = INITIAL_USERS
 
     try:
-        # Eliminar alias redundantes antiguos para dejar un solo administrador
-        await users_collection.delete_many({"username": {"$in": ["admin", "trabajador1"]}})
+        users_col, cargos_col = get_collections()
+        # Eliminar alias redundantes antiguos
+        await asyncio.wait_for(users_col.delete_many({"username": {"$in": ["admin", "trabajador1"]}}), timeout=2.0)
 
-        # Verificar si la base de datos está totalmente vacía
-        total = await users_collection.count_documents({})
-        if total == 0:
-            for acc in initial_accounts:
-                await users_collection.insert_one(acc)
-            print("Base de datos inicializada por primera vez.")
-        else:
-            # Si ya hay usuarios, asegurar exclusivamente que admin@pget.gob.ve exista
-            admin_user = await users_collection.find_one({"username": "admin@pget.gob.ve"})
-            if not admin_user:
-                await users_collection.insert_one(initial_accounts[0])
-                print("Administrador principal verificado.")
-            print("Usuarios existentes preservados (no se reviven cuentas eliminadas).")
+        # Asegurar todos los usuarios oficiales sin sobreescribir modificaciones previas
+        for acc in initial_accounts:
+            existing = await asyncio.wait_for(users_col.find_one({"username": {"$regex": f"^{re.escape(acc['username'])}$", "$options": "i"}}), timeout=0.8)
+            if not existing:
+                await asyncio.wait_for(users_col.insert_one(dict(acc)), timeout=0.8)
+
+        # Asegurar catálogo completo de cargos institucionales
+        for cargo_name in INITIAL_CARGOS:
+            c_clean = cargo_name.strip().upper()
+            c_exist = await asyncio.wait_for(cargos_col.find_one({"nombre": c_clean}), timeout=0.8)
+            if not c_exist:
+                await asyncio.wait_for(cargos_col.insert_one({"nombre": c_clean}), timeout=0.8)
+
+        print(f"Base de datos sincronizada: {len(initial_accounts)} cuentas oficiales y cargos PGET.")
     except Exception as e:
-        print(f"Error initializing users in MongoDB Atlas: {e}")
-
-# =========================================================================
-# GESTIÓN Y CATÁLOGO DE CARGOS INSTITUCIONALES PGET
-# =========================================================================
-DEFAULT_CARGOS = [
-    "ADMINISTRADOR DEL SISTEMA",
-    "ADMINISTRADOR PROFESIONAL I",
-    "ANALISTA CENTRAL DE COMPUTACIÓN Y SISTEMAS",
-    "AUDITOR JEFE",
-    "ABOGADO I",
-    "ABOGADO II",
-    "ABOGADO III",
-    "ASISTENTE ADMINISTRATIVO",
-    "ASISTENTE JURÍDICO",
-    "DIRECTOR GENERAL",
-    "DIRECTOR DE LÍNEA",
-    "DIRECTORA (E) DE RECURSOS HUMANOS",
-    "ESPECIALISTA EN BIENES Y SERVICIOS",
-    "SECRETARIA EJECUTIVA",
-    "CHOFER",
-    "OBRERO"
-]
+        print(f"Información: almacenamiento local activo con {len(memory_users)} usuarios listos. MongoDB Atlas en espera ({e}).")
 
 async def get_all_cargos():
-    cargos = list(DEFAULT_CARGOS)
-    try:
-        cursor = cargos_collection.find({})
-        docs = await cursor.to_list(length=300)
-        for d in docs:
-            name = (d.get("nombre") or "").strip().upper()
-            if name and name not in cargos:
-                cargos.append(name)
-    except Exception as e:
-        print(f"MongoDB warning in get_all_cargos: {e}")
-    try:
-        cursor_u = users_collection.find({}, {"cargo": 1})
-        u_docs = await cursor_u.to_list(length=300)
-        for u in u_docs:
-            c = (u.get("cargo") or "").strip().upper()
-            if c and c not in cargos:
-                cargos.append(c)
-    except Exception:
-        pass
-    return sorted(list(set(cargos)))
+    return sorted(list(set(DEFAULT_CARGOS)))
 
 async def add_cargo_record(nombre: str):
     clean = (nombre or "").strip().upper()
     if not clean:
         return False, "El nombre del cargo no puede estar vacío"
+    if clean not in DEFAULT_CARGOS:
+        DEFAULT_CARGOS.append(clean)
     try:
-        existing = await cargos_collection.find_one({"nombre": clean})
-        if not existing:
-            await cargos_collection.insert_one({"nombre": clean})
-        return True, None
-    except Exception as e:
-        print(f"MongoDB warning in add_cargo_record: {e}")
-        return True, None
+        _, cargos_col = get_collections()
+        await asyncio.wait_for(cargos_col.insert_one({"nombre": clean}), timeout=1.0)
+    except Exception:
+        pass
+    return True, None
 
 async def delete_cargo_record(nombre: str):
     clean = (nombre or "").strip().upper()
+    if clean in DEFAULT_CARGOS:
+        DEFAULT_CARGOS.remove(clean)
     try:
-        await cargos_collection.delete_one({"nombre": clean})
-        return True
-    except Exception as e:
-        print(f"MongoDB warning in delete_cargo_record: {e}")
-        return False
+        _, cargos_col = get_collections()
+        await asyncio.wait_for(cargos_col.delete_one({"nombre": clean}), timeout=1.0)
+    except Exception:
+        pass
+    return True
 
 async def delete_user_arc(username: str, year: Optional[str] = None):
     clean_name = unquote(str(username or "")).strip().lower()
+    for idx, u in enumerate(memory_users):
+        if u["username"].lower() == clean_name or u["username"].split("@")[0].lower() == clean_name:
+            memory_users[idx].pop("arc_file", None)
+            break
     try:
+        users_col, _ = get_collections()
         if year:
             clean_year = str(year).strip()
-            await users_collection.update_one(
+            await asyncio.wait_for(users_col.update_one(
                 {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
                 {"$unset": {f"arc_files.{clean_year}": ""}}
-            )
+            ), timeout=1.0)
         else:
-            await users_collection.update_one(
+            await asyncio.wait_for(users_col.update_one(
                 {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
                 {"$unset": {"arc_file": "", "arc_files": ""}}
-            )
-    except Exception as e:
-        print(f"MongoDB warning in delete_user_arc: {e}")
-    for idx, u in enumerate(memory_users):
-        if u["username"].lower() == clean_name:
-            if year:
-                clean_year = str(year).strip()
-                if "arc_files" in memory_users[idx] and isinstance(memory_users[idx]["arc_files"], dict):
-                    memory_users[idx]["arc_files"].pop(clean_year, None)
-                if memory_users[idx].get("arc_file", {}).get("year") == clean_year:
-                    memory_users[idx].pop("arc_file", None)
-            else:
-                memory_users[idx].pop("arc_file", None)
-                memory_users[idx].pop("arc_files", None)
-            return True
+            ), timeout=1.0)
+    except Exception:
+        pass
     return True
-

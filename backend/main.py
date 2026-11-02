@@ -243,7 +243,7 @@ async def delete_user(request: Optional[UserDeleteRequest] = None, username: Opt
     if not clean_username:
         raise HTTPException(status_code=400, detail="Debe especificar el usuario a eliminar")
         
-    if clean_username in ["admin@pget.gob.ve", "admin"]:
+    if clean_username in ["admin@pget.gob.ve", "admin@pget.com", "admin"]:
         raise HTTPException(
             status_code=400,
             detail="No se puede eliminar la cuenta principal del Administrador del Sistema"
