@@ -388,3 +388,32 @@ async def delete_cargo_record(nombre: str):
         await asyncio.wait_for(cargos_col.delete_one({"nombre": clean}), timeout=3.0)
     except Exception:
         pass
+
+
+async def delete_user_arc(username: str, year: Optional[str] = None):
+    clean_name = unquote(str(username or "")).strip().lower()
+    for idx, u in enumerate(memory_users):
+        if u["username"].lower() == clean_name or u["username"].split("@")[0].lower() == clean_name:
+            if year:
+                if "arc_files" in memory_users[idx] and isinstance(memory_users[idx]["arc_files"], dict):
+                    memory_users[idx]["arc_files"].pop(str(year).strip(), None)
+            else:
+                memory_users[idx].pop("arc_file", None)
+                memory_users[idx].pop("arc_files", None)
+            break
+    try:
+        users_col, _ = get_collections()
+        if year:
+            clean_year = str(year).strip()
+            await asyncio.wait_for(users_col.update_one(
+                {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
+                {"$unset": {f"arc_files.{clean_year}": ""}}
+            ), timeout=5.0)
+        else:
+            await asyncio.wait_for(users_col.update_one(
+                {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
+                {"$unset": {"arc_file": "", "arc_files": ""}}
+            ), timeout=5.0)
+    except Exception:
+        pass
+    return True
