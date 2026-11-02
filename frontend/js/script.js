@@ -4422,16 +4422,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const adscritoTxt = esFemenino ? 'adscrita' : 'adscrito';
         const jubiladoTxt = esFemenino ? 'jubilada' : 'jubilado';
 
+        // Preposición correcta para dirección (Despacho es masculino -> "al Despacho", otras -> "a la")
+        const prepAdscrito = (dir || '').trim().toUpperCase().startsWith('DESPACHO') ? 'al' : 'a la';
+
+        // Verificación de si la constancia es para la Directora de Recursos Humanos (la suscribe la Procuradora)
+        const cleanUserCedula = String(user.cedula || '').replace(/[^0-9]/g, '').trim();
+        const cleanCargo = String(user.cargo || '').toUpperCase();
+        const isDirectoraRRHH = (
+            cleanUserCedula === '14780947' ||
+            String(user.username || '').toLowerCase().includes('elvimar') ||
+            (cleanCargo.includes('RECURSOS HUMANOS') && cleanCargo.includes('DIRECTOR'))
+        );
+
+        let firmanteNombre = 'ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.';
+        let firmanteCargo = 'DIRECTORA (E) DE RECURSOS HUMANOS DE LA\nPROCURADURÍA GENERAL DEL ESTADO TRUJILLO.';
+        let firmanteSuscripcion = 'Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de **DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ';
+        let inicialesSuscribe = 'EL';
+
+        if (isDirectoraRRHH) {
+            firmanteNombre = 'ABG. DORA ALICIA MATHEUS.';
+            firmanteCargo = 'PROCURADORA GENERAL DEL ESTADO TRUJILLO.';
+            firmanteSuscripcion = 'Quien suscribe, **Abog. DORA ALICIA MATHEUS**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 10.035.929**, en mi condición de **PROCURADORA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ';
+            inicialesSuscribe = 'DM';
+        }
+
         let cuerpo = '';
         if (cond === 'JUBILADO') {
             const clausulaSal = incluirSalario ? `, devengando una asignación mensual por jubilación de Bolívares **${salarioLetras} (${salarioBs})**.` : '.';
-            cuerpo = `Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de **DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **${cedulaOficial}**, prestó sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** actualmente es ${jubiladoTxt} de este organismo${clausulaSal}`;
+            cuerpo = `${firmanteSuscripcion}${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **${cedulaOficial}**, prestó sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** actualmente es ${jubiladoTxt} de este organismo${clausulaSal}`;
         } else if (cond === 'CONTRATADO') {
             const clausulaSal = incluirSalario ? `, con una Asignación Mensual de Bolívares **${salarioLetras} (${salarioBs})**.` : '.';
-            cuerpo = `Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de **DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la cédula de Identidad Nº. **${cedulaOficial}**, presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** desde el **${fIngreso}**, desempeñándose en la actualidad como **${cargo} (CONTRATADO)**, ${adscritoTxt} a la ${dir} de la Procuraduría General del Estado Trujillo${clausulaSal}`;
+            cuerpo = `${firmanteSuscripcion}${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la cédula de Identidad Nº. **${cedulaOficial}**, presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** desde el **${fIngreso}**, desempeñándose en la actualidad como **${cargo} (CONTRATADO)**, ${adscritoTxt} ${prepAdscrito} ${dir} de la Procuraduría General del Estado Trujillo${clausulaSal}`;
         } else { // FIJO
             const clausulaSal = incluirSalario ? `, con una Asignación Mensual de Bolívares **${salarioLetras} (${salarioBs})**.` : '.';
-            cuerpo = `Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de **DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **${cedulaOficial}** presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, desde el **${fIngreso}** desempeñándose como **${cargo}**, ${adscritoTxt} a la ${dir} P.G.E.T.${clausulaSal}`;
+            cuerpo = `${firmanteSuscripcion}${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **${cedulaOficial}** presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, desde el **${fIngreso}** desempeñándose como **${cargo}**, ${adscritoTxt} ${prepAdscrito} ${dir} P.G.E.T.${clausulaSal}`;
         }
 
         const mesesMayusculas = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
@@ -4439,7 +4463,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const mesExpedicion = mesesMayusculas[now.getMonth()];
         const anoExpedicion = now.getFullYear();
 
-        const inicialesSuscribe = 'EL';
         const inicialesTrabajador = (getWorkerInitials(user) || 'xx').toLowerCase();
         const iniciales = `${inicialesSuscribe}/${inicialesTrabajador}`;
 
@@ -4462,8 +4485,8 @@ document.addEventListener('DOMContentLoaded', () => {
             salario_en_letras: incluirSalario ? salarioLetras : null,
             fecha_emision: fechaExpedicion,
             rif: 'G-20000417-7',
-            firmante_nombre: 'ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.',
-            firmante_cargo: 'DIRECTORA (E) DE RECURSOS HUMANOS DE LA\nPROCURADURÍA GENERAL DEL ESTADO TRUJILLO.',
+            firmante_nombre: firmanteNombre,
+            firmante_cargo: firmanteCargo,
             iniciales: iniciales
         };
     }
@@ -4644,9 +4667,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     <!-- Bloque de Firma Centrado Oficial -->
                     <div class="constancia-firma">
-                        <strong>ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.</strong><br>
-                        <strong>DIRECTORA (E) DE RECURSOS HUMANOS DE LA</strong><br>
-                        <strong>PROCURADURÍA GENERAL DEL ESTADO TRUJILLO.</strong>
+                        <strong>${cert.firmante_nombre || 'ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.'}</strong><br>
+                        ${(cert.firmante_cargo || 'DIRECTORA (E) DE RECURSOS HUMANOS DE LA\nPROCURADURÍA GENERAL DEL ESTADO TRUJILLO.')
+                            .split('\n')
+                            .map(line => `<strong>${escapeHtml(line.trim())}</strong>`)
+                            .join('<br>')}
                     </div>
 
                     <!-- Iniciales de Transcripción al margen izquierdo -->

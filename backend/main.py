@@ -660,6 +660,38 @@ async def solicitar_constancia(
     adscrito_txt = "adscrita" if es_femenino else "adscrito"
     jubilado_txt = "jubilada" if es_femenino else "jubilado"
 
+    # Preposición correcta para dirección (Despacho es masculino -> "al Despacho", otras -> "a la")
+    prep_adscrito = "al" if (direccion or "").strip().upper().startswith("DESPACHO") else "a la"
+
+    # Verificación de si la constancia es para la Directora de Recursos Humanos (la suscribe la Procuradora)
+    clean_user_cedula = re.sub(r'[^0-9]', '', str(user.get("cedula") or "")).strip()
+    clean_cargo = str(user.get("cargo") or "").upper()
+    is_directora_rrhh = (
+        clean_user_cedula == "14780947" or
+        "elvimar" in str(user.get("username") or "").lower() or
+        ("RECURSOS HUMANOS" in clean_cargo and "DIRECTOR" in clean_cargo)
+    )
+
+    if is_directora_rrhh:
+        firmante_nombre = "ABG. DORA ALICIA MATHEUS."
+        firmante_cargo = "PROCURADORA GENERAL DEL ESTADO TRUJILLO."
+        firmante_suscripcion = (
+            "Quien suscribe, **Abog. DORA ALICIA MATHEUS**, venezolana, mayor de edad, "
+            "titular de la cédula de identidad Nº. **V- 10.035.929**, en mi condición de "
+            "**PROCURADORA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que "
+        )
+        iniciales_suscribe = "DM"
+    else:
+        firmante_nombre = "ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO."
+        firmante_cargo = "DIRECTORA (E) DE RECURSOS HUMANOS DE LA\nPROCURADURÍA GENERAL DEL ESTADO TRUJILLO."
+        firmante_suscripcion = (
+            "Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, "
+            "titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de "
+            "**DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, "
+            "por medio de la presente hago constar que "
+        )
+        iniciales_suscribe = "EL"
+
     # Redacción exacta según las 3 imágenes oficiales de la PGET
     if condicion == "JUBILADO":
         modelo = "JUBILADO"
@@ -670,10 +702,7 @@ async def solicitar_constancia(
             clausula_salario = "."
         
         cuerpo = (
-            f"Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, "
-            f"titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de "
-            f"**DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, "
-            f"por medio de la presente hago constar que {tratamiento_ciudadano} **{nombre_completo}**, "
+            f"{firmante_suscripcion}{tratamiento_ciudadano} **{nombre_completo}**, "
             f"{nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **{cedula_oficial}**, "
             f"prestó sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** actualmente es "
             f"{jubilado_txt} de este organismo{clausula_salario}\n\n"
@@ -688,14 +717,11 @@ async def solicitar_constancia(
             clausula_salario = "."
         
         cuerpo = (
-            f"Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, "
-            f"titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de "
-            f"**DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, "
-            f"por medio de la presente hago constar que {tratamiento_ciudadano} **{nombre_completo}**, "
+            f"{firmante_suscripcion}{tratamiento_ciudadano} **{nombre_completo}**, "
             f"{nacionalidad}, mayor de edad, titular de la cédula de Identidad Nº. **{cedula_oficial}**, "
             f"presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** desde el "
             f"**{fecha_ingreso}**, desempeñándose en la actualidad como **{cargo} (CONTRATADO)**, "
-            f"{adscrito_txt} a la {direccion} de la Procuraduría General del Estado Trujillo{clausula_salario}\n\n"
+            f"{adscrito_txt} {prep_adscrito} {direccion} de la Procuraduría General del Estado Trujillo{clausula_salario}\n\n"
             f"Constancia que se expide a instancia de parte interesada en la ciudad de Trujillo, a {fecha_cierre_txt}."
         )
     else:  # FIJO
@@ -707,18 +733,14 @@ async def solicitar_constancia(
             clausula_salario = "."
         
         cuerpo = (
-            f"Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, "
-            f"titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de "
-            f"**DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, "
-            f"por medio de la presente hago constar que {tratamiento_ciudadano} **{nombre_completo}**, "
+            f"{firmante_suscripcion}{tratamiento_ciudadano} **{nombre_completo}**, "
             f"{nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **{cedula_oficial}** "
             f"presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, desde el "
             f"**{fecha_ingreso}** desempeñándose como **{cargo}**, "
-            f"{adscrito_txt} a la {direccion} P.G.E.T.{clausula_salario}\n\n"
+            f"{adscrito_txt} {prep_adscrito} {direccion} P.G.E.T.{clausula_salario}\n\n"
             f"Constancia que se expide a instancia de parte interesada en la ciudad de Trujillo, a {fecha_cierre_txt}."
         )
 
-    iniciales_suscribe = "EL"
     iniciales_trabajador = str(get_worker_initials(user) or "xx").lower()
     iniciales = f"{iniciales_suscribe}/{iniciales_trabajador}"
 
@@ -744,8 +766,8 @@ async def solicitar_constancia(
         "salario_en_letras": salario_en_letras if incluir_salario else None,
         "fecha_emision": fecha_cierre_txt,
         "rif": "G-20000417-7",
-        "firmante_nombre": "ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.",
-        "firmante_cargo": "DIRECTORA (E) DE RECURSOS HUMANOS DE LA\nPROCURADURÍA GENERAL DEL ESTADO TRUJILLO.",
+        "firmante_nombre": firmante_nombre,
+        "firmante_cargo": firmante_cargo,
         "iniciales": iniciales,
         "motivo": motivo_limpio,
         "dia_expedicion": dia_expedicion,
