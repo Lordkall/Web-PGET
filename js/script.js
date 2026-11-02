@@ -1,5599 +1,5647 @@
-// Global JavaScript for PGET Portal - Authentication & Admin Management
-document.addEventListener('DOMContentLoaded', () => {
-    // Detección dinámica de entorno (Local vs Producción en Vercel)
-    const isLocal = window.location.hostname === 'localhost' || 
-                    window.location.hostname === '127.0.0.1' || 
-                    window.location.protocol === 'file:';
-    // En Vercel la API corre en el mismo dominio bajo /api:
-    const PROD_API_URL = `${window.location.origin}/api`;
-    const LOCAL_API_URL = 'http://127.0.0.1:8000/api';
-    const API_URL = isLocal ? LOCAL_API_URL : (window.PGET_API_URL || localStorage.getItem('PGET_API_URL') || PROD_API_URL);
-    let currentToken = null;
-    let currentUser = null;
-    let allUsersCache = [];
-    let editingUsername = null;
-    let currentCondicionFilter = ''; // '' (Todos), 'FIJO', 'CONTRATADO', 'JUBILADO'
-    let formSelectedArcFile = undefined;
-
-    const defaultCargosInitial = [
-        "ABOGADO",
-        "ABOGADO I",
-        "ABOGADO II",
-        "ABOGADO III",
-        "ADMINISTRADOR DEL SISTEMA",
-        "ADMINISTRADOR PROFESIONAL I",
-        "ANALISTA CENTRAL DE COMPUTACIÓN Y SISTEMAS",
-        "ANALISTA CONTABLE",
-        "ANALISTA DE PERSONAL",
-        "ANALISTA DE PRESUPUESTO",
-        "ASEADORA",
-        "ASISTENTE ADMINISTRATIVO",
-        "ASISTENTE ADMINISTRATIVO I",
-        "ASISTENTE CONTABLE",
-        "ASISTENTE JURÍDICO",
-        "AUDITOR JEFE",
-        "AUXILIAR TÉCNICO",
-        "CHOFER",
-        "COORDINADORA DE BIENES Y SERVICIOS",
-        "DIRECTOR DE ADMINISTRACIÓN",
-        "DIRECTOR DE ASUNTOS JURÍDICOS",
-        "DIRECTOR DE LÍNEA",
-        "DIRECTOR GENERAL",
-        "DIRECTORA (E) DE RECURSOS HUMANOS",
-        "DIRECTORA DE RECURSOS HUMANOS",
-        "DIRECTORA GENERAL",
-        "ESPECIALISTA EN BIENES Y SERVICIOS",
-        "FISCAL DE BIENES",
-        "JUBILADO",
-        "MENSAJERO",
-        "OBRERO",
-        "PENSIONADO",
-        "PROCURADORA",
-        "SECRETARIA",
-        "SECRETARIA EJECUTIVA",
-        "SECRETARIA I"
-];
-    let allCargosCache = [...defaultCargosInitial];
-
-    // Helpers para formateo de fechas entre Input Date (YYYY-MM-DD) y formato institucional (DD/MM/AAAA)
-    function toInputDateValue(dateStr) {
-        if (!dateStr) return '';
-        const clean = String(dateStr).trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
-        if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(clean)) {
-            const parts = clean.split(/[\/\-]/);
-            const day = parts[0].padStart(2, '0');
-            const month = parts[1].padStart(2, '0');
-            const year = parts[2];
-            return `${year}-${month}-${day}`;
-        }
-        return '';
-    }
-
-    function toDisplayDateValue(dateStr) {
-        if (!dateStr) return '';
-        const clean = String(dateStr).trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
-            const parts = clean.split('-');
-            return `${parts[2]}/${parts[1]}/${parts[0]}`;
-        }
-        return clean;
-    }
-
-    // Helpers para Salario con prefijo Bs. fijo (no borrable)
-    function cleanSalarioAmount(salarioStr) {
-        if (!salarioStr) return '1.000,00';
-        return String(salarioStr).replace(/^[bB][sS]\.?\s*/, '').trim() || '1.000,00';
-    }
-
-    function formatSalarioBs(amountStr) {
-        if (!amountStr) return 'Bs. 1.000,00';
-        const clean = String(amountStr).replace(/^[bB][sS]\.?\s*/, '').trim();
-        return clean ? `Bs. ${clean}` : 'Bs. 1.000,00';
-    }
-
-    async function loadCargosCatalog() {
-        try {
-            const local = localStorage.getItem('pget_custom_cargos');
-            if (local) {
-                const parsed = JSON.parse(local);
-                if (Array.isArray(parsed)) {
-                    parsed.forEach(c => {
-                        const norm = String(c).trim().toUpperCase();
-                        if (norm && !allCargosCache.includes(norm)) allCargosCache.push(norm);
-                    });
-                }
-            }
-        } catch (e) {}
-
-        try {
-            const res = await fetch(`${API_URL}/cargos`);
-            if (res.ok) {
-                const data = await res.json();
-                if (Array.isArray(data)) {
-                    data.forEach(c => {
-                        const norm = String(c).trim().toUpperCase();
-                        if (norm && !allCargosCache.includes(norm)) allCargosCache.push(norm);
-                    });
-                    localStorage.setItem('pget_custom_cargos', JSON.stringify(allCargosCache));
-                }
-            }
-        } catch (err) {
-            console.warn('API cargos offline, utilizando catalogo local');
-        }
-        allCargosCache.sort();
-    }
-
-    loadCargosCatalog();
-
-    // Helper para dividir nombres y apellidos si vienen en un solo campo
-    function splitNombreApellidos(nombreCompleto) {
-        if (!nombreCompleto) return { nombres: '', apellidos: '' };
-        const parts = nombreCompleto.trim().split(/\s+/);
-        if (parts.length <= 1) return { nombres: parts[0] || '', apellidos: '' };
-        if (parts.length === 2) return { nombres: parts[0], apellidos: parts[1] };
-        const mid = Math.floor(parts.length / 2);
-        return {
-            nombres: parts.slice(0, mid).join(' '),
-            apellidos: parts.slice(mid).join(' ')
-        };
-    }
-
-    // Helper de seguridad contra XSS (Cross-Site Scripting)
-    function escapeHtml(str) {
-        if (!str) return '';
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
-    // Helper para obtener las iniciales del trabajador en minúsculas (ej. LORENZO AVILA -> la, VICTORIA CARMONA -> vc)
-    function getWorkerInitials(user) {
-        if (!user) return 'xx';
-        const cleanStr = (str) => {
-            if (!str) return '';
-            return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-        };
-        const stripPrefix = (str) => {
-            return cleanStr(str)
-                .replace(/^(abog\.|abogada|abogado|ing\.|ingeniero|ingeniera|lic\.|licenciado|licenciada|t\.s\.u\.|tsu|prof\.|profesor|profesora|dra?\.|doctor|doctora)\s+/i, '')
-                .trim();
-        };
-
-        const n = stripPrefix(user.nombres || '');
-        const a = stripPrefix(user.apellidos || '');
-
-        if (n && a) {
-            const firstN = n.split(/\s+/)[0];
-            const firstA = a.split(/\s+/)[0];
-            const initN = firstN ? firstN[0] : '';
-            const initA = firstA ? firstA[0] : '';
-            if (initN && initA) {
-                return `${initN}${initA}`.toLowerCase();
-            }
-        }
-
-        const fullName = stripPrefix(user.nombre || '');
-        if (fullName) {
-            const split = splitNombreApellidos(fullName);
-            const sn = stripPrefix(split.nombres);
-            const sa = stripPrefix(split.apellidos);
-            if (sn && sa) {
-                const partN = sn.split(/\s+/)[0];
-                const partA = sa.split(/\s+/)[0];
-                if (partN && partA) {
-                    return `${partN[0]}${partA[0]}`.toLowerCase();
-                }
-            }
-            const parts = fullName.split(/\s+/).filter(Boolean);
-            if (parts.length >= 2) {
-                return `${parts[0][0]}${parts[1][0]}`.toLowerCase();
-            } else if (parts.length === 1) {
-                return `${parts[0][0]}x`.toLowerCase();
-            }
-        }
-
-        return 'xx';
-    }
-
-    // Cuentas institucionales oficiales predefinidas para respaldo y modelos de constancias
-    const defaultAccounts = [
-        {
-                "username": "admin@pget.com",
-                "password": "admin123",
-                "role": "admin",
-                "nombres": "ADMINISTRADOR GENERAL",
-                "apellidos": "PGET",
-                "nombre": "ADMINISTRADOR GENERAL PGET",
-                "profesion": "Ingeniero",
-                "genero": "masculino",
-                "cedula": "12345678",
-                "cargo": "ADMINISTRADOR DEL SISTEMA",
-                "condicion": "FIJO",
-                "salario": "Bs. 1.500,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DESPACHO DEL PROCURADOR GENERAL",
-                "fecha_ingreso": "01/01/2020",
-                "anos_servicio": "6",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020000000000000000"
-        },
-        {
-                "username": "admin@pget.gob.ve",
-                "password": "admin123",
-                "role": "admin",
-                "nombres": "ADMINISTRADOR GENERAL",
-                "apellidos": "PGET",
-                "nombre": "ADMINISTRADOR GENERAL PGET",
-                "profesion": "Ingeniero",
-                "genero": "masculino",
-                "cedula": "12345678",
-                "cargo": "ADMINISTRADOR DEL SISTEMA",
-                "condicion": "FIJO",
-                "salario": "Bs. 1.500,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DESPACHO DEL PROCURADOR GENERAL",
-                "fecha_ingreso": "01/01/2020",
-                "anos_servicio": "6",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020000000000000000"
-        },
-        {
-                "username": "dora.matheus@pget.com",
-                "password": "Pget10035929",
-                "role": "trabajador",
-                "nombres": "DORA ALICIA",
-                "apellidos": "MATHEUS",
-                "nombre": "DORA ALICIA MATHEUS",
-                "profesion": "Abogado",
-                "genero": "femenino",
-                "cedula": "10035929",
-                "cargo": "PROCURADORA",
-                "condicion": "FIJO",
-                "salario": "Bs. 961,51",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DESPACHO DEL PROCURADOR GENERAL",
-                "fecha_ingreso": "21/01/2026",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020373220000419109"
-        },
-        {
-                "username": "virginia.rojas@pget.com",
-                "password": "Pget5783889",
-                "role": "trabajador",
-                "nombres": "VIRGINIA DEL CARMEN",
-                "apellidos": "ROJAS CONTRERAS",
-                "nombre": "VIRGINIA DEL CARMEN ROJAS CONTRERAS",
-                "profesion": "Licenciado",
-                "genero": "femenino",
-                "cedula": "5783889",
-                "cargo": "DIRECTORA GENERAL",
-                "condicion": "FIJO",
-                "salario": "Bs. 937,67",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN GENERAL",
-                "fecha_ingreso": "01/04/2024",
-                "anos_servicio": "2",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369470100072126"
-        },
-        {
-                "username": "lizamar.briceno@pget.com",
-                "password": "Pget20400747",
-                "role": "trabajador",
-                "nombres": "LIZAMAR INDIRA",
-                "apellidos": "BRICEÑO VALECILLOS",
-                "nombre": "LIZAMAR INDIRA BRICEÑO VALECILLOS",
-                "profesion": "Abogado",
-                "genero": "femenino",
-                "cedula": "20400747",
-                "cargo": "DIRECTOR DE ASUNTOS JURÍDICOS",
-                "condicion": "FIJO",
-                "salario": "Bs. 949,50",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
-                "fecha_ingreso": "01/07/2014",
-                "anos_servicio": "12",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020494120000102429"
-        },
-        {
-                "username": "elvimar.lopez@pget.com",
-                "password": "Pget14780947",
-                "role": "trabajador",
-                "nombres": "ELVIMAR CAROLINA",
-                "apellidos": "LOPEZ ARAUJO",
-                "nombre": "ELVIMAR CAROLINA LOPEZ ARAUJO",
-                "profesion": "Licenciado",
-                "genero": "femenino",
-                "cedula": "14780947",
-                "cargo": "DIRECTORA DE RECURSOS HUMANOS",
-                "condicion": "FIJO",
-                "salario": "Bs. 933,88",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "15/08/2012",
-                "anos_servicio": "14",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020119590000115076"
-        },
-        {
-                "username": "marcos.lopez@pget.com",
-                "password": "Pget13048233",
-                "role": "trabajador",
-                "nombres": "MARCOS EDUARDO",
-                "apellidos": "LOPEZ CAMACHO",
-                "nombre": "MARCOS EDUARDO LOPEZ CAMACHO",
-                "profesion": "Licenciado",
-                "genero": "masculino",
-                "cedula": "13048233",
-                "cargo": "DIRECTOR DE ADMINISTRACIÓN",
-                "condicion": "FIJO",
-                "salario": "Bs. 882,89",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
-                "fecha_ingreso": "15/09/2025",
-                "anos_servicio": "1",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020747940000055482"
-        },
-        {
-                "username": "yuleide.rosario@pget.com",
-                "password": "Pget14556310",
-                "role": "trabajador",
-                "nombres": "YULEIDE DEL VALLE",
-                "apellidos": "ROSARIO PAREDES",
-                "nombre": "YULEIDE DEL VALLE ROSARIO PAREDES",
-                "profesion": "Licenciado",
-                "genero": "femenino",
-                "cedula": "14556310",
-                "cargo": "COORDINADORA DE BIENES Y SERVICIOS",
-                "condicion": "FIJO",
-                "salario": "Bs. 829,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
-                "fecha_ingreso": "18/02/2025",
-                "anos_servicio": "1",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102110000237695"
-        },
-        {
-                "username": "roxanna.mercado@pget.com",
-                "password": "Pget23596460",
-                "role": "trabajador",
-                "nombres": "ROXANNA KAROLINA",
-                "apellidos": "MERCADO HIDALGO",
-                "nombre": "ROXANNA KAROLINA MERCADO HIDALGO",
-                "profesion": "Abogado",
-                "genero": "femenino",
-                "cedula": "23596460",
-                "cargo": "ABOGADO I",
-                "condicion": "FIJO",
-                "salario": "Bs. 568,31",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
-                "fecha_ingreso": "16/04/2018",
-                "anos_servicio": "8",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102180000237747"
-        },
-        {
-                "username": "marlene.angulo@pget.com",
-                "password": "Pget14150007",
-                "role": "trabajador",
-                "nombres": "MARLENE JOSEFINA",
-                "apellidos": "ANGULO HERNANDEZ",
-                "nombre": "MARLENE JOSEFINA ANGULO HERNANDEZ",
-                "profesion": "Licenciado",
-                "genero": "femenino",
-                "cedula": "14150007",
-                "cargo": "ASISTENTE ADMINISTRATIVO I",
-                "condicion": "FIJO",
-                "salario": "Bs. 746,96",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
-                "fecha_ingreso": "01/07/2005",
-                "anos_servicio": "21",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102100000237679"
-        },
-        {
-                "username": "susana.nunez@pget.com",
-                "password": "Pget12940789",
-                "role": "trabajador",
-                "nombres": "SUSANA CAROLINA",
-                "apellidos": "NUÑEZ DE AGUILAR",
-                "nombre": "SUSANA CAROLINA NUÑEZ DE AGUILAR",
-                "profesion": "Licenciado",
-                "genero": "femenino",
-                "cedula": "12940789",
-                "cargo": "ASISTENTE ADMINISTRATIVO I",
-                "condicion": "FIJO",
-                "salario": "Bs. 507,40",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
-                "fecha_ingreso": "01/06/2023",
-                "anos_servicio": "3",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369470000002354"
-        },
-        {
-                "username": "cesar.morillo@pget.com",
-                "password": "Pget6148776",
-                "role": "trabajador",
-                "nombres": "CESAR AUGUSTO",
-                "apellidos": "MORILLO PEREZ",
-                "nombre": "CESAR AUGUSTO MORILLO PEREZ",
-                "profesion": "Licenciado",
-                "genero": "masculino",
-                "cedula": "6148776",
-                "cargo": "FISCAL DE BIENES",
-                "condicion": "FIJO",
-                "salario": "Bs. 730,08",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
-                "fecha_ingreso": "15/05/2006",
-                "anos_servicio": "20",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102160000237815"
-        },
-        {
-                "username": "lennys.mendez@pget.com",
-                "password": "Pget11134714",
-                "role": "trabajador",
-                "nombres": "LENNYS COROMOTO",
-                "apellidos": "MENDEZ BASTIDAS",
-                "nombre": "LENNYS COROMOTO MENDEZ BASTIDAS",
-                "profesion": "Técnico Superior",
-                "genero": "femenino",
-                "cedula": "11134714",
-                "cargo": "AUXILIAR TÉCNICO",
-                "condicion": "FIJO",
-                "salario": "Bs. 526,68",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
-                "fecha_ingreso": "01/02/2021",
-                "anos_servicio": "5",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369400000261108"
-        },
-        {
-                "username": "pedro.parica@pget.com",
-                "password": "Pget10579837",
-                "role": "trabajador",
-                "nombres": "PEDRO DAMIAN",
-                "apellidos": "PARICA BRITO",
-                "nombre": "PEDRO DAMIAN PARICA BRITO",
-                "profesion": "Técnico Superior",
-                "genero": "masculino",
-                "cedula": "10579837",
-                "cargo": "ASISTENTE CONTABLE",
-                "condicion": "FIJO",
-                "salario": "Bs. 455,82",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
-                "fecha_ingreso": "01/02/2021",
-                "anos_servicio": "5",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020485290100027238"
-        },
-        {
-                "username": "jose.paredes@pget.com",
-                "password": "Pget24618946",
-                "role": "trabajador",
-                "nombres": "JOSE ARMANDO",
-                "apellidos": "PAREDES BECERRA",
-                "nombre": "JOSE ARMANDO PAREDES BECERRA",
-                "profesion": "Licenciado",
-                "genero": "masculino",
-                "cedula": "24618946",
-                "cargo": "ANALISTA CONTABLE",
-                "condicion": "FIJO",
-                "salario": "Bs. 532,87",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
-                "fecha_ingreso": "02/12/2019",
-                "anos_servicio": "6",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369490000300742"
-        },
-        {
-                "username": "yusmary.canizalez@pget.com",
-                "password": "Pget26191008",
-                "role": "trabajador",
-                "nombres": "YUSMARY DEL CARMEN",
-                "apellidos": "CAÑIZALEZ RIVERA",
-                "nombre": "YUSMARY DEL CARMEN CAÑIZALEZ RIVERA",
-                "profesion": "Licenciado",
-                "genero": "femenino",
-                "cedula": "26191008",
-                "cargo": "ANALISTA DE PERSONAL",
-                "condicion": "FIJO",
-                "salario": "Bs. 544,31",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "16/03/2020",
-                "anos_servicio": "6",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369410100093868"
-        },
-        {
-                "username": "janet.nehme@pget.com",
-                "password": "Pget12798734",
-                "role": "trabajador",
-                "nombres": "JANET ILIANA",
-                "apellidos": "NEHME ABOU",
-                "nombre": "JANET ILIANA NEHME ABOU",
-                "profesion": "Licenciado",
-                "genero": "femenino",
-                "cedula": "12798734",
-                "cargo": "ASISTENTE ADMINISTRATIVO",
-                "condicion": "FIJO",
-                "salario": "Bs. 656,88",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
-                "fecha_ingreso": "01/12/2013",
-                "anos_servicio": "12",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020494190000265777"
-        },
-        {
-                "username": "gustavo.fernandez@pget.com",
-                "password": "Pget14310168",
-                "role": "trabajador",
-                "nombres": "GUSTAVO ANDRES",
-                "apellidos": "FERNANDEZ MEDINA",
-                "nombre": "GUSTAVO ANDRES FERNANDEZ MEDINA",
-                "profesion": "Técnico Superior",
-                "genero": "masculino",
-                "cedula": "14310168",
-                "cargo": "ASISTENTE ADMINISTRATIVO",
-                "condicion": "FIJO",
-                "salario": "Bs. 507,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
-                "fecha_ingreso": "01/02/2014",
-                "anos_servicio": "12",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369410000075446"
-        },
-        {
-                "username": "yonexi.moreno@pget.com",
-                "password": "Pget16738909",
-                "role": "trabajador",
-                "nombres": "YONEXI CAROLINA",
-                "apellidos": "MORENO HERNANDEZ",
-                "nombre": "YONEXI CAROLINA MORENO HERNANDEZ",
-                "profesion": "Abogado",
-                "genero": "femenino",
-                "cedula": "16738909",
-                "cargo": "ABOGADO",
-                "condicion": "FIJO",
-                "salario": "Bs. 653,63",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
-                "fecha_ingreso": "06/06/2013",
-                "anos_servicio": "13",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102140000237718"
-        },
-        {
-                "username": "maria.avila@pget.com",
-                "password": "Pget16276502",
-                "role": "trabajador",
-                "nombres": "MARIA CAROLINA",
-                "apellidos": "AVILA NUÑEZ",
-                "nombre": "MARIA CAROLINA AVILA NUÑEZ",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "16276502",
-                "cargo": "SECRETARIA",
-                "condicion": "FIJO",
-                "salario": "Bs. 312,66",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
-                "fecha_ingreso": "05/09/2019",
-                "anos_servicio": "7",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369450100088022"
-        },
-        {
-                "username": "ana.barrios@pget.com",
-                "password": "Pget20655577",
-                "role": "trabajador",
-                "nombres": "ANA MARIBEL",
-                "apellidos": "BARRIOS VILORIA",
-                "nombre": "ANA MARIBEL BARRIOS VILORIA",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "20655577",
-                "cargo": "ASEADORA",
-                "condicion": "FIJO",
-                "salario": "Bs. 316,79",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
-                "fecha_ingreso": "07/08/2017",
-                "anos_servicio": "9",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102160000237734"
-        },
-        {
-                "username": "maria.demora@pget.com",
-                "password": "Pget2683568",
-                "role": "trabajador",
-                "nombres": "MARIA",
-                "apellidos": "DE MORA BRICEÑO",
-                "nombre": "MARIA DE MORA BRICEÑO",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "2683568",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 142,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369410100066632"
-        },
-        {
-                "username": "ofelia.villegas@pget.com",
-                "password": "Pget3903511",
-                "role": "trabajador",
-                "nombres": "OFELIA",
-                "apellidos": "VILEGAS DE VILLEGAS",
-                "nombre": "OFELIA VILEGAS DE VILLEGAS",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "3903511",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 142,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102110000237776"
-        },
-        {
-                "username": "gladys.graterol@pget.com",
-                "password": "Pget4314147",
-                "role": "trabajador",
-                "nombres": "GLADYS",
-                "apellidos": "GRATEROL DE AGÜERO",
-                "nombre": "GLADYS GRATEROL DE AGÜERO",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "4314147",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 142,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102130000237789"
-        },
-        {
-                "username": "adelfo.teran@pget.com",
-                "password": "Pget7755945",
-                "role": "trabajador",
-                "nombres": "ADELFO",
-                "apellidos": "TERAN ARAUJO",
-                "nombre": "ADELFO TERAN ARAUJO",
-                "profesion": "Bachiller",
-                "genero": "masculino",
-                "cedula": "7755945",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 228,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369490100074845"
-        },
-        {
-                "username": "mario.mazzei@pget.com",
-                "password": "Pget9019850",
-                "role": "trabajador",
-                "nombres": "MARIO ANTONIO",
-                "apellidos": "MAZZEI CASTELLANOS",
-                "nombre": "MARIO ANTONIO MAZZEI CASTELLANOS",
-                "profesion": "Licenciado",
-                "genero": "masculino",
-                "cedula": "9019850",
-                "cargo": "AUDITOR JEFE",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 142,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "UNIDAD DE AUDITORÍA INTERNA",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102180000237831"
-        },
-        {
-                "username": "maria.delgado@pget.com",
-                "password": "Pget9156806",
-                "role": "trabajador",
-                "nombres": "MARIA",
-                "apellidos": "DELGADO GODOY",
-                "nombre": "MARIA DELGADO GODOY",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "9156806",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 142,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102100000237844"
-        },
-        {
-                "username": "cesar.gonzalez@pget.com",
-                "password": "Pget8717623",
-                "role": "trabajador",
-                "nombres": "CESAR E.",
-                "apellidos": "GONZALEZ GODOY",
-                "nombre": "CESAR E. GONZALEZ GODOY",
-                "profesion": "Bachiller",
-                "genero": "masculino",
-                "cedula": "8717623",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 142,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369470000088006"
-        },
-        {
-                "username": "jose.briceno@pget.com",
-                "password": "Pget4315989",
-                "role": "trabajador",
-                "nombres": "JOSE ELIAS",
-                "apellidos": "BRECEÑO",
-                "nombre": "JOSE ELIAS BRECEÑO",
-                "profesion": "Bachiller",
-                "genero": "masculino",
-                "cedula": "4315989",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 142,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102130000237792"
-        },
-        {
-                "username": "sara.bastidas@pget.com",
-                "password": "Pget9327975",
-                "role": "trabajador",
-                "nombres": "SARA",
-                "apellidos": "BASTIDAS CASTELLANOS",
-                "nombre": "SARA BASTIDAS CASTELLANOS",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "9327975",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 252,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102110000237860"
-        },
-        {
-                "username": "sullin.perez@pget.com",
-                "password": "Pget12723568",
-                "role": "trabajador",
-                "nombres": "SULLIN",
-                "apellidos": "PEREZ",
-                "nombre": "SULLIN PEREZ",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "12723568",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 181,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020493370000184803"
-        },
-        {
-                "username": "jackeline.cobarrubia@pget.com",
-                "password": "Pget11125239",
-                "role": "trabajador",
-                "nombres": "JACKELINE",
-                "apellidos": "COBARRUBIA",
-                "nombre": "JACKELINE COBARRUBIA",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "11125239",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 181,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102180000237909"
-        },
-        {
-                "username": "rafael.marquez@pget.com",
-                "password": "Pget10318773",
-                "role": "trabajador",
-                "nombres": "RAFAEL",
-                "apellidos": "MARQUEZ",
-                "nombre": "RAFAEL MARQUEZ",
-                "profesion": "Bachiller",
-                "genero": "masculino",
-                "cedula": "10318773",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 200,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102170000237899"
-        },
-        {
-                "username": "evelia.villegas@pget.com",
-                "password": "Pget8721560",
-                "role": "trabajador",
-                "nombres": "EVELIA",
-                "apellidos": "VILLEGAS",
-                "nombre": "EVELIA VILLEGAS",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "8721560",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 181,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369450000563767"
-        },
-        {
-                "username": "mariela.castellanos@pget.com",
-                "password": "Pget5794214",
-                "role": "trabajador",
-                "nombres": "MARIELA",
-                "apellidos": "CASTELLANOS",
-                "nombre": "MARIELA CASTELLANOS",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "5794214",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 228,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020493310100017903"
-        },
-        {
-                "username": "carlos.nunez@pget.com",
-                "password": "Pget8715943",
-                "role": "trabajador",
-                "nombres": "CARLOS",
-                "apellidos": "NUÑEZ",
-                "nombre": "CARLOS NUÑEZ",
-                "profesion": "Bachiller",
-                "genero": "masculino",
-                "cedula": "8715943",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 283,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369410000535575"
-        },
-        {
-                "username": "luis.godoy@pget.com",
-                "password": "Pget5788873",
-                "role": "trabajador",
-                "nombres": "LUIS",
-                "apellidos": "GODOY",
-                "nombre": "LUIS GODOY",
-                "profesion": "Bachiller",
-                "genero": "masculino",
-                "cedula": "5788873",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 279,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020747940000222066"
-        },
-        {
-                "username": "nora.torres@pget.com",
-                "password": "Pget5780455",
-                "role": "trabajador",
-                "nombres": "NORA",
-                "apellidos": "TORRES",
-                "nombre": "NORA TORRES",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "5780455",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 142,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102140000237802"
-        },
-        {
-                "username": "yudith.balza@pget.com",
-                "password": "Pget13376253",
-                "role": "trabajador",
-                "nombres": "YUDITH",
-                "apellidos": "BALZA",
-                "nombre": "YUDITH BALZA",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "13376253",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 279,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369450100093169"
-        },
-        {
-                "username": "jennifer.colmenares@pget.com",
-                "password": "Pget9173481",
-                "role": "trabajador",
-                "nombres": "JENNIFER",
-                "apellidos": "COLMENARES",
-                "nombre": "JENNIFER COLMENARES",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "9173481",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 279,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102110000237857"
-        },
-        {
-                "username": "claudia.mendoza@pget.com",
-                "password": "Pget11134597",
-                "role": "trabajador",
-                "nombres": "CLAUDIA",
-                "apellidos": "MENDOZA",
-                "nombre": "CLAUDIA MENDOZA",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "11134597",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 281,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102100000237925"
-        },
-        {
-                "username": "iris.kraus@pget.com",
-                "password": "Pget11321649",
-                "role": "trabajador",
-                "nombres": "IRIS",
-                "apellidos": "KRAUS BETANCOURT",
-                "nombre": "IRIS KRAUS BETANCOURT",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "11321649",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 250,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102110000237938"
-        },
-        {
-                "username": "adelso.vazquez@pget.com",
-                "password": "Pget11897416",
-                "role": "trabajador",
-                "nombres": "ADELSO",
-                "apellidos": "VAZQUEZ",
-                "nombre": "ADELSO VAZQUEZ",
-                "profesion": "Bachiller",
-                "genero": "masculino",
-                "cedula": "11897416",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 300,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102110000237941"
-        },
-        {
-                "username": "luz.cabrera@pget.com",
-                "password": "Pget10310605",
-                "role": "trabajador",
-                "nombres": "LUZ MARINA",
-                "apellidos": "CABRERA",
-                "nombre": "LUZ MARINA CABRERA",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "10310605",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 312,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102150000237886"
-        },
-        {
-                "username": "guiseppie.agrisano@pget.com",
-                "password": "Pget11315304",
-                "role": "trabajador",
-                "nombres": "GUISEPPIE",
-                "apellidos": "AGRISANO",
-                "nombre": "GUISEPPIE AGRISANO",
-                "profesion": "Bachiller",
-                "genero": "masculino",
-                "cedula": "11315304",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 409,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020373220100082177"
-        },
-        {
-                "username": "marilyn.boscan@pget.com",
-                "password": "Pget14718952",
-                "role": "trabajador",
-                "nombres": "MARILYN",
-                "apellidos": "BOSCAN",
-                "nombre": "MARILYN BOSCAN",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "14718952",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 570,32",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102120000237705"
-        },
-        {
-                "username": "edgar.teran@pget.com",
-                "password": "Pget13260262",
-                "role": "trabajador",
-                "nombres": "EDGAR",
-                "apellidos": "TERAN",
-                "nombre": "EDGAR TERAN",
-                "profesion": "Bachiller",
-                "genero": "masculino",
-                "cedula": "13260262",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 528,76",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102160000237653"
-        },
-        {
-                "username": "eddy.pacheco@pget.com",
-                "password": "Pget13001383",
-                "role": "trabajador",
-                "nombres": "EDDY",
-                "apellidos": "PACHECO",
-                "nombre": "EDDY PACHECO",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "13001383",
-                "cargo": "JUBILADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 577,80",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102140000237637"
-        },
-        {
-                "username": "luz.marquez@pget.com",
-                "password": "Pget8721191",
-                "role": "trabajador",
-                "nombres": "LUZ MAIRA",
-                "apellidos": "MARQUEZ MARQUEZ",
-                "nombre": "LUZ MAIRA MARQUEZ MARQUEZ",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "8721191",
-                "cargo": "PENSIONADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 142,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369460100076427"
-        },
-        {
-                "username": "diana.cardenas@pget.com",
-                "password": "Pget1401218",
-                "role": "trabajador",
-                "nombres": "DIANA",
-                "apellidos": "CARDENAS DE SALAS",
-                "nombre": "DIANA CARDENAS DE SALAS",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "1401218",
-                "cargo": "PENSIONADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 142,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102180000237750"
-        },
-        {
-                "username": "jose.orozco@pget.com",
-                "password": "Pget4320705",
-                "role": "trabajador",
-                "nombres": "JOSE ERNESTO",
-                "apellidos": "OROZCO",
-                "nombre": "JOSE ERNESTO OROZCO",
-                "profesion": "Bachiller",
-                "genero": "masculino",
-                "cedula": "4320705",
-                "cargo": "PENSIONADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 142,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369400000416238"
-        },
-        {
-                "username": "maria.angulo@pget.com",
-                "password": "Pget3216900",
-                "role": "trabajador",
-                "nombres": "MARIA MERCEDES",
-                "apellidos": "ANGULO",
-                "nombre": "MARIA MERCEDES ANGULO",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "3216900",
-                "cargo": "PENSIONADO",
-                "condicion": "JUBILADO",
-                "salario": "Bs. 142,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
-                "fecha_ingreso": "",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020494130100023122"
-        },
-        {
-                "username": "tatiana.ramirez@pget.com",
-                "password": "Pget15315709",
-                "role": "trabajador",
-                "nombres": "TATIANA MARILIN",
-                "apellidos": "RAMIREZ OROPEZA",
-                "nombre": "TATIANA MARILIN RAMIREZ OROPEZA",
-                "profesion": "Abogado",
-                "genero": "femenino",
-                "cedula": "15315709",
-                "cargo": "ABOGADO I",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 656,88",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
-                "fecha_ingreso": "27/07/2009",
-                "anos_servicio": "17",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020286810100014597"
-        },
-        {
-                "username": "carlos.deabreu@pget.com",
-                "password": "Pget10446852",
-                "role": "trabajador",
-                "nombres": "CARLOS EDUARDO",
-                "apellidos": "DE ABREU HERNANDEZ",
-                "nombre": "CARLOS EDUARDO DE ABREU HERNANDEZ",
-                "profesion": "Doctor",
-                "genero": "masculino",
-                "cedula": "10446852",
-                "cargo": "ABOGADO I",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 631,45",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
-                "fecha_ingreso": "15/05/2016",
-                "anos_servicio": "10",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102180000240132"
-        },
-        {
-                "username": "yulianova.vale@pget.com",
-                "password": "Pget26591763",
-                "role": "trabajador",
-                "nombres": "YULIANOVA PAOLA",
-                "apellidos": "VALE VALERA",
-                "nombre": "YULIANOVA PAOLA VALE VALERA",
-                "profesion": "Abogado",
-                "genero": "femenino",
-                "cedula": "26591763",
-                "cargo": "ABOGADO I",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 522,60",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
-                "fecha_ingreso": "15/08/2021",
-                "anos_servicio": "5",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369410100087416"
-        },
-        {
-                "username": "maria.ojeda@pget.com",
-                "password": "Pget26046163",
-                "role": "trabajador",
-                "nombres": "MARIA DE LOS ANGELES",
-                "apellidos": "OJEDA NUÑEZ",
-                "nombre": "MARIA DE LOS ANGELES OJEDA NUÑEZ",
-                "profesion": "Abogado",
-                "genero": "femenino",
-                "cedula": "26046163",
-                "cargo": "ABOGADO I",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 522,60",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
-                "fecha_ingreso": "01/09/2021",
-                "anos_servicio": "5",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369470000470410"
-        },
-        {
-                "username": "lilibeth.sanchez@pget.com",
-                "password": "Pget13404142",
-                "role": "trabajador",
-                "nombres": "LILIBETH DAYANA",
-                "apellidos": "SANCHEZ MONSALVE",
-                "nombre": "LILIBETH DAYANA SANCHEZ MONSALVE",
-                "profesion": "Abogado",
-                "genero": "femenino",
-                "cedula": "13404142",
-                "cargo": "ABOGADO I",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 534,76",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
-                "fecha_ingreso": "01/09/2022",
-                "anos_servicio": "4",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369480000078812"
-        },
-        {
-                "username": "maria.barrios@pget.com",
-                "password": "Pget17037437",
-                "role": "trabajador",
-                "nombres": "MARIA ALCIRA",
-                "apellidos": "BARRIOS",
-                "nombre": "MARIA ALCIRA BARRIOS",
-                "profesion": "Abogado",
-                "genero": "femenino",
-                "cedula": "17037437",
-                "cargo": "ABOGADO I",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 541,69",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
-                "fecha_ingreso": "02/05/2025",
-                "anos_servicio": "1",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369410100091742"
-        },
-        {
-                "username": "julio.barrios@pget.com",
-                "password": "Pget14459865",
-                "role": "trabajador",
-                "nombres": "JULIO ALEXANDER",
-                "apellidos": "BARRIOS",
-                "nombre": "JULIO ALEXANDER BARRIOS",
-                "profesion": "Abogado",
-                "genero": "masculino",
-                "cedula": "14459865",
-                "cargo": "ABOGADO I",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 470,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
-                "fecha_ingreso": "01/10/2026",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020373220002321758"
-        },
-        {
-                "username": "lorenzo.avila@pget.com",
-                "password": "Pget25006611",
-                "role": "trabajador",
-                "nombres": "LORENZO FABIAN",
-                "apellidos": "AVILA GONZALEZ",
-                "nombre": "LORENZO FABIAN AVILA GONZALEZ",
-                "profesion": "Ingeniero",
-                "genero": "masculino",
-                "cedula": "25006611",
-                "cargo": "ANALISTA CENTRAL DE COMPUTACIÓN Y SISTEMAS",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 424,06",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
-                "fecha_ingreso": "01/11/2022",
-                "anos_servicio": "4",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369440000972523"
-        },
-        {
-                "username": "armando.briceno@pget.com",
-                "password": "Pget5780167",
-                "role": "trabajador",
-                "nombres": "ARMANDO JOSE",
-                "apellidos": "BRICEÑO FERNANDEZ",
-                "nombre": "ARMANDO JOSE BRICEÑO FERNANDEZ",
-                "profesion": "Abogado",
-                "genero": "masculino",
-                "cedula": "5780167",
-                "cargo": "ABOGADO",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 515,68",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
-                "fecha_ingreso": "01/10/2023",
-                "anos_servicio": "3",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102110000268347"
-        },
-        {
-                "username": "samir.barrios@pget.com",
-                "password": "Pget24882735",
-                "role": "trabajador",
-                "nombres": "SAMIR ISRRAEL",
-                "apellidos": "BARRIOS CABRITA",
-                "nombre": "SAMIR ISRRAEL BARRIOS CABRITA",
-                "profesion": "Técnico Superior",
-                "genero": "masculino",
-                "cedula": "24882735",
-                "cargo": "ASISTENTE ADMINISTRATIVO",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 401,40",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
-                "fecha_ingreso": "02/03/2026",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020373270000407661"
-        },
-        {
-                "username": "vivian.morales@pget.com",
-                "password": "Pget27070258",
-                "role": "trabajador",
-                "nombres": "VIVIAN CECILIA",
-                "apellidos": "MORALES FONSECA",
-                "nombre": "VIVIAN CECILIA MORALES FONSECA",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "27070258",
-                "cargo": "SECRETARIA I",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 275,10",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
-                "fecha_ingreso": "01/02/2023",
-                "anos_servicio": "3",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369410000656713"
-        },
-        {
-                "username": "humberto.molina@pget.com",
-                "password": "Pget20790382",
-                "role": "trabajador",
-                "nombres": "HUMBERTO JOSE",
-                "apellidos": "MOLINA UZCATEGUI",
-                "nombre": "HUMBERTO JOSE MOLINA UZCATEGUI",
-                "profesion": "Abogado",
-                "genero": "masculino",
-                "cedula": "20790382",
-                "cargo": "ABOGADO",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 485,63",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
-                "fecha_ingreso": "02/01/2026",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020747950000186788"
-        },
-        {
-                "username": "arnoldo.paredes@pget.com",
-                "password": "Pget8964679",
-                "role": "trabajador",
-                "nombres": "ARNOLDO",
-                "apellidos": "PAREDES BECERRA",
-                "nombre": "ARNOLDO PAREDES BECERRA",
-                "profesion": "Bachiller",
-                "genero": "masculino",
-                "cedula": "8964679",
-                "cargo": "MENSAJERO",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 294,63",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
-                "fecha_ingreso": "01/10/2021",
-                "anos_servicio": "5",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020102180000237828"
-        },
-        {
-                "username": "rafael.gomez@pget.com",
-                "password": "Pget26191219",
-                "role": "trabajador",
-                "nombres": "RAFAEL JOSE",
-                "apellidos": "GOMEZ TORRES",
-                "nombre": "RAFAEL JOSE GOMEZ TORRES",
-                "profesion": "Bachiller",
-                "genero": "masculino",
-                "cedula": "26191219",
-                "cargo": "CHOFER",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 262,60",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
-                "fecha_ingreso": "01/08/2023",
-                "anos_servicio": "3",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369490000818852"
-        },
-        {
-                "username": "carlos.perez@pget.com",
-                "password": "Pget26114896",
-                "role": "trabajador",
-                "nombres": "CARLOS ELY",
-                "apellidos": "PEREZ MORENO",
-                "nombre": "CARLOS ELY PEREZ MORENO",
-                "profesion": "Bachiller",
-                "genero": "masculino",
-                "cedula": "26114896",
-                "cargo": "OBRERO",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 260,00",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
-                "fecha_ingreso": "01/08/2025",
-                "anos_servicio": "1",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020493300100021880"
-        },
-        {
-                "username": "ophir.gonzalez@pget.com",
-                "password": "Pget24002486",
-                "role": "trabajador",
-                "nombres": "OPHIR SOPHIA",
-                "apellidos": "GONZALEZ VADELL",
-                "nombre": "OPHIR SOPHIA GONZALEZ VADELL",
-                "profesion": "Bachiller",
-                "genero": "femenino",
-                "cedula": "24002486",
-                "cargo": "OBRERO",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 272,50",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
-                "fecha_ingreso": "03/02/2026",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020369440000914086"
-        },
-        {
-                "username": "damaris.valecillos@pget.com",
-                "password": "Pget13633524",
-                "role": "trabajador",
-                "nombres": "DAMARIS CAROLINA",
-                "apellidos": "VALECILLOS JUAREZ",
-                "nombre": "DAMARIS CAROLINA VALECILLOS JUAREZ",
-                "profesion": "Licenciado",
-                "genero": "femenino",
-                "cedula": "13633524",
-                "cargo": "ANALISTA DE PRESUPUESTO",
-                "condicion": "CONTRATADO",
-                "salario": "Bs. 507,60",
-                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
-                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
-                "fecha_ingreso": "01/10/2026",
-                "anos_servicio": "0",
-                "banco": "BANCO DE VENEZUELA",
-                "cuenta": "01020494110000062886"
-        }
-];
-
-    function checkOfflineAuth(username, password) {
-        const cleanUser = String(username).toLowerCase().trim();
-        const cleanPass = String(password).trim();
-        for (const acc of defaultAccounts) {
-            const aliasMatch = (cleanUser === 'admin' && acc.username.startsWith('admin@')) ||
-                               (cleanUser === 'trabajador1' && acc.username.startsWith('victoria@')) ||
-                               (acc.cedula && cleanUser === String(acc.cedula).trim()) ||
-                               (cleanUser === acc.username.toLowerCase()) ||
-                               (cleanUser === acc.username.split('@')[0].toLowerCase());
-            const passMatch = acc.password === cleanPass ||
-                              acc.password.toLowerCase() === cleanPass.toLowerCase();
-            if (aliasMatch && passMatch) {
-                const userCopy = { ...acc };
-                delete userCopy.password;
-                return userCopy;
-            }
-        }
-        return null;
-    }
-
-    // Helper para cálculo automático de años de servicio según la fecha de ingreso
-    function calculateYearsOfService(dateStr) {
-        if (!dateStr || typeof dateStr !== 'string') return 0;
-        const cleanStr = dateStr.trim();
-        if (!cleanStr) return 0;
-
-        let day = 1, month = 0, year = 2000;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
-            const parts = cleanStr.split('-');
-            year = parseInt(parts[0], 10);
-            month = parseInt(parts[1], 10) - 1;
-            day = parseInt(parts[2], 10);
-        } else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(cleanStr)) {
-            const parts = cleanStr.split(/[\/\-]/);
-            day = parseInt(parts[0], 10);
-            month = parseInt(parts[1], 10) - 1;
-            year = parseInt(parts[2], 10);
-        } else {
-            const parsed = new Date(cleanStr);
-            if (!isNaN(parsed.getTime())) {
-                day = parsed.getDate();
-                month = parsed.getMonth();
-                year = parsed.getFullYear();
-            } else {
-                return 0;
-            }
-        }
-
-        const entryDate = new Date(year, month, day);
-        if (isNaN(entryDate.getTime())) return 0;
-
-        const today = new Date();
-        let years = today.getFullYear() - entryDate.getFullYear();
-        const monthDiff = today.getMonth() - entryDate.getMonth();
-        const dayDiff = today.getDate() - entryDate.getDate();
-
-        if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
-            years--;
-        }
-        return Math.max(0, years);
-    }
-    // Helper oficial para obtener los años de servicio calculados según fecha de ingreso
-    function getCalculatedYearsOfService(fechaIngreso, fallbackAnos) {
-        const cleanFecha = String(fechaIngreso || '').trim();
-        if (cleanFecha && cleanFecha !== 'N/D') {
-            const calc = calculateYearsOfService(cleanFecha);
-            if (typeof calc === 'number' && !isNaN(calc)) {
-                return calc.toString();
-            }
-        }
-        if (fallbackAnos !== undefined && fallbackAnos !== null && String(fallbackAnos).trim() !== '') {
-            return String(fallbackAnos);
-        }
-        return '0';
-    }
-
-
-    // Helper para garantizar el formato estricto oficial de cédula: V- 12.345.678
-    function formatCedulaOficial(cedula) {
-        if (!cedula) return '';
-        const clean = String(cedula).replace(/[^0-9]/g, '');
-        if (!clean) return String(cedula);
-        const withDots = clean.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-        return `V- ${withDots}`;
-    }
-
-    // Helper para limpiar la cédula y extraer únicamente los dígitos numéricos
-    function cleanCedula(val) {
-        if (!val) return '';
-        return String(val).replace(/[^0-9]/g, '').trim();
-    }
-
-    // Helper para formatear la profesión según el género (sin arrobas @)
-    function formatProfessionByGender(prof, gender) {
-        if (!prof) return '';
-        const isFem = String(gender).toLowerCase() === 'femenino';
-        let p = String(prof).trim();
-        if (p.includes('@')) {
-            p = p.replace(/@/g, isFem ? 'a' : 'o');
-        }
-        const lower = p.toLowerCase();
-        if (lower.startsWith('abog')) return isFem ? 'Abogada' : 'Abogado';
-        if (lower.startsWith('ing')) return isFem ? 'Ingeniera' : 'Ingeniero';
-        if (lower.startsWith('lic')) return isFem ? 'Licenciada' : 'Licenciado';
-        if (lower.startsWith('prof')) return isFem ? 'Profesora' : 'Profesor';
-        if (lower.startsWith('dr') || lower.startsWith('doct')) return isFem ? 'Doctora' : 'Doctor';
-        if (lower.includes('tecnic') || lower.includes('t.s.u') || lower.includes('tsu')) return isFem ? 'Técnica Superior' : 'Técnico Superior';
-        return p;
-    }
-
-    // Helper para obtener el prefijo según la profesión y género del trabajador
-    function getProfessionPrefix(prof, gender) {
-        if (!prof) return '';
-        const p = String(prof).toLowerCase();
-        const isFem = String(gender).toLowerCase() === 'femenino';
-        if (p.includes('abog')) return 'Abog. ';
-        if (p.includes('ing')) return 'Ing. ';
-        if (p.includes('tecnic') || p.includes('t.s.u') || p.includes('tsu')) return 'T.S.U. ';
-        if (p.includes('lic')) return 'Lic. ';
-        if (p.includes('prof')) return isFem ? 'Profa. ' : 'Prof. ';
-        if (p.includes('dr') || p.includes('doct')) return isFem ? 'Dra. ' : 'Dr. ';
-        return '';
-    }
-
-    // Helper para formatear nombre completo con su título profesional
-    function formatFullNameWithTitle(nombre, prof, gender) {
-        if (!nombre) return '';
-        const prefix = getProfessionPrefix(prof, gender);
-        if (!prefix) return nombre;
-        if (nombre.toLowerCase().startsWith(prefix.toLowerCase().trim())) {
-            return nombre;
-        }
-        return `${prefix}${nombre}`;
-    }
-
-    // Helper para enmascarar número de cuenta para trabajadores: 0102**************1267 (Fiel a img 3)
-    function formatMaskedAccount(cuenta) {
-        if (!cuenta) return 'No registrada';
-        const clean = String(cuenta).replace(/[^0-9]/g, '');
-        if (clean.length < 8) return clean || 'No registrada';
-        const first4 = clean.slice(0, 4);
-        const last4 = clean.slice(-4);
-        return `${first4}**************${last4}`;
-    }
-
-    // Helper para formatear número de teléfono (código + 7 dígitos)
-    function formatTelefono(cod, num) {
-        const c = String(cod || '').trim();
-        const n = String(num || '').trim().replace(/[^0-9]/g, '');
-        if (c && n) return `${c}-${n}`;
-        if (n) return n;
-        return 'No registrado';
-    }
-
-    // Actualiza dinámicamente las opciones del desplegable de profesión según el género seleccionado
-    function updateFormProfesionOptions(gender, currentVal) {
-        const modal = document.getElementById('loginModal');
-        if (!modal) return;
-        const select = modal.querySelector('#formProfesion');
-        if (!select) return;
-        const isFem = String(gender).toLowerCase() === 'femenino';
-        const options = [
-            { val: isFem ? 'Abogada' : 'Abogado', label: `${isFem ? 'Abogada' : 'Abogado'} (Prefijo: Abog. Nombre)` },
-            { val: isFem ? 'Ingeniera' : 'Ingeniero', label: `${isFem ? 'Ingeniera' : 'Ingeniero'} (Prefijo: Ing. Nombre)` },
-            { val: isFem ? 'Licenciada' : 'Licenciado', label: `${isFem ? 'Licenciada' : 'Licenciado'} (Prefijo: Lic. Nombre)` },
-            { val: isFem ? 'Técnica Superior' : 'Técnico Superior', label: `${isFem ? 'Técnica Superior' : 'Técnico Superior'} (Prefijo: T.S.U. Nombre)` },
-            { val: isFem ? 'Profesora' : 'Profesor', label: `${isFem ? 'Profesora' : 'Profesor'} (Prefijo: ${isFem ? 'Profa.' : 'Prof.'} Nombre)` },
-            { val: isFem ? 'Doctora' : 'Doctor', label: `${isFem ? 'Doctora' : 'Doctor'} (Prefijo: ${isFem ? 'Dra.' : 'Dr.'} Nombre)` },
-            { val: 'Bachiller', label: 'Bachiller (Sin prefijo)' },
-            { val: 'Otro', label: 'Otro' }
-        ];
-
-        const normalizedVal = formatProfessionByGender(currentVal, isFem ? 'femenino' : 'masculino');
-        select.innerHTML = options.map(opt => `<option value="${opt.val}">${opt.label}</option>`).join('');
-
-        if (normalizedVal) {
-            select.value = normalizedVal;
-            if (!select.value) {
-                for (const opt of options) {
-                    if (opt.val.toLowerCase().slice(0, 4) === normalizedVal.toLowerCase().slice(0, 4)) {
-                        select.value = opt.val;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    // Helper para obtener el género seleccionado mediante los radio buttons
-    function getFormGender() {
-        const modal = document.getElementById('loginModal');
-        const checked = modal ? modal.querySelector('input[name="formGenero"]:checked') : null;
-        return checked ? checked.value : 'masculino';
-    }
-
-    // Helper para marcar el radio button del género
-    function setFormGender(genderVal) {
-        const modal = document.getElementById('loginModal');
-        if (!modal) return;
-        const val = String(genderVal || 'masculino').toLowerCase();
-        const radioM = modal.querySelector('#formGeneroMasculino');
-        const radioF = modal.querySelector('#formGeneroFemenino');
-        if (val === 'femenino') {
-            if (radioF) radioF.checked = true;
-        } else {
-            if (radioM) radioM.checked = true;
-        }
-    }
-
-    // Toggle minimalista con icono de ojo para ver/ocultar contraseñas
-    window.togglePasswordVisibility = (inputId, btn) => {
-        const input = document.getElementById(inputId);
-        if (!input) return;
-        const icon = btn.querySelector('i');
-        if (input.type === 'password') {
-            input.type = 'text';
-            if (icon) icon.className = 'fas fa-eye-slash';
-            btn.style.color = '#6A0D25';
-        } else {
-            input.type = 'password';
-            if (icon) icon.className = 'fas fa-eye';
-            btn.style.color = '#94a3b8';
-        }
-    };
-
-    // Botón para alternar sección de cambio de contraseña en modo edición
-    window.toggleChangePasswordSection = () => {
-        const modal = document.getElementById('loginModal');
-        if (!modal) return;
-        const container = modal.querySelector('#passwordFieldsContainer');
-        const btn = modal.querySelector('#btnToggleChangePass');
-        if (!container || !btn) return;
-        const isHidden = container.style.display === 'none';
-        if (isHidden) {
-            container.style.display = 'grid';
-            btn.innerHTML = '<i class="fas fa-times" style="color: #dc2626;"></i> Cancelar cambio de contraseña';
-            btn.style.background = '#fef2f2';
-            btn.style.borderColor = '#fecaca';
-            const p1 = modal.querySelector('#formPassword');
-            if (p1) p1.focus();
-        } else {
-            container.style.display = 'none';
-            btn.innerHTML = '<i class="fas fa-key" style="color: #D4AF37;"></i> Cambiar Contraseña';
-            btn.style.background = '#f1f5f9';
-            btn.style.borderColor = '#cbd5e1';
-            const p1 = modal.querySelector('#formPassword');
-            const p2 = modal.querySelector('#formPasswordConfirm');
-            if (p1) p1.value = '';
-            if (p2) p2.value = '';
-        }
-    };
-
-    // =========================================================================
-    // SISTEMA DE VENTANA FLOTANTE CENTRAL DE NOTIFICACIONES Y CONFIRMACIÓN PGET
-    // =========================================================================
-    function showFloatingDialog({
-        title = 'Procuraduría General del Estado Trujillo',
-        message = '',
-        type = 'info', // 'info', 'success', 'danger', 'delete', 'warning'
-        confirmText = 'Aceptar',
-        cancelText = null,
-        isConfirm = false
-    } = {}) {
-        return new Promise((resolve) => {
-            const oldDialog = document.getElementById('pgetFloatingDialogOverlay');
-            if (oldDialog) oldDialog.remove();
-
-            const isDanger = type === 'danger' || type === 'delete';
-            const hasCancel = isConfirm || !!cancelText;
-
-            let iconBadgeClass = type;
-            let badgeIconHtml = '<i class="fas fa-info-circle"></i>';
-            let defaultTitle = 'Notificación Institucional';
-
-            if (type === 'success') {
-                badgeIconHtml = '<i class="fas fa-check-circle"></i>';
-                defaultTitle = 'Operación Exitosa';
-            } else if (isDanger) {
-                badgeIconHtml = '<i class="fas fa-trash-alt"></i>';
-                defaultTitle = 'Confirmar Eliminación';
-            } else if (type === 'warning') {
-                badgeIconHtml = '<i class="fas fa-exclamation-triangle"></i>';
-                defaultTitle = 'Atención';
-            }
-
-            const finalTitle = title || defaultTitle;
-
-            const overlay = document.createElement('div');
-            overlay.id = 'pgetFloatingDialogOverlay';
-            overlay.className = 'pget-dialog-overlay';
-
-            overlay.innerHTML = `
-                <div class="pget-dialog-card" role="dialog" aria-modal="true">
-                    <div class="pget-dialog-header">
-                        <h3 class="pget-dialog-title">
-                            <i class="fas fa-shield-alt" style="color: #D4AF37;"></i>
-                            <span>${escapeHtml(finalTitle)}</span>
-                        </h3>
-                        <button type="button" class="pget-dialog-close" id="pgetDialogCloseBtn" aria-label="Cerrar">&times;</button>
-                    </div>
-                    <div class="pget-dialog-body">
-                        <div class="pget-dialog-icon-badge ${iconBadgeClass}">
-                            ${badgeIconHtml}
-                        </div>
-                        <div style="font-size: 1.02rem; color: #1e293b; line-height: 1.55; white-space: pre-line;">
-                            ${escapeHtml(message)}
-                        </div>
-                    </div>
-                    <div class="pget-dialog-footer">
-                        ${hasCancel ? `
-                            <button type="button" class="pget-dialog-btn-cancel" id="pgetDialogCancelBtn">
-                                ${escapeHtml(cancelText || 'Cancelar')}
-                            </button>
-                        ` : ''}
-                        <button type="button" class="pget-dialog-btn-confirm ${isDanger ? 'danger' : ''}" id="pgetDialogConfirmBtn">
-                            ${escapeHtml(confirmText || 'Aceptar')}
-                        </button>
-                    </div>
-                </div>
-            `;
-
-            document.body.appendChild(overlay);
-
-            requestAnimationFrame(() => {
-                overlay.classList.add('active');
-            });
-
-            const confirmBtn = overlay.querySelector('#pgetDialogConfirmBtn');
-            const cancelBtn = overlay.querySelector('#pgetDialogCancelBtn');
-            const closeBtn = overlay.querySelector('#pgetDialogCloseBtn');
-
-            const cleanup = (result) => {
-                overlay.classList.remove('active');
-                document.removeEventListener('keydown', handleKeyDown);
-                setTimeout(() => {
-                    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
-                }, 240);
-                resolve(result);
-            };
-
-            const handleKeyDown = (e) => {
-                if (e.key === 'Escape') {
-                    e.preventDefault();
-                    cleanup(false);
-                } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    cleanup(true);
-                }
-            };
-
-            document.addEventListener('keydown', handleKeyDown);
-
-            if (confirmBtn) {
-                confirmBtn.onclick = () => cleanup(true);
-                confirmBtn.focus();
-            }
-            if (cancelBtn) {
-                cancelBtn.onclick = () => cleanup(false);
-            }
-            if (closeBtn) {
-                closeBtn.onclick = () => cleanup(false);
-            }
-        });
-    }
-
-    window.showFloatingDialog = showFloatingDialog;
-
-    window.pgetAlert = (message, title = 'Notificación Institucional', type = 'info') => {
-        return showFloatingDialog({
-            title,
-            message,
-            type,
-            confirmText: 'Aceptar',
-            isConfirm: false
-        });
-    };
-
-    window.pgetConfirm = (message, title = 'Confirmar Acción', confirmText = 'Aceptar', cancelText = 'Cancelar', type = 'warning') => {
-        return showFloatingDialog({
-            title,
-            message,
-            type,
-            confirmText,
-            cancelText,
-            isConfirm: true
-        });
-    };
-
-    // Redirigir alert estándar a la ventana flotante central
-    window.alert = function(msg) {
-        return window.pgetAlert(msg);
-    };
-
-    // =========================================================================
-    // GESTIÓN Y CATÁLOGO DE CARGOS INSTITUCIONALES PGET
-    // =========================================================================
-    async function addCargoToCatalog(nombre) {
-        const clean = String(nombre || '').trim().toUpperCase();
-        if (!clean) return false;
-        if (!allCargosCache.includes(clean)) {
-            allCargosCache.push(clean);
-            allCargosCache.sort();
-        }
-        localStorage.setItem('pget_custom_cargos', JSON.stringify(allCargosCache));
-
-        try {
-            await fetch(`${API_URL}/cargos`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nombre: clean })
-            });
-        } catch (e) {
-            console.warn('API cargos offline, guardado en cache local');
-        }
-        return true;
-    }
-
-    async function deleteCargoFromCatalog(nombre) {
-        const clean = String(nombre || '').trim().toUpperCase();
-        allCargosCache = allCargosCache.filter(c => c !== clean);
-        localStorage.setItem('pget_custom_cargos', JSON.stringify(allCargosCache));
-
-        try {
-            await fetch(`${API_URL}/cargos/${encodeURIComponent(clean)}`, {
-                method: 'DELETE'
-            });
-        } catch (e) {
-            console.warn('API cargos offline, eliminado localmente');
-        }
-    }
-
-    window.quickAddCargoFromInput = async (nombre) => {
-        const clean = String(nombre || '').trim().toUpperCase();
-        if (!clean) return;
-        await addCargoToCatalog(clean);
-        const input = document.getElementById('formCargo');
-        if (input) input.value = clean;
-        const dropdown = document.getElementById('cargoDropdownList');
-        if (dropdown) dropdown.style.display = 'none';
-        window.pgetAlert(`El cargo "${clean}" ha sido añadido al catálogo y seleccionado.`, 'Cargo Registrado', 'success');
-    };
-
-    window.openManageCargosModal = (prefill = '') => {
-        const existing = document.getElementById('pgetManageCargosOverlay');
-        if (existing) existing.remove();
-
-        const overlay = document.createElement('div');
-        overlay.id = 'pgetManageCargosOverlay';
-        overlay.className = 'pget-dialog-overlay';
-
-        overlay.innerHTML = `
-            <div class="pget-dialog-card" style="max-width: 580px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;" role="dialog" aria-modal="true">
-                <div class="pget-dialog-header">
-                    <h3 class="pget-dialog-title">
-                        <i class="fas fa-briefcase" style="color: #D4AF37;"></i>
-                        <span>Catálogo de Cargos Institucionales</span>
-                    </h3>
-                    <button type="button" class="pget-dialog-close" id="closeManageCargosBtn" aria-label="Cerrar">&times;</button>
-                </div>
-                
-                <div style="padding: 22px 24px; flex: 1; overflow-y: auto;">
-                    <p style="color: #64748b; font-size: 0.88rem; margin-top: 0; margin-bottom: 16px;">
-                        Añada nuevos cargos al sistema o consulte los cargos disponibles. Los nuevos cargos se guardan en la base de datos y estarán disponibles de inmediato para asignar a cualquier trabajador.
-                    </p>
-
-                    <!-- Formulario Añadir Nuevo Cargo -->
-                    <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
-                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #1e293b; margin-bottom: 6px;">
-                            <i class="fas fa-plus-circle" style="color: #6A0D25;"></i> Registrar Nuevo Cargo:
-                        </label>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="text" id="newCargoInputModal" placeholder="Ej. ASISTENTE LEGAL II, JEFE DE SECCIÓN..." value="${escapeHtml(prefill)}" style="flex: 1; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.90rem; text-transform: uppercase;">
-                            <button type="button" id="submitNewCargoBtnModal" style="background: linear-gradient(135deg, #6A0D25, #83122F); color: white; border: 1.5px solid #D4AF37; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; box-shadow: 0 2px 6px rgba(106,13,37,0.25);">
-                                <i class="fas fa-save"></i> Guardar
-                            </button>
-                        </div>
-                        <div id="newCargoErrorModal" style="display: none; color: #dc2626; font-size: 0.82rem; margin-top: 6px; font-weight: 600;"></div>
-                    </div>
-
-                    <!-- Buscador de cargos existentes -->
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <span id="cargosCountBadge" style="font-size: 0.84rem; font-weight: 700; color: #6A0D25; background: #fdf2f4; padding: 4px 10px; border-radius: 6px; border: 1px solid #fecdd3;">
-                            ${allCargosCache.length} Cargos Registrados
-                        </span>
-                        <input type="text" id="filterCargosInputModal" placeholder="Filtrar catálogo..." style="padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; width: 180px;">
-                    </div>
-
-                    <!-- Lista de Cargos -->
-                    <div id="cargosListContainerModal" style="max-height: 240px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; background: #fafafa;">
-                    </div>
-                </div>
-
-                <div style="padding: 12px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end;">
-                    <button type="button" id="closeManageCargosFooterBtn" style="background: #e2e8f0; border: none; padding: 9px 20px; border-radius: 8px; font-weight: 600; font-size: 0.90rem; cursor: pointer; color: #475569;">
-                        Cerrar
-                    </button>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(overlay);
-        requestAnimationFrame(() => overlay.classList.add('active'));
-
-        const renderCargosList = (q = '') => {
-            const container = overlay.querySelector('#cargosListContainerModal');
-            const countBadge = overlay.querySelector('#cargosCountBadge');
-            const filterStr = q.trim().toUpperCase();
-            const filtered = allCargosCache.filter(c => !filterStr || c.includes(filterStr));
-
-            if (countBadge) countBadge.textContent = `${allCargosCache.length} Cargos Registrados`;
-
-            if (filtered.length === 0) {
-                container.innerHTML = `<div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 0.88rem;">No hay cargos que coincidan con "${escapeHtml(filterStr)}"</div>`;
-                return;
-            }
-
-            container.innerHTML = filtered.map(c => {
-                const isDefault = defaultCargosInitial.includes(c);
-                return `
-                    <div class="cargo-manage-row">
-                        <span style="display: flex; align-items: center; gap: 8px;">
-                            <i class="fas fa-briefcase" style="color: #D4AF37;"></i>
-                            <span>${escapeHtml(c)}</span>
-                        </span>
-                        <div style="display: flex; gap: 6px; align-items: center;">
-                            ${!isDefault ? `
-                                <button type="button" class="btn-del-cargo" data-cargo="${escapeHtml(c)}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 5px 9px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; transition: all 0.2s;" title="Eliminar cargo del catálogo">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            ` : `
-                                <span style="font-size: 0.75rem; color: #64748b; background: #f1f5f9; padding: 3px 8px; border-radius: 4px; font-weight: 600;">
-                                    Institucional
-                                </span>
-                            `}
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            container.querySelectorAll('.btn-del-cargo').forEach(btn => {
-                btn.onclick = async () => {
-                    const cargoName = btn.getAttribute('data-cargo');
-                    const ok = await window.showFloatingDialog({
-                        title: 'Eliminar Cargo',
-                        message: `¿Desea eliminar el cargo personalizado "${cargoName}" del catálogo?`,
-                        type: 'delete',
-                        confirmText: 'Sí, Eliminar',
-                        cancelText: 'Cancelar',
-                        isConfirm: true
-                    });
-                    if (ok) {
-                        await deleteCargoFromCatalog(cargoName);
-                        renderCargosList(overlay.querySelector('#filterCargosInputModal').value);
-                    }
-                };
-            });
-        };
-
-        renderCargosList();
-
-        const filterInput = overlay.querySelector('#filterCargosInputModal');
-        if (filterInput) {
-            filterInput.addEventListener('input', () => renderCargosList(filterInput.value));
-        }
-
-        const inputNew = overlay.querySelector('#newCargoInputModal');
-        const submitBtn = overlay.querySelector('#submitNewCargoBtnModal');
-        const errDiv = overlay.querySelector('#newCargoErrorModal');
-
-        const handleSaveNewCargo = async () => {
-            const val = inputNew.value.trim().toUpperCase();
-            if (!val) {
-                errDiv.style.display = 'block';
-                errDiv.textContent = 'Por favor escriba el nombre del cargo.';
-                return;
-            }
-            errDiv.style.display = 'none';
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-            await addCargoToCatalog(val);
-
-            const formCargoInput = document.getElementById('formCargo');
-            if (formCargoInput) formCargoInput.value = val;
-
-            inputNew.value = '';
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fas fa-save"></i> Guardar';
-            renderCargosList(filterInput ? filterInput.value : '');
-        };
-
-        submitBtn.onclick = handleSaveNewCargo;
-        inputNew.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                handleSaveNewCargo();
-            }
-        });
-
-        const closeModal = () => {
-            overlay.classList.remove('active');
-            setTimeout(() => overlay.remove(), 240);
-        };
-
-        overlay.querySelector('#closeManageCargosBtn').onclick = closeModal;
-        overlay.querySelector('#closeManageCargosFooterBtn').onclick = closeModal;
-    };
-
-    function setupCargoSearchableDropdown(modal) {
-        const cargoInput = modal.querySelector('#formCargo');
-        const toggleBtn = modal.querySelector('#toggleCargoDropdownBtn');
-        const dropdown = modal.querySelector('#cargoDropdownList');
-        if (!cargoInput || !dropdown) return;
-
-        const renderCargoOptions = (filter = '') => {
-            const q = filter.trim().toUpperCase();
-            const matches = allCargosCache.filter(c => !q || c.includes(q));
-
-            let html = '';
-            if (matches.length > 0) {
-                html = matches.map(c => `
-                    <div class="cargo-option-item" data-value="${escapeHtml(c)}">
-                        <i class="fas fa-briefcase"></i>
-                        <span>${escapeHtml(c)}</span>
-                    </div>
-                `).join('');
-            } else {
-                html = `
-                    <div style="padding: 12px; text-align: center; color: #64748b; font-size: 0.85rem;">
-                        No se encontró "<strong>${escapeHtml(q)}</strong>"<br>
-                        <button type="button" onclick="window.quickAddCargoFromInput('${escapeHtml(q)}')" style="display: inline-block; margin-top: 8px; background: linear-gradient(135deg, #6A0D25, #83122F); color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 700; cursor: pointer;">
-                            <i class="fas fa-plus"></i> Registrar este cargo
-                        </button>
-                    </div>
-                `;
-            }
-
-            html += `
-                <div style="padding: 9px 12px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
-                    <button type="button" onclick="window.openManageCargosModal()" style="background: none; border: none; color: #0284c7; font-weight: 700; font-size: 0.83rem; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
-                        <i class="fas fa-cog"></i> Administrar catálogo de cargos
-                    </button>
-                </div>
-            `;
-
-            dropdown.innerHTML = html;
-
-            dropdown.querySelectorAll('.cargo-option-item').forEach(el => {
-                el.onclick = () => {
-                    const val = el.getAttribute('data-value');
-                    if (val) {
-                        cargoInput.value = val;
-                        dropdown.style.display = 'none';
-                    }
-                };
-            });
-        };
-
-        cargoInput.addEventListener('focus', () => {
-            renderCargoOptions(cargoInput.value);
-            dropdown.style.display = 'block';
-        });
-
-        cargoInput.addEventListener('input', () => {
-            renderCargoOptions(cargoInput.value);
-            dropdown.style.display = 'block';
-        });
-
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (dropdown.style.display === 'block') {
-                    dropdown.style.display = 'none';
-                } else {
-                    renderCargoOptions(cargoInput.value);
-                    dropdown.style.display = 'block';
-                    cargoInput.focus();
-                }
-            });
-        }
-
-        document.addEventListener('click', (e) => {
-            if (!cargoInput.contains(e.target) && !dropdown.contains(e.target) && !(toggleBtn && toggleBtn.contains(e.target))) {
-                dropdown.style.display = 'none';
-            }
-        });
-    }
-
-    // Helper to ensure Login & Management Modal exists in the document with all views
-    function ensureLoginModal() {
-        let modal = document.getElementById('loginModal');
-        if (!modal || !modal.querySelector('#adminView')) {
-            if (modal) modal.remove();
-            const modalHTML = `
-            <div id="loginModal" class="modal">
-                <div class="modal-content" id="mainModalContent">
-                    <span class="close-btn" id="modalCloseBtn" style="position: absolute; right: 18px; top: 16px; z-index: 20; cursor: pointer; font-size: 1.6rem; color: #64748b;">&times;</span>
-                    
-                    <!-- 1. VISTA DE LOGIN -->
-                    <div id="loginView" style="padding: 35px 30px;">
-                        <div style="text-align: center; margin-bottom: 25px;">
-                            <img src="assets/logo.png" alt="Logo PGET" style="height: 70px;" onerror="this.src='https://via.placeholder.com/60?text=PGET'">
-                            <h2 style="margin-top: 15px; color: #6A0D25; font-size: 1.8rem;">Iniciar Sesión</h2>
-                            <p style="color: #64748b; font-size: 0.95rem;">Ingresa tus credenciales institucionales</p>
-                        </div>
-                        
-                        <form id="loginForm">
-                            <div class="input-group" style="margin-bottom: 18px;">
-                                <label for="username" style="display: block; font-weight: 700; margin-bottom: 8px; color: #334155;">Correo Electrónico / Usuario</label>
-                                <div class="input-icon" style="position: relative;">
-                                    <i class="fas fa-envelope" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8;"></i>
-                                    <input type="text" id="username" placeholder="admin@pget.com o usuario" required style="width: 100%; padding: 12px 15px 12px 42px; border: 1.5px solid #D4AF37; border-radius: 8px; outline: none; font-size: 0.95rem; box-sizing: border-box;">
-                                </div>
-                            </div>
-                            
-                            <div class="input-group" style="margin-bottom: 18px;">
-                                <label for="password" style="display: block; font-weight: 700; margin-bottom: 8px; color: #334155;">Contraseña</label>
-                                <div class="input-icon" style="position: relative;">
-                                    <i class="fas fa-lock" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8;"></i>
-                                    <input type="password" id="password" placeholder="Ingresa tu contraseña" required style="width: 100%; padding: 12px 40px; border: 1px solid #e2e8f0; border-radius: 8px; outline: none; font-size: 0.95rem; box-sizing: border-box;">
-                                    <i class="fas fa-eye toggle-password" id="togglePassword" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8; cursor: pointer;"></i>
-                                </div>
-                            </div>
-                            
-                            <div style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
-                                <label style="display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 0.9rem; cursor: pointer;">
-                                    <input type="checkbox" id="remember" style="accent-color: #6A0D25;">
-                                    Recordarme
-                                </label>
-                                <span style="font-size: 0.82rem; color: #0284c7; cursor: pointer;" title="Admin: admin@pget.com / admin123 | Trabajadores: correo@pget.com / Clave: Pget+Cédula">
-                                    <i class="fas fa-info-circle"></i> Cuentas del sistema
-                                </span>
-                            </div>
-
-                            <div id="loginError" class="error-msg" style="display:none; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; font-size: 0.9rem;"></div>
-                            
-                            <button type="submit" id="submitLoginBtn" style="width: 100%; background: linear-gradient(135deg, #6A0D25, #83122F); color: white; border: 1.5px solid #D4AF37; padding: 13px; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(106, 13, 37, 0.25);">
-                                <i class="fas fa-sign-in-alt"></i> Iniciar Sesión
-                            </button>
-                        </form>
-                    </div>
-
-                    <!-- 2. VISTA DE TRABAJADOR (PANTALLA COMPLETA - PUEDE GENERAR CONSTANCIAS) -->
-                    <div id="workerView" style="display: none; background: #f8fafc; height: 100%; flex-direction: column;">
-                        <div style="background: linear-gradient(135deg, #6A0D25, #450614); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15);">
-                            <div>
-                                <h3 style="margin: 0; font-size: 1.3rem;"><i class="fas fa-user-circle"></i> Portal del Trabajador</h3>
-                                <span style="font-size: 0.85rem; opacity: 0.9;">Procuraduría General del Estado Trujillo &bull; Trámites y Perfil</span>
-                            </div>
-                            <div style="display: flex; gap: 10px;">
-                                <button onclick="window.pgetLogout()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; font-size: 0.88rem; cursor: pointer; font-weight: 600;">
-                                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
-                                </button>
-                                <button onclick="document.getElementById('loginModal').classList.remove('show')" style="background: rgba(255,255,255,0.25); border: none; color: white; padding: 8px 16px; border-radius: 6px; font-size: 0.88rem; cursor: pointer; font-weight: 600;">
-                                    <i class="fas fa-times"></i> Volver al Portal Web
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div style="flex: 1; overflow-y: auto; padding: 35px 25px;">
-                            <div style="max-width: 950px; margin: 0 auto;">
-                                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 20px;">
-                                        <h4 style="color: #6A0D25; font-size: 1.15rem; margin: 0;">
-                                            <i class="fas fa-id-card"></i> Datos Personales y Laborales del Trabajador
-                                        </h4>
-                                        <span id="workerCondicionBadge" class="condicion-badge fijo" style="font-size: 0.85rem; padding: 6px 14px;">
-                                            FIJO
-                                        </span>
-                                    </div>
-                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; font-size: 0.95rem;">
-                                        <div>
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Nombres y Apellidos (con Título):</span>
-                                            <strong id="workerName" style="color: #1e293b; font-size: 1.1rem;">-</strong>
-                                        </div>
-                                        <div>
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Cédula de Identidad:</span>
-                                            <strong id="workerCedula" style="color: #1e293b; font-size: 1.05rem;">-</strong>
-                                        </div>
-                                        <div>
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Código RAC:</span>
-                                            <strong id="workerCodigoRac" style="color: #1e293b; font-size: 1.05rem;">-</strong>
-                                        </div>
-                                        <div>
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Número de Teléfono:</span>
-                                            <strong id="workerTelefono" style="color: #1e293b; font-size: 1.05rem;">-</strong>
-                                        </div>
-                                        <div>
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Entidad Bancaria:</span>
-                                            <strong id="workerBanco" style="color: #1e293b; font-size: 1.05rem;">-</strong>
-                                        </div>
-                                        <div>
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Número de Cuenta:</span>
-                                            <strong id="workerCuenta" class="masked-account-text">-</strong>
-                                        </div>
-                                        <div>
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Profesión / Titulación:</span>
-                                            <strong id="workerProfesion" style="color: #0369a1; font-size: 1rem;">-</strong>
-                                        </div>
-                                        <div>
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Condición Laboral:</span>
-                                            <strong id="workerCondicionText" style="color: #6A0D25; font-size: 1rem;">PERSONAL FIJO</strong>
-                                        </div>
-                                        <div>
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Cargo Institucional:</span>
-                                            <strong id="workerCargo" style="color: #6A0D25; font-size: 1rem;">-</strong>
-                                        </div>
-                                        <div>
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Fecha de Ingreso:</span>
-                                            <strong id="workerFechaIngreso" style="color: #1e293b; font-size: 1rem;">-</strong>
-                                        </div>
-                                        <div style="display: none;">
-                                            <strong id="workerSalario">Bs. 0,00</strong>
-                                        </div>
-                                        <div>
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Años de Servicio:</span>
-                                            <strong id="workerYears" style="color: #1e293b; font-size: 1.05rem;">-</strong>
-                                        </div>
-                                        <div style="grid-column: 1 / -1;">
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Dependencia Administrativa:</span>
-                                            <strong id="workerDep" style="color: #1e293b;">-</strong>
-                                        </div>
-                                        <div style="grid-column: 1 / -1;">
-                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Dirección / Oficina Adscrita:</span>
-                                            <strong id="workerDireccion" style="color: #6A0D25; font-size: 1.02rem;">-</strong>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Generador de Constancia (Solo para trabajadores) -->
-                                <div style="background: white; border: 2px dashed #D4AF37; border-radius: 16px; padding: clamp(16px, 3vw, 28px); box-shadow: 0 4px 15px rgba(106,13,37,0.06);">
-                                    <h4 id="workerCertHeader" style="color: #6A0D25; font-size: clamp(1rem, 2.5vw, 1.15rem); margin-bottom: 8px; line-height: 1.45; font-weight: 700; word-break: normal;">
-                                        <i class="fas fa-file-invoice" style="color: #D4AF37; margin-right: 6px;"></i> Generar Constancia Oficial <span style="display: inline-block; white-space: nowrap;">(<span id="workerCertModelBadge">Personal Fijo</span>)</span>
-                                    </h4>
-                                    <p id="workerCertDesc" style="font-size: 0.92rem; color: #64748b; margin-bottom: 20px;">
-                                        Modelo oficial adaptado automáticamente a su condición laboral.
-                                    </p>
-
-                                    <!-- Lista desplegable para seleccionar el motivo de la constancia -->
-                                    <div style="margin-bottom: 18px;">
-                                        <label style="display: block; font-weight: 700; font-size: 0.88rem; color: #334155; margin-bottom: 8px;">
-                                            <i class="fas fa-list-ul" style="color: #D4AF37;"></i> Motivo de la Solicitud: *
-                                        </label>
-                                        <select id="certMotivoSelect" style="width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; font-weight: 600; color: #1e293b; cursor: pointer;">
-                                            <option value="Trámites bancarios">Trámites bancarios</option>
-                                            <option value="Trámites personales" selected>Trámites personales</option>
-                                            <option value="Fines legales">Fines legales</option>
-                                            <option value="Otros trámites">Otros trámites</option>
-                                        </select>
-                                    </div>
-                                    
-                                    <div style="margin-bottom: 20px;">
-                                        <label style="display: block; font-weight: 700; font-size: 0.88rem; color: #334155; margin-bottom: 8px;">
-                                            <i class="fas fa-coins" style="color: #D4AF37;"></i> Modalidad Salarial:
-                                        </label>
-                                        <select id="conSalarioSelect" style="width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; font-weight: 600; color: #1e293b;">
-                                            <option value="true">Con Salario (Refleja Asignación Mensual en letras y números)</option>
-                                            <option value="false">Sin Salario (Solo cargo, dependencia y tiempo de servicio)</option>
-                                        </select>
-                                    </div>
-
-                                    <button id="requestCertBtn" style="width: 100%; background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 14px; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(106,13,37,0.25);">
-                                        <i class="fas fa-file-alt"></i> Generar y Ver Constancia Oficial
-                                    </button>
-                                    <div id="certMessage" style="margin-top: 15px; font-size: 0.95rem; text-align: center; font-weight: 600;"></div>
-
-                                    <!-- Aviso informativo para constancias (Fiel a img 2) -->
-                                    <div class="constancia-mobile-alert">
-                                        <i class="fas fa-info-circle"></i>
-                                        <div>
-                                            <strong>Aviso:</strong> si estás generando la constancia desde un celular o tablet, la descarga puede realizarse en segundo plano sin mostrar ningún aviso visible. Si no ves nada después de presionar el botón, revisa la carpeta <strong>Descargas</strong> de tu dispositivo o el gestor de descargas de tu navegador antes de volver a intentarlo.
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Sección Oficial Planilla ARC por Año (Fiel a img 1) -->
-                                <div class="arc-year-section">
-                                    <h3 class="arc-year-title">Planilla ARC</h3>
-                                    
-                                    <!-- Selector interactivo de Año Fiscal (Ordenados desde 2026 en adelante) -->
-                                    <div id="workerArcYearTabsContainer" style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
-                                        <span style="font-size: 0.88rem; font-weight: 700; color: #475569; margin-right: 4px;">Año Fiscal:</span>
-                                        <button type="button" class="arc-year-tab-btn active" data-year="2026" onclick="window.setWorkerArcYear('2026')">2026</button>
-                                    </div>
-
-                                    <!-- Tarjeta Centrada Exacta a img 1 (Estilo Vinotinto Institucional) -->
-                                    <div class="arc-year-card">
-                                        <div id="workerArcDisplayYear" class="arc-year-number">2026</div>
-                                        <div class="arc-year-subtitle">Planilla ARC</div>
-                                        <button type="button" id="btnDownloadArcYear" class="btn-arc-download-vinotinto" onclick="window.downloadWorkerArcSelectedYear()">
-                                            <i class="fas fa-download"></i> Descargar
-                                        </button>
-                                    </div>
-
-                                    <!-- Banner de Información debajo del botón (Fiel a img 1) -->
-                                    <div class="arc-info-banner">
-                                        <i class="fas fa-info-circle"></i>
-                                        <span><strong>Información:</strong> La Planilla ARC muestra el consolidado anual de sus asignaciones y deducciones de ley.</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 3. VISTA DE ADMINISTRADOR (PANTALLA COMPLETA - GESTIÓN TOTAL DE PERSONAL) -->
-                    <div id="adminView" style="display: none; background: #f8fafc; height: 100%; flex: 1; min-height: 0; flex-direction: column;">
-                        <div class="admin-header">
-                            <div>
-                                <h3 style="margin: 0; font-size: 1.3rem;"><i class="fas fa-user-shield"></i> Panel de Administración PGET</h3>
-                                <span style="font-size: 0.85rem; opacity: 0.9;">Control y Gestión General de Usuarios y Personal</span>
-                            </div>
-                            <div style="display: flex; gap: 10px;">
-                                <button onclick="window.pgetLogout()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; font-size: 0.88rem; cursor: pointer; font-weight: 600;">
-                                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
-                                </button>
-                                <button onclick="document.getElementById('loginModal').classList.remove('show')" style="background: rgba(255,255,255,0.25); border: none; color: white; padding: 8px 16px; border-radius: 6px; font-size: 0.88rem; cursor: pointer; font-weight: 600;">
-                                    <i class="fas fa-times"></i> Volver al Portal Web
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Barra de herramientas Admin -->
-                        <div class="admin-toolbar" style="padding: 15px 30px; background: white; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
-                            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-                                <span id="adminUsersCount" style="font-size: 0.92rem; font-weight: 700; color: #1e293b; background: #e2e8f0; padding: 7px 16px; border-radius: 20px;">
-                                    0 Usuarios Registrados
-                                </span>
-                                <input type="text" id="adminUserFilter" placeholder="Buscar por nombre, cargo, cédula, dirección..." onkeyup="window.filterAdminUsers()" style="padding: 9px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; outline: none; width: 280px;">
-                                
-                                <!-- Filtro por Condición Laboral: Fijos, Contratados, Jubilados -->
-                                <div id="condFilterGroup" style="display: flex; gap: 4px; align-items: center; background: #f1f5f9; padding: 4px; border-radius: 8px; border: 1px solid #cbd5e1;">
-                                    <button type="button" class="cond-filter-btn active" data-cond="" onclick="window.setCondicionFilter('')" style="border: 1px solid #D4AF37; background: #6A0D25; color: white; padding: 6px 13px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
-                                        Todos
-                                    </button>
-                                    <button type="button" class="cond-filter-btn" data-cond="FIJO" onclick="window.setCondicionFilter('FIJO')" style="border: none; background: transparent; color: #6A0D25; padding: 6px 13px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
-                                        Fijos
-                                    </button>
-                                    <button type="button" class="cond-filter-btn" data-cond="CONTRATADO" onclick="window.setCondicionFilter('CONTRATADO')" style="border: none; background: transparent; color: #0284c7; padding: 6px 13px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
-                                        Contratados
-                                    </button>
-                                    <button type="button" class="cond-filter-btn" data-cond="JUBILADO" onclick="window.setCondicionFilter('JUBILADO')" style="border: none; background: transparent; color: #7e22ce; padding: 6px 13px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
-                                        Jubilados
-                                    </button>
-                                </div>
-                            </div>
-                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                                <button type="button" onclick="window.openManageCargosModal()" style="background: #ffffff; border: 1.5px solid #cbd5e1; color: #1e293b; padding: 10px 16px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); transition: all 0.2s;">
-                                    <i class="fas fa-briefcase" style="color: #6A0D25;"></i> Añadir / Gestionar Cargos
-                                </button>
-                                <button onclick="window.openCreateUserForm()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.25);">
-                                    <i class="fas fa-user-plus"></i> + Registrar Nuevo Usuario
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Tabla de Usuarios (Aprovecha 100% de la altura disponible) -->
-                        <div class="admin-table-container" style="flex: 1; min-height: 0; overflow-y: auto; padding: 20px 30px;">
-                            <table class="admin-users-table" id="adminUsersTable">
-                                <thead>
-                                    <tr>
-                                        <th>Nombre y Cédula</th>
-                                        <th>Correo / Usuario</th>
-                                        <th>Cargo, Dependencia y Dirección</th>
-                                        <th>Rol</th>
-                                        <th style="text-align: right;">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="adminUsersListBody">
-                                    <tr>
-                                        <td colspan="5" style="text-align: center; padding: 25px; color: #64748b;">
-                                             <i class="fas fa-spinner fa-spin"></i> Cargando usuarios...
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <!-- Aviso Legal Administrador (Barra Compacta Elegante) -->
-                        <div style="background: #f1f5f9; border-top: 1px solid #cbd5e1; padding: 9px 30px; font-size: 0.8rem; color: #475569; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
-                            <span><i class="fas fa-lock"></i> Modo Administrador activo: El administrador gestiona el personal y no emite constancias individuales.</span>
-                            <span style="font-weight: 700; color: #6A0D25;">Procuraduría General del Estado Trujillo</span>
-                        </div>
-                    </div>
-
-                    <!-- 4. VISTA / FORMULARIO CREAR Y EDITAR USUARIO (PANTALLA COMPLETA) -->
-                    <div id="userFormView" style="display: none; background: #f8fafc; height: 100%; flex-direction: column;">
-                        <div style="background: linear-gradient(135deg, #6A0D25, #450614); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15);">
-                            <h3 id="userFormTitle" style="margin: 0; font-size: 1.25rem;"><i class="fas fa-user-edit"></i> Registrar Nuevo Usuario</h3>
-                            <button type="button" onclick="window.backToAdminView()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-                                <i class="fas fa-arrow-left"></i> Volver al Panel
-                            </button>
-                        </div>
-
-                        <div style="flex: 1; overflow-y: auto; padding: 30px 20px;">
-                            <form id="saveUserForm" style="max-width: 1050px; margin: 0 auto; background: white; padding: 35px 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
-                                    
-                                    <div style="grid-column: span 2;">
-                                        <h4 style="color: #6A0D25; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
-                                            <i class="fas fa-key"></i> 1. Credenciales de Acceso
-                                        </h4>
-                                    </div>
-                                    
-                                    <div>
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Correo Electrónico *</label>
-                                        <input type="email" id="formUsername" required placeholder="ejemplo@pget.com" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
-                                    </div>
-
-                                    <div>
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Rol del Usuario *</label>
-                                        <select id="formRole" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white;">
-                                            <option value="trabajador">Trabajador (Puede generar y descargar constancias)</option>
-                                            <option value="admin">Administrador (Gestión total de personal y sistema)</option>
-                                        </select>
-                                    </div>
-
-                                    <!-- Botón para Cambiar Contraseña (Solo en Modo Edición) -->
-                                    <div id="changePasswordBtnWrapper" style="grid-column: span 2; display: none; margin: 4px 0 6px 0;">
-                                        <button type="button" id="btnToggleChangePass" onclick="window.toggleChangePasswordSection()" style="background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s;">
-                                            <i class="fas fa-key" style="color: #D4AF37;"></i> Cambiar Contraseña
-                                        </button>
-                                        <span style="font-size: 0.82rem; color: #64748b; margin-left: 12px;">(Pulse este botón si desea asignar una nueva contraseña a este usuario)</span>
-                                    </div>
-
-                                    <!-- Contenedor de Contraseña y Confirmación con ojitos minimalistas -->
-                                    <div id="passwordFieldsContainer" style="grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                                        <div>
-                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                                <span id="formPassLabel">Contraseña *</span>
-                                            </label>
-                                            <div style="position: relative;">
-                                                <input type="password" id="formPassword" placeholder="Contraseña segura" style="width: 100%; padding: 11px 42px 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
-                                                <button type="button" onclick="window.togglePasswordVisibility('formPassword', this)" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: transparent; border: none; cursor: pointer; color: #94a3b8; font-size: 0.9rem; padding: 6px; display: flex; align-items: center; justify-content: center; outline: none;" title="Mostrar / Ocultar">
-                                                    <i class="fas fa-eye"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                                <span id="formPassConfirmLabel">Confirmar Contraseña *</span>
-                                            </label>
-                                            <div style="position: relative;">
-                                                <input type="password" id="formPasswordConfirm" placeholder="Confirme la contraseña" style="width: 100%; padding: 11px 42px 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
-                                                <button type="button" onclick="window.togglePasswordVisibility('formPasswordConfirm', this)" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: transparent; border: none; cursor: pointer; color: #94a3b8; font-size: 0.9rem; padding: 6px; display: flex; align-items: center; justify-content: center; outline: none;" title="Mostrar / Ocultar">
-                                                    <i class="fas fa-eye"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div style="grid-column: span 2; margin-top: 15px;">
-                                        <h4 style="color: #6A0D25; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
-                                            <i class="fas fa-address-card"></i> 2. Datos Personales
-                                        </h4>
-                                    </div>
-
-                                    <div>
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Nombres *</label>
-                                        <input type="text" id="formNombres" required placeholder="ej. VICTORIA ALEJANDRA" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
-                                    </div>
-
-                                    <div>
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Apellidos *</label>
-                                        <input type="text" id="formApellidos" required placeholder="ej. CARMONA TORRES" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
-                                    </div>
-
-                                    <div>
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                            Cédula de Identidad * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Solo números)</span>
-                                        </label>
-                                        <input type="text" id="formCedula" required inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="Solo números (ej. 12345678)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
-                                    </div>
-
-                                    <div>
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Género *</label>
-                                        <div style="display: flex; gap: 24px; align-items: center; padding: 10px 14px; background: white; border: 1px solid #cbd5e1; border-radius: 8px; min-height: 44px; box-sizing: border-box;">
-                                            <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.92rem; font-weight: 600; color: #1e293b; margin: 0;">
-                                                <input type="radio" name="formGenero" id="formGeneroMasculino" value="masculino" checked style="width: 18px; height: 18px; accent-color: #6A0D25; cursor: pointer;">
-                                                <span>Masculino</span>
-                                            </label>
-                                            <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.92rem; font-weight: 600; color: #1e293b; margin: 0;">
-                                                <input type="radio" name="formGenero" id="formGeneroFemenino" value="femenino" style="width: 18px; height: 18px; accent-color: #6A0D25; cursor: pointer;">
-                                                <span>Femenino</span>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    <div id="formCodigoRacGroup">
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                            Código RAC * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Máx. 10 dígitos numéricos)</span>
-                                        </label>
-                                        <input type="text" id="formCodigoRac" maxlength="10" inputmode="numeric" pattern="[0-9]*" placeholder="Solo números (ej. 0001234567)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
-                                    </div>
-
-                                    <div id="formTelefonoGroup">
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                            Número de Teléfono * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Código + 7 dígitos numéricos)</span>
-                                        </label>
-                                        <div style="display: flex; gap: 0; align-items: stretch; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: white;">
-                                            <select id="formTelefonoCodigo" style="width: 95px; padding: 11px 8px; border: none; border-right: 1px solid #cbd5e1; font-size: 0.92rem; background: #f8fafc; font-weight: 700; color: #1e293b; outline: none; cursor: pointer;">
-                                                <option value="0416">0416</option>
-                                                <option value="0426">0426</option>
-                                                <option value="0414" selected>0414</option>
-                                                <option value="0424">0424</option>
-                                                <option value="0412">0412</option>
-                                                <option value="0422">0422</option>
-                                            </select>
-                                            <input type="text" id="formTelefonoNumero" maxlength="7" inputmode="numeric" pattern="[0-9]*" placeholder="7 dígitos (ej. 1234567)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="flex: 1; padding: 11px 14px; border: none; font-size: 0.92rem; box-sizing: border-box; outline: none;">
-                                        </div>
-                                    </div>
-
-                                    <div id="formProfesionGroup" style="grid-column: span 2;">
-                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                            Profesión / Título Académico * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Prefijo: Abog., Ing., T.S.U., Lic.)</span>
-                                        </label>
-                                        <select id="formProfesion" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white;">
-                                            <option value="Abogado">Abogado (Prefijo: Abog. Nombre)</option>
-                                            <option value="Ingeniero">Ingeniero (Prefijo: Ing. Nombre)</option>
-                                            <option value="Licenciado">Licenciado (Prefijo: Lic. Nombre)</option>
-                                            <option value="Técnico Superior">Técnico Superior (Prefijo: T.S.U. Nombre)</option>
-                                            <option value="Profesor">Profesor (Prefijo: Prof. Nombre)</option>
-                                            <option value="Doctor">Doctor (Prefijo: Dr. Nombre)</option>
-                                            <option value="Bachiller">Bachiller (Sin prefijo)</option>
-                                            <option value="Otro">Otro</option>
-                                        </select>
-                                    </div>
-
-                                    <!-- Sección 3: Datos Laborales y Planilla ARC (Oculta para rol Administrador) -->
-                                    <div id="formLaboralSection" style="grid-column: span 2; display: contents;">
-                                        <div style="grid-column: span 2; margin-top: 15px;">
-                                            <h4 style="color: #6A0D25; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
-                                                <i class="fas fa-briefcase"></i> 3. Datos Laborales y Administrativos
-                                            </h4>
-                                        </div>
-
-                                        <!-- Cargo Institucional con Buscador y Desplegable -->
-                                        <div>
-                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                                                <label style="font-weight: 700; font-size: 0.85rem; color: #334155; margin: 0;">Cargo Institucional *</label>
-                                                <button type="button" onclick="window.openManageCargosModal()" style="background: none; border: none; color: #0284c7; font-size: 0.8rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 0;">
-                                                    <i class="fas fa-plus-circle"></i> Gestionar Cargos
-                                                </button>
-                                            </div>
-                                            <div style="position: relative;">
-                                                <input type="text" id="formCargo" required autocomplete="off" placeholder="Escriba para buscar o seleccione un cargo..." style="width: 100%; padding: 11px 36px 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; text-transform: uppercase;">
-                                                <button type="button" id="toggleCargoDropdownBtn" style="position: absolute; right: 0; top: 0; bottom: 0; width: 36px; background: transparent; border: none; cursor: pointer; color: #64748b; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;" title="Ver todos los cargos">
-                                                    <i class="fas fa-chevron-down"></i>
-                                                </button>
-                                                <div id="cargoDropdownList" class="cargo-dropdown-list"></div>
-                                            </div>
-                                            <small style="color: #64748b; font-size: 0.78rem;">Escriba para buscar o use la flecha para ver el listado de cargos</small>
-                                        </div>
-
-                                        <div>
-                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                                Condición Laboral * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Define su modelo de constancia)</span>
-                                            </label>
-                                            <select id="formCondicion" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; font-weight: 600;">
-                                                <option value="FIJO">FIJO (Constancia de Trabajo - Personal Fijo)</option>
-                                                <option value="CONTRATADO">CONTRATADO (Constancia de Trabajo - Personal Contratado)</option>
-                                                <option value="JUBILADO">JUBILADO (Constancia de Jubilación - Personal Jubilado)</option>
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                                Salario / Remuneración Mensual * <span style="font-weight: 400; color: #64748b; font-size: 0.8rem;">(Ej. 1.000,00)</span>
-                                            </label>
-                                            <div style="display: flex; align-items: stretch; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: white; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);">
-                                                <span style="background: #f1f5f9; color: #6A0D25; font-weight: 700; font-size: 0.92rem; padding: 11px 14px; border-right: 1px solid #cbd5e1; display: flex; align-items: center; user-select: none;">
-                                                    Bs.
-                                                </span>
-                                                <input type="text" id="formSalario" required placeholder="1.000,00" value="1.000,00" style="flex: 1; border: none; padding: 11px 14px; font-size: 0.92rem; outline: none; box-sizing: border-box; color: #1e293b; font-weight: 600;">
-                                            </div>
-                                            <small style="color: #64748b; font-size: 0.78rem;">El prefijo "Bs." es fijo e inamovible; escriba únicamente el monto numérico.</small>
-                                        </div>
-
-                                        <!-- Fecha de Ingreso con Selector Calendario Interactivo -->
-                                        <div>
-                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                                <i class="fas fa-calendar-alt" style="color: #6A0D25;"></i> Fecha de Ingreso * <span style="font-weight: 400; color: #64748b; font-size: 0.8rem;">(Seleccionar en el calendario)</span>
-                                            </label>
-                                            <input type="date" id="formFechaIngreso" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; color: #1e293b; cursor: pointer;">
-                                            <small style="color: #64748b; font-size: 0.78rem;">Haga clic para abrir el calendario y seleccionar la fecha exacta</small>
-                                        </div>
-
-                                        <div style="grid-column: span 2;">
-                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                                Años de Servicio <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Cálculo Automático según Fecha de Ingreso)</span>
-                                            </label>
-                                            <div style="position: relative; display: flex; align-items: stretch;">
-                                                <input type="number" id="formAnos" min="0" max="60" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px 0 0 8px; font-size: 0.92rem; box-sizing: border-box; background: white; color: #6A0D25; font-weight: 700;" placeholder="0">
-                                                <button type="button" id="btnRecalcularAnos" title="Recalcular automáticamente según la fecha de ingreso seleccionada" style="padding: 0 16px; background: #f8fafc; border: 1px solid #cbd5e1; border-left: none; border-radius: 0 8px 8px 0; color: #6A0D25; font-size: 0.85rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
-                                                    <i class="fas fa-calculator"></i> Calcular
-                                                </button>
-                                            </div>
-                                            <small style="color: #64748b; font-size: 0.78rem; font-weight: 500; display: block; margin-top: 3px;">
-                                                <i class="fas fa-info-circle" style="color: #6A0D25;"></i> Se calcula automáticamente según la fecha de ingreso (o puede ajustarse manualmente si el trabajador tiene años previos reconocidos).
-                                            </small>
-                                        </div>
-
-                                        <!-- Dependencia Administrativa como Ventana Desplegable con Valor Fijo -->
-                                        <div style="grid-column: span 2;">
-                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                                <i class="fas fa-landmark" style="color: #6A0D25;"></i> Dependencia Administrativa *
-                                            </label>
-                                            <select id="formDependencia" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; font-weight: 600; color: #1e293b; cursor: pointer;">
-                                                <option value="PROCURADURÍA GENERAL DEL ESTADO TRUJILLO" selected>PROCURADURÍA GENERAL DEL ESTADO TRUJILLO</option>
-                                            </select>
-                                        </div>
-
-                                        <div style="grid-column: span 2;">
-                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Dirección / Oficina Adscrita *</label>
-                                            <select id="formDireccion" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white;">
-                                                <option value="DESPACHO DEL PROCURADOR GENERAL">Despacho del Procurador o Procuradora General</option>
-                                                <option value="DIRECCIÓN GENERAL">Dirección General</option>
-                                                <option value="DIRECCIÓN DE RECURSOS HUMANOS">Dirección de Recursos Humanos</option>
-                                                <option value="DIRECCIÓN DE ASUNTOS JURÍDICOS">Dirección de Asuntos Jurídicos</option>
-                                                <option value="DIRECCIÓN DE ADMINISTRACIÓN">Dirección de Administración</option>
-                                                <option value="DIRECCIÓN DE BIENES Y SERVICIOS">Dirección de Bienes y Servicios</option>
-                                                <option value="UNIDAD DE AUDITORÍA INTERNA">Unidad de Auditoría Interna</option>
-                                                <option value="OFICINA DE ATENCIÓN AL CIUDADANO">Oficina de Atención al Ciudadano</option>
-                                            </select>
-                                        </div>
-
-                                        <!-- Datos Bancarios: Banco y Número de Cuenta (El administrador ve completo) -->
-                                        <div>
-                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                                <i class="fas fa-university" style="color: #6A0D25;"></i> Banco / Entidad Financiera *
-                                            </label>
-                                            <select id="formBanco" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: #f8fafc; font-weight: 700; color: #6A0D25; pointer-events: none;" tabindex="-1">
-                                                <option value="Banco de Venezuela" selected>Banco de Venezuela (0102)</option>
-                                            </select>
-                                            <small style="color: #64748b; font-size: 0.78rem;">Entidad bancaria institucional exclusiva de la nómina PGET (código 0102).</small>
-                                        </div>
-
-                                        <div>
-                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                                <i class="fas fa-credit-card" style="color: #6A0D25;"></i> Número de Cuenta Bancaria * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(20 dígitos, inicia con 0102)</span>
-                                            </label>
-                                            <div style="position: relative; display: flex; align-items: stretch;">
-                                                <span style="display: flex; align-items: center; padding: 0 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-right: none; border-radius: 8px 0 0 8px; color: #6A0D25; font-weight: 700; font-family: monospace; font-size: 0.95rem;">0102</span>
-                                                <input type="text" id="formCuenta" required maxlength="16" inputmode="numeric" pattern="[0-9]*" placeholder="16 dígitos restantes (ej. 0373220000419109)" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 0 8px 8px 0; font-size: 0.92rem; box-sizing: border-box; font-family: monospace; letter-spacing: 0.8px;">
-                                            </div>
-                                            <small style="color: #64748b; font-size: 0.78rem;">Prefijo 0102 fijo (Banco de Venezuela). Escriba o pegue los 16 dígitos restantes.</small>
-                                        </div>
-
-                                        <!-- Planilla de ARC en el formulario de usuario -->
-                                        <div style="grid-column: span 2; background: #fdfaf6; border: 1.5px dashed #D4AF37; border-radius: 12px; padding: 20px; margin-top: 10px; box-shadow: 0 2px 10px rgba(106,13,37,0.03);">
-                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;">
-                                                <label style="font-weight: 700; font-size: 0.92rem; color: #6A0D25; display: flex; align-items: center; gap: 8px; margin: 0;">
-                                                    <i class="fas fa-file-invoice" style="color: #D4AF37;"></i> Planilla de ARC (Comprobante de Retención Anual)
-                                                </label>
-                                                <span id="formArcStatusBadge" style="font-size: 0.78rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1;">
-                                                    Sin archivo
-                                                </span>
-                                            </div>
-                                            <div id="formArcFileInfo" style="font-size: 0.85rem; color: #334155; margin-bottom: 12px;">
-                                                Cargue la Planilla ARC (en formato PDF o Imagen) para que el trabajador pueda consultarla y descargarla por año fiscal desde su perfil.
-                                            </div>
-                                            <!-- Selector de año fiscal de la planilla -->
-                                            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap;">
-                                                <label style="font-weight: 700; font-size: 0.85rem; color: #334155; margin: 0;">Año Fiscal de la Planilla ARC:</label>
-                                                <select id="formArcYear" style="padding: 7px 14px; border: 1.5px solid #D4AF37; border-radius: 6px; font-weight: 700; font-size: 0.9rem; background: white; color: #6A0D25; cursor: pointer;">
-                                                    <option value="2026">2026</option>
-                                                    <option value="2025" selected>2025</option>
-                                                    <option value="2024">2024</option>
-                                                    <option value="2023">2023</option>
-                                                    <option value="2022">2022</option>
-                                                </select>
-                                            </div>
-                                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                                                <input type="file" id="formArcFileInput" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" style="display: none;">
-                                                <button type="button" id="formArcSelectBtn" style="background: white; border: 1.5px solid #6A0D25; color: #6A0D25; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
-                                                    <i class="fas fa-upload"></i> Seleccionar PDF o Imagen
-                                                </button>
-                                                <button type="button" id="formArcPreviewBtn" style="display: none; background: linear-gradient(135deg, #6A0D25, #83122F); border: 1px solid #D4AF37; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                                                    <i class="fas fa-eye"></i> Ver Archivo Actual
-                                                </button>
-                                                <button type="button" id="formArcDeleteBtn" style="display: none; background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                                                    <i class="fas fa-trash"></i> Quitar Planilla ARC
-                                                </button>
-                                            </div>
-                                            <div id="formArcSelectedNotice" style="margin-top: 8px; font-size: 0.82rem; color: #6A0D25; font-weight: 600;"></div>
-                                        </div>
-                                    </div>
-
-                                </div>
-
-                                <div id="formUserError" style="display: none; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 12px; border-radius: 8px; margin-bottom: 18px; font-size: 0.9rem; text-align: center;"></div>
-
-                                <div style="display: flex; justify-content: flex-end; gap: 15px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
-                                    <button type="button" onclick="window.backToAdminView()" style="background: #e2e8f0; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; color: #475569;">
-                                        Cancelar
-                                    </button>
-                                    <button type="submit" id="saveUserSubmitBtn" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 12px 30px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.3);">
-                                        <i class="fas fa-save"></i> Guardar Usuario
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-
-                </div>
-            </div>`;
-            document.body.insertAdjacentHTML('beforeend', modalHTML);
-            modal = document.getElementById('loginModal');
-            attachModalEvents(modal);
-        }
-
-        // Si no hay sesión activa, garantizar que sólo se muestre el formulario de login
-        if (!currentUser && modal) {
-            const mainContent = modal.querySelector('#mainModalContent');
-            if (mainContent) {
-                mainContent.classList.remove('portal-fullscreen');
-                mainContent.classList.remove('admin-modal-size');
-            }
-            const lv = modal.querySelector('#loginView');
-            const wv = modal.querySelector('#workerView');
-            const av = modal.querySelector('#adminView');
-            const uf = modal.querySelector('#userFormView');
-            if (lv) lv.style.display = 'block';
-            if (wv) wv.style.display = 'none';
-            if (av) av.style.display = 'none';
-            if (uf) uf.style.display = 'none';
-        }
-        return modal;
-    }
-
-    // Attach interaction events
-    function attachModalEvents(modal) {
-        if (!modal) return;
-        const closeBtn = modal.querySelector('#modalCloseBtn') || modal.querySelector('.close-btn');
-        if (closeBtn) {
-            closeBtn.onclick = () => {
-                modal.classList.remove('show');
-                localStorage.setItem('pget_session_open', 'false');
-            };
-        }
-
-        modal.onclick = (e) => {
-            if (e.target === modal) {
-                modal.classList.remove('show');
-                localStorage.setItem('pget_session_open', 'false');
-            }
-        };
-
-        const fechaInput = modal.querySelector('#formFechaIngreso');
-        const anosInput = modal.querySelector('#formAnos');
-        const recalcBtn = modal.querySelector('#btnRecalcularAnos');
-        if (fechaInput && anosInput) {
-            const handleDateCalc = () => {
-                if (fechaInput.value) {
-                    anosInput.value = calculateYearsOfService(fechaInput.value).toString();
-                }
-            };
-            fechaInput.addEventListener('input', handleDateCalc);
-            fechaInput.addEventListener('change', handleDateCalc);
-            if (recalcBtn) {
-                recalcBtn.addEventListener('click', handleDateCalc);
-            }
-        }
-
-        const cuentaInput = modal.querySelector('#formCuenta');
-        if (cuentaInput) {
-            cuentaInput.addEventListener('input', function() {
-                let clean = this.value.replace(/\D/g, '');
-                if (clean.startsWith('0102')) {
-                    clean = clean.slice(4);
-                }
-                this.value = clean.slice(0, 16);
-            });
-        }
-
-        // Inicializar dropdown interactivo y buscador de cargos
-        setupCargoSearchableDropdown(modal);
-
-        // Control de archivo ARC en el formulario de usuario
-        const formArcSelectBtn = modal.querySelector('#formArcSelectBtn');
-        const formArcFileInput = modal.querySelector('#formArcFileInput');
-        const formArcPreviewBtn = modal.querySelector('#formArcPreviewBtn');
-        const formArcDeleteBtn = modal.querySelector('#formArcDeleteBtn');
-        const formArcSelectedNotice = modal.querySelector('#formArcSelectedNotice');
-
-        if (formArcSelectBtn && formArcFileInput) {
-            formArcSelectBtn.onclick = () => formArcFileInput.click();
-            formArcFileInput.onchange = () => {
-                if (formArcFileInput.files && formArcFileInput.files[0]) {
-                    const f = formArcFileInput.files[0];
-                    if (f.size > 10 * 1024 * 1024) {
-                        window.pgetAlert('El archivo excede el tamaño máximo permitido de 10 MB.', 'Archivo Muy Grande', 'Aceptar', 'warning');
-                        formArcFileInput.value = '';
-                        return;
-                    }
-                    const r = new FileReader();
-                    r.onload = (ev) => {
-                        formSelectedArcFile = {
-                            name: f.name,
-                            type: f.type || (f.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
-                            data: ev.target.result,
-                            size: f.size,
-                            uploaded_at: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-                        };
-                        if (formArcSelectedNotice) {
-                            formArcSelectedNotice.textContent = `Archivo seleccionado: ${f.name} (${(f.size/1024).toFixed(1)} KB)`;
-                        }
-                        if (formArcDeleteBtn) formArcDeleteBtn.style.display = 'inline-flex';
-                    };
-                    r.readAsDataURL(f);
-                }
-            };
-        }
-
-        if (formArcDeleteBtn) {
-            formArcDeleteBtn.onclick = () => {
-                formSelectedArcFile = null;
-                if (formArcFileInput) formArcFileInput.value = '';
-                if (formArcSelectedNotice) formArcSelectedNotice.textContent = 'Planilla ARC marcada para eliminar al guardar.';
-                const badge = modal.querySelector('#formArcStatusBadge');
-                if (badge) {
-                    badge.textContent = 'Eliminada';
-                    badge.style.background = '#fee2e2';
-                    badge.style.color = '#dc2626';
-                    badge.style.borderColor = '#fca5a5';
-                }
-                formArcDeleteBtn.style.display = 'none';
-                if (formArcPreviewBtn) formArcPreviewBtn.style.display = 'none';
-            };
-        }
-
-        if (formArcPreviewBtn) {
-            formArcPreviewBtn.onclick = () => {
-                const user = allUsersCache.find(u => u.username.toLowerCase() === (editingUsername || '').toLowerCase());
-                const arc = formSelectedArcFile || (user && user.arc_file);
-                if (arc && arc.data) {
-                    window.showArcViewerModal(arc, user || { nombre: 'Trabajador' });
-                }
-            };
-        }
-
-        const genderRadios = modal.querySelectorAll('input[name="formGenero"]');
-        const formProf = modal.querySelector('#formProfesion');
-        genderRadios.forEach(radio => {
-            radio.addEventListener('change', () => {
-                if (radio.checked && formProf) {
-                    updateFormProfesionOptions(radio.value, formProf.value);
-                }
-            });
-        });
-
-        const formRoleSelect = modal.querySelector('#formRole');
-        if (formRoleSelect) {
-            formRoleSelect.addEventListener('change', () => {
-                if (typeof updateAdminFormVisibility === 'function') {
-                    updateAdminFormVisibility(modal);
-                }
-            });
-        }
-
-        const cedulaInput = modal.querySelector('#formCedula');
-        if (cedulaInput) {
-            cedulaInput.addEventListener('input', () => {
-                cedulaInput.value = cedulaInput.value.replace(/[^0-9]/g, '');
-            });
-        }
-
-        const salarioInput = modal.querySelector('#formSalario');
-        if (salarioInput) {
-            salarioInput.addEventListener('input', () => {
-                const cleaned = salarioInput.value.replace(/^[bB][sS]\.?\s*/, '');
-                if (cleaned !== salarioInput.value) {
-                    salarioInput.value = cleaned;
-                }
-            });
-        }
-
-        const togglePassword = modal.querySelector('#togglePassword');
-        const passwordInput = modal.querySelector('#password');
-        if (togglePassword && passwordInput) {
-            togglePassword.onclick = () => {
-                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-                passwordInput.setAttribute('type', type);
-                if (type === 'text') {
-                    togglePassword.classList.remove('fa-eye');
-                    togglePassword.classList.add('fa-eye-slash');
-                } else {
-                    togglePassword.classList.remove('fa-eye-slash');
-                    togglePassword.classList.add('fa-eye');
-                }
-            };
-        }
-
-        // Login Form Handler
-        const loginForm = modal.querySelector('#loginForm');
-        const errorMsg = modal.querySelector('#loginError');
-        const submitBtn = modal.querySelector('#submitLoginBtn');
-
-        if (loginForm) {
-            loginForm.onsubmit = async (e) => {
-                e.preventDefault();
-                const username = modal.querySelector('#username').value.trim();
-                const password = passwordInput ? passwordInput.value.trim() : '';
-
-                try {
-                    if (submitBtn) {
-                        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Validando credenciales...';
-                        submitBtn.disabled = true;
-                    }
-                    if (errorMsg) {
-                        errorMsg.style.display = 'none';
-                        errorMsg.textContent = '';
-                    }
-
-                    // Petición al backend
-                    const response = await fetch(`${API_URL}/login`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username, password })
-                    });
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        currentToken = data.token;
-                        currentUser = data.user;
-                        localStorage.setItem('pget_auth_token', currentToken);
-                        localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
-                        handlePostLogin(currentUser);
-                    } else {
-                        // Fallback offline en caso de que el backend no esté encendido
-                        const offlineMatch = checkOfflineAuth(username, password);
-                        if (offlineMatch) {
-                            currentToken = `offline-token-${offlineMatch.username}`;
-                            currentUser = offlineMatch;
-                            localStorage.setItem('pget_auth_token', currentToken);
-                            localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
-                            handlePostLogin(currentUser);
-                        } else {
-                            if (errorMsg) {
-                                errorMsg.style.display = 'block';
-                                errorMsg.textContent = data.detail || 'Usuario o contraseña incorrectos.';
-                            }
-                        }
-                    }
-                } catch (error) {
-                    // Fallback offline cuando el servidor FastAPI no está corriendo
-                    const offlineMatch = checkOfflineAuth(username, password);
-                    if (offlineMatch) {
-                        currentToken = `offline-token-${offlineMatch.username}`;
-                        currentUser = offlineMatch;
-                        localStorage.setItem('pget_auth_token', currentToken);
-                        localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
-                        handlePostLogin(currentUser);
-                    } else {
-                        if (errorMsg) {
-                            errorMsg.style.display = 'block';
-                            errorMsg.textContent = 'Error de conexión con el servidor. Verifica las credenciales.';
-                        }
-                    }
-                } finally {
-                    if (submitBtn) {
-                        submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Iniciar Sesión';
-                        submitBtn.disabled = false;
-                    }
-                }
-            };
-        }
-
-        // Formulario Guardar Usuario (Crear / Editar)
-        const saveForm = modal.querySelector('#saveUserForm');
-        if (saveForm) {
-            saveForm.onsubmit = async (e) => {
-                e.preventDefault();
-                await handleSaveUser();
-            };
-        }
-
-        // Generar Constancia (Trabajador)
-        const certBtn = modal.querySelector('#requestCertBtn');
-        if (certBtn) {
-            certBtn.onclick = async () => {
-                await handleRequestCert();
-            };
-        }
-    }
-
-    // Navegación post-login según el rol (Modo Pantalla Completa)
-    function handlePostLogin(user) {
-        const modal = document.getElementById('loginModal');
-        const mainContent = document.getElementById('mainModalContent');
-        const loginView = modal.querySelector('#loginView');
-        const workerView = modal.querySelector('#workerView');
-        const adminView = modal.querySelector('#adminView');
-        const userFormView = modal.querySelector('#userFormView');
-        const loginBtn = document.getElementById('loginBtn');
-
-        if (loginView) loginView.style.display = 'none';
-        if (userFormView) userFormView.style.display = 'none';
-
-        if (loginBtn) {
-            const displayName = user.role === 'admin' 
-                ? 'ADMINISTRADOR' 
-                : (user.nombre ? user.nombre.split(' ')[0] : user.username);
-            loginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${displayName}`;
-        }
-
-        if (currentUser) localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
-
-        const closeBtn = modal.querySelector('#modalCloseBtn');
-        if (closeBtn) closeBtn.style.display = 'none';
-
-        if (mainContent) {
-            mainContent.classList.add('portal-fullscreen');
-        }
-
-        if (user.role === 'admin') {
-            // MOSTRAR PANEL ADMINISTRADOR
-            if (mainContent) mainContent.classList.add('admin-modal-size');
-            if (workerView) workerView.style.display = 'none';
-            if (adminView) adminView.style.display = 'flex';
-            loadAdminUsers();
-        } else {
-            // MOSTRAR VISTA TRABAJADOR
-            if (mainContent) mainContent.classList.remove('admin-modal-size');
-            if (adminView) adminView.style.display = 'none';
-            if (workerView) workerView.style.display = 'flex';
-            populateWorkerData(user);
-        }
-    }
-
-    let selectedWorkerArcYear = '2026';
-
-    function getArcAvailableYears(user = null) {
-        const START_YEAR = 2026;
-        const currentYear = new Date().getFullYear();
-        const maxYear = Math.max(START_YEAR, currentYear);
-        const yearsSet = new Set();
-        for (let y = START_YEAR; y <= maxYear; y++) {
-            yearsSet.add(String(y));
-        }
-        if (user && user.arc_files) {
-            Object.keys(user.arc_files).forEach(y => {
-                const yNum = parseInt(y, 10);
-                if (!isNaN(yNum) && yNum >= START_YEAR) {
-                    yearsSet.add(String(y));
-                }
-            });
-        }
-        // Ordenados ascendentemente desde 2026 en adelante
-        return Array.from(yearsSet).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
-    }
-
-    function renderWorkerArcYearTabs(user) {
-        const modal = document.getElementById('loginModal');
-        if (!modal) return;
-        const container = modal.querySelector('#workerArcYearTabsContainer');
-        if (!container) return;
-
-        const years = getArcAvailableYears(user);
-        if (!years.includes(selectedWorkerArcYear)) {
-            selectedWorkerArcYear = years[0] || '2026';
-        }
-
-        container.innerHTML = `
-            <span style="font-size: 0.88rem; font-weight: 700; color: #475569; margin-right: 4px;">Año Fiscal:</span>
-            ${years.map(y => `
-                <button type="button" class="arc-year-tab-btn ${y === selectedWorkerArcYear ? 'active' : ''}" data-year="${y}" onclick="window.setWorkerArcYear('${y}')">${y}</button>
-            `).join('')}
-        `;
-    }
-
-    window.setWorkerArcYear = (year) => {
-        selectedWorkerArcYear = String(year);
-        const modal = document.getElementById('loginModal');
-        if (!modal) return;
-        const displayYear = modal.querySelector('#workerArcDisplayYear');
-        if (displayYear) displayYear.textContent = selectedWorkerArcYear;
-
-        // Actualizar botones de pestañas de año con color Vinotinto Institucional (no verde)
-        const tabBtns = modal.querySelectorAll('.arc-year-tab-btn');
-        tabBtns.forEach(btn => {
-            if (btn.getAttribute('data-year') === selectedWorkerArcYear) {
-                btn.classList.add('active');
-                btn.style.border = '1.5px solid #D4AF37';
-                btn.style.background = 'linear-gradient(135deg, #6A0D25 0%, #83122F 100%)';
-                btn.style.color = '#ffffff';
-                btn.style.fontWeight = '700';
-                btn.style.boxShadow = '0 2px 8px rgba(106, 13, 37, 0.3)';
-            } else {
-                btn.classList.remove('active');
-                btn.style.border = '1px solid #cbd5e1';
-                btn.style.background = '#f8fafc';
-                btn.style.color = '#475569';
-                btn.style.fontWeight = '600';
-                btn.style.boxShadow = 'none';
-            }
-        });
-    };
-
-    window.downloadWorkerArcSelectedYear = () => {
-        const targetUser = (allUsersCache && currentUser && allUsersCache.find(u => u.username.toLowerCase() === currentUser.username.toLowerCase())) || currentUser;
-        if (!targetUser) return;
-
-        const year = selectedWorkerArcYear || '2026';
-        let arcFile = null;
-
-        if (targetUser.arc_files && targetUser.arc_files[year]) {
-            arcFile = targetUser.arc_files[year];
-        } else if (targetUser.arc_file && (String(targetUser.arc_file.year) === String(year) || (!targetUser.arc_file.year && year === '2026'))) {
-            arcFile = targetUser.arc_file;
-        }
-
-        if (arcFile && arcFile.data) {
-            window.downloadArcFile(arcFile, targetUser);
-        } else {
-            window.pgetAlert(
-                `<div style="font-size: 1.05rem; font-weight: 700; color: #6A0D25; margin-bottom: 12px;"><i class="fas fa-exclamation-circle"></i> Planilla ARC ${year} no disponible</div>` +
-                `Estimado(a) <strong>${escapeHtml(targetUser.nombre || 'Trabajador')}</strong>:<br><br>` +
-                `Su <strong>Planilla de ARC para el ejercicio fiscal ${year}</strong> aún no ha sido cargada en el sistema por la <strong>Dirección de Recursos Humanos</strong>.<br><br>` +
-                `Por favor, comuníquese con Recursos Humanos para mayor información.`,
-                `Planilla ARC ${year} no disponible`,
-                'Aceptar',
-                'info'
-            );
-        }
-    };
-
-    function populateWorkerData(user) {
-        const modal = document.getElementById('loginModal');
-        const cond = (user.condicion || 'FIJO').toUpperCase();
-        const genero = (user.genero || 'masculino').toLowerCase();
-        const prof = formatProfessionByGender(user.profesion || '', genero);
-        
-        modal.querySelector('#workerName').textContent = formatFullNameWithTitle(user.nombre, prof, genero) || 'No registrado';
-        modal.querySelector('#workerCedula').textContent = formatCedulaOficial(user.cedula) || 'No registrada';
-        
-        const racEl = modal.querySelector('#workerCodigoRac');
-        if (racEl) racEl.textContent = user.codigo_rac || 'No registrado';
-
-        const tlfEl = modal.querySelector('#workerTelefono');
-        if (tlfEl) tlfEl.textContent = formatTelefono(user.telefono_codigo, user.telefono_numero) || user.telefono || 'No registrado';
-
-        const bancoEl = modal.querySelector('#workerBanco');
-        if (bancoEl) bancoEl.textContent = user.banco || 'Banco de Venezuela';
-
-        const cuentaEl = modal.querySelector('#workerCuenta');
-        if (cuentaEl) cuentaEl.textContent = formatMaskedAccount(user.cuenta);
-
-        const profEl = modal.querySelector('#workerProfesion');
-        if (profEl) profEl.textContent = prof || 'No especificada';
-
-        const condTextEl = modal.querySelector('#workerCondicionText');
-        if (condTextEl) condTextEl.textContent = `PERSONAL ${cond}`;
-
-        const condBadgeEl = modal.querySelector('#workerCondicionBadge');
-        if (condBadgeEl) {
-            condBadgeEl.textContent = cond;
-            condBadgeEl.className = `condicion-badge ${cond.toLowerCase()}`;
-        }
-
-        modal.querySelector('#workerCargo').textContent = user.cargo || 'No registrado';
-        
-        const fechaIngresoEl = modal.querySelector('#workerFechaIngreso');
-        if (fechaIngresoEl) fechaIngresoEl.textContent = user.fecha_ingreso || 'No registrada';
-
-        const salarioEl = modal.querySelector('#workerSalario');
-        if (salarioEl) salarioEl.textContent = user.salario || 'Bs. 1.000,00';
-
-        const autoYears = getCalculatedYearsOfService(user.fecha_ingreso, user.anos_servicio);
-        modal.querySelector('#workerYears').textContent = autoYears + (autoYears === '1' ? ' año' : ' años');
-
-        modal.querySelector('#workerDep').textContent = user.dependencia || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO';
-        
-        const dirEl = modal.querySelector('#workerDireccion');
-        if (dirEl) {
-            dirEl.textContent = user.direccion || 'DIRECCIÓN GENERAL';
-        }
-        
-        // Adaptar encabezado y descripción de la constancia según la condición
-        const certBadge = modal.querySelector('#workerCertModelBadge');
-        const certDesc = modal.querySelector('#workerCertDesc');
-        if (certBadge && certDesc) {
-            if (cond === 'JUBILADO') {
-                certBadge.textContent = 'Personal Jubilado';
-                certDesc.textContent = 'Modelo oficial de Constancia de Jubilación asignado conforme a su condición de personal jubilado.';
-            } else if (cond === 'CONTRATADO') {
-                certBadge.textContent = 'Personal Contratado';
-                certDesc.textContent = 'Modelo oficial de Constancia de Trabajo asignado conforme a su modalidad de contrato de servicios.';
-            } else {
-                certBadge.textContent = 'Personal Fijo';
-                certDesc.textContent = 'Modelo oficial de Constancia de Trabajo asignado conforme a su condición de personal fijo / ordinario.';
-            }
-        }
-
-        const certMsg = modal.querySelector('#certMessage');
-        if (certMsg) certMsg.textContent = '';
-
-        // Inicializar sección ARC en año 2026 y renderizar pestañas ordenadas
-        renderWorkerArcYearTabs(user);
-        window.setWorkerArcYear('2026');
-    }
-
-    // Cargar Usuarios en el Panel de Administrador
-    async function loadAdminUsers() {
-        const tbody = document.getElementById('adminUsersListBody');
-        const countBadge = document.getElementById('adminUsersCount');
-        
-        try {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando usuarios desde la base de datos...</td></tr>';
-            
-            let users = null;
-            try {
-                const res = await fetch(`${API_URL}/users`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (Array.isArray(data)) {
-                        users = data.filter(u => u.username.toLowerCase() !== 'admin' && u.username.toLowerCase() !== 'trabajador1');
-                        localStorage.setItem('pget_cached_users', JSON.stringify(users));
-                    }
-                }
-            } catch (err) {
-                console.warn('API warning al cargar usuarios:', err);
-            }
-
-            // Si la API no respondió por fallo de red, usar el cache persistente local
-            if (!users) {
-                const cached = localStorage.getItem('pget_cached_users');
-                if (cached) {
-                    try {
-                        users = JSON.parse(cached);
-                    } catch (e) {}
-                }
-            }
-
-            // Fallback de inicialización exclusiva si no hay datos en BD ni en caché
-            if (!users || users.length === 0) {
-                users = defaultAccounts.map(a => {
-                    const c = { ...a };
-                    delete c.password;
-                    return c;
-                });
-            }
-
-            // Garantizar siempre que no aparezca el duplicado 'admin' o 'trabajador1'
-            users = users.filter(u => u.username.toLowerCase() !== 'admin' && u.username.toLowerCase() !== 'trabajador1');
-
-            allUsersCache = users;
-            renderAdminUsersTable(users);
-
-        } catch (error) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#dc2626;">Error al cargar la lista de usuarios.</td></tr>';
-        }
-    }
-
-    function renderAdminUsersTable(users) {
-        const tbody = document.getElementById('adminUsersListBody');
-        const countBadge = document.getElementById('adminUsersCount');
-        const condLabel = currentCondicionFilter ? ` (${currentCondicionFilter})` : '';
-        countBadge.textContent = `${users.length} Usuarios Registrados${condLabel}`;
-
-        if (users.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:25px; color:#64748b;">No hay usuarios registrados bajo el filtro seleccionado.</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = users.map(u => {
-            const cond = (u.condicion || 'FIJO').toUpperCase();
-            const gen = (u.genero || 'masculino').toLowerCase();
-            const prof = formatProfessionByGender(u.profesion, gen);
-            const fullNameWithTitle = formatFullNameWithTitle(u.nombre, prof, gen);
-            const cedulaOficial = formatCedulaOficial(u.cedula);
-            const safeUsername = escapeHtml(u.username);
-            const safeFullName = escapeHtml(fullNameWithTitle || 'Sin nombre');
-            const safeCargo = escapeHtml(u.cargo || 'Sin cargo asignado');
-            const safeDireccion = escapeHtml(u.direccion || 'DIRECCIÓN GENERAL');
-            const safeSalario = escapeHtml(u.salario || 'Bs. 1.000,00');
-            const safeCedula = escapeHtml(cedulaOficial || 'N/A');
-            const safeCond = escapeHtml(cond);
-            const safeNameRaw = escapeHtml(u.nombre || u.username);
-
-            return `
-            <tr>
-                <td>
-                    <strong style="color: #1e293b; display: block; font-size: 0.95rem;">${safeFullName}</strong>
-                    <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap;">
-                        <span style="color: #64748b; font-size: 0.82rem; font-weight: 600;"><i class="fas fa-id-card"></i> ${safeCedula}</span>
-                        ${u.role !== 'admin' && safeCond ? `<span class="condicion-badge ${safeCond.toLowerCase()}">${safeCond}</span>` : ''}
-                        <span style="font-size: 0.78rem; color: #475569; background: #e2e8f0; padding: 2px 7px; border-radius: 4px; font-weight: 600;">
-                            <i class="fas ${gen === 'femenino' ? 'fa-venus' : 'fa-mars'}" style="color: ${gen === 'femenino' ? '#db2777' : '#0284c7'};"></i> ${gen === 'femenino' ? 'Femenino' : 'Masculino'}
-                        </span>
-                    </div>
-                    ${u.role !== 'admin' && (u.banco || u.cuenta) ? `
-                    <div style="margin-top: 5px; font-size: 0.8rem; color: #1e293b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; font-family: monospace;">
-                        <i class="fas fa-university" style="color: #6A0D25;"></i> ${escapeHtml(u.banco || 'Banco')}: <strong style="color: #0369a1; letter-spacing: 0.5px;">${escapeHtml(u.cuenta || 'Sin cuenta')}</strong>
-                    </div>` : ''}
-                    ${u.role !== 'admin' && (u.codigo_rac || u.telefono || u.telefono_numero) ? `
-                    <div style="margin-top: 3px; font-size: 0.78rem; color: #475569; display: flex; gap: 8px; flex-wrap: wrap;">
-                        ${u.codigo_rac ? `<span><strong style="color: #6A0D25;">RAC:</strong> ${escapeHtml(u.codigo_rac)}</span>` : ''}
-                        ${(u.telefono || u.telefono_numero) ? `<span><i class="fas fa-phone-alt" style="color: #6A0D25; font-size: 0.72rem;"></i> ${escapeHtml(formatTelefono(u.telefono_codigo, u.telefono_numero) || u.telefono)}</span>` : ''}
-                    </div>` : ''}
-                </td>
-                <td>
-                    <span style="color: #0369a1; font-weight: 600;">${safeUsername}</span>
-                </td>
-                <td>
-                    ${u.role === 'admin' ? `
-                    <strong style="color: #6A0D25; display: block;">ADMINISTRADOR DEL SISTEMA</strong>
-                    <span style="color: #64748b; font-size: 0.82rem; font-weight: 600;">Gestión de Personal y Seguridad</span>
-                    ` : `
-                    <strong style="color: #6A0D25; display: block;">${safeCargo}</strong>
-                    <span style="color: #1e293b; font-size: 0.82rem; font-weight: 600; display: block;">${safeDireccion}</span>
-                    <span style="color: #83122F; font-size: 0.82rem; font-weight: 700; display: block;">${safeSalario}</span>
-                    `}
-                </td>
-                <td>
-                    <span class="role-badge ${u.role === 'admin' ? 'admin' : 'trabajador'}">
-                        ${u.role === 'admin' ? '<i class="fas fa-shield-alt"></i> Admin' : '<i class="fas fa-user"></i> Trabajador'}
-                    </span>
-                </td>
-                <td style="text-align: right; white-space: nowrap;">
-                    ${u.role !== 'admin' && !u.username.startsWith('admin') ? `
-                    <button type="button" class="btn-action arc ${u.arc_file && u.arc_file.data ? 'has-arc' : ''}" onclick="window.openAdminArcModal('${safeUsername}')" data-user="${safeUsername}" title="${u.arc_file && u.arc_file.data ? 'Planilla ARC Cargada (Clic para ver/gestionar)' : 'Subir Planilla ARC para este trabajador'}">
-                        <i class="fas ${u.arc_file && u.arc_file.data ? 'fa-file-invoice' : 'fa-upload'}"></i> ARC ${u.arc_file && u.arc_file.data ? '<i class="fas fa-check" style="font-size:0.75rem;"></i>' : ''}
-                    </button>
-                    ` : ''}
-                    <button class="btn-action edit" data-user="${safeUsername}" title="Editar Información del Usuario">
-                        <i class="fas fa-edit"></i> Editar
-                    </button>
-                    ${!u.username.startsWith('admin') ? `
-                    <button class="btn-action delete" data-user="${safeUsername}" data-name="${safeNameRaw}" title="Eliminar Usuario">
-                        <i class="fas fa-trash"></i> Eliminar
-                    </button>
-                    ` : '<span style="color:#94a3b8; font-size:0.75rem; padding: 0 5px;">Protegido</span>'}
-                </td>
-            </tr>
-            `;
-        }).join('');
-
-        // Delegación de eventos segura (previene inyección en atributos onclick)
-        tbody.onclick = (e) => {
-            const arcBtn = e.target.closest('.btn-action.arc');
-            if (arcBtn) {
-                const u = arcBtn.getAttribute('data-user');
-                if (u) window.openAdminArcModal(u);
-                return;
-            }
-            const editBtn = e.target.closest('.btn-action.edit');
-            if (editBtn) {
-                const u = editBtn.getAttribute('data-user');
-                if (u) window.openEditUserForm(u);
-                return;
-            }
-            const delBtn = e.target.closest('.btn-action.delete');
-            if (delBtn) {
-                const u = delBtn.getAttribute('data-user');
-                const n = delBtn.getAttribute('data-name');
-                if (u) window.confirmDeleteUser(u, n);
-                return;
-            }
-        };
-    }
-
-    // Activar filtro rápido por condición (Fijos, Contratados, Jubilados, Todos)
-    window.setCondicionFilter = (cond) => {
-        currentCondicionFilter = cond ? cond.toUpperCase() : '';
-        const buttons = document.querySelectorAll('.cond-filter-btn');
-        buttons.forEach(btn => {
-            const btnCond = btn.getAttribute('data-cond') || '';
-            if (btnCond === currentCondicionFilter) {
-                btn.classList.add('active');
-                if (btnCond === 'FIJO') {
-                    btn.style.background = '#6A0D25';
-                    btn.style.color = 'white';
-                    btn.style.border = '1px solid #D4AF37';
-                } else if (btnCond === 'CONTRATADO') {
-                    btn.style.background = '#0284c7';
-                    btn.style.color = 'white';
-                    btn.style.border = '1px solid #38bdf8';
-                } else if (btnCond === 'JUBILADO') {
-                    btn.style.background = '#7e22ce';
-                    btn.style.color = 'white';
-                    btn.style.border = '1px solid #c084fc';
-                } else {
-                    btn.style.background = '#6A0D25';
-                    btn.style.color = 'white';
-                    btn.style.border = '1px solid #D4AF37';
-                }
-            } else {
-                btn.classList.remove('active');
-                btn.style.background = 'transparent';
-                btn.style.border = 'none';
-                if (btnCond === 'FIJO') btn.style.color = '#6A0D25';
-                else if (btnCond === 'CONTRATADO') btn.style.color = '#0284c7';
-                else if (btnCond === 'JUBILADO') btn.style.color = '#7e22ce';
-                else btn.style.color = '#475569';
-            }
-        });
-        window.filterAdminUsers();
-    };
-
-    // Filtrar usuarios en la tabla admin por texto y condición laboral
-    window.filterAdminUsers = () => {
-        const queryEl = document.getElementById('adminUserFilter');
-        const query = queryEl ? queryEl.value.toLowerCase().trim() : '';
-
-        const filtered = allUsersCache.filter(u => {
-            const cond = (u.condicion || 'FIJO').toUpperCase();
-            if (currentCondicionFilter && cond !== currentCondicionFilter) {
-                return false;
-            }
-            if (!query) return true;
-
-            return (
-                (u.nombre && u.nombre.toLowerCase().includes(query)) ||
-                (u.nombres && u.nombres.toLowerCase().includes(query)) ||
-                (u.apellidos && u.apellidos.toLowerCase().includes(query)) ||
-                (u.username && u.username.toLowerCase().includes(query)) ||
-                (u.cargo && u.cargo.toLowerCase().includes(query)) ||
-                (u.cedula && cleanCedula(u.cedula).toLowerCase().includes(query)) ||
-                (u.direccion && u.direccion.toLowerCase().includes(query)) ||
-                (u.dependencia && u.dependencia.toLowerCase().includes(query)) ||
-                (u.condicion && u.condicion.toLowerCase().includes(query)) ||
-                (u.profesion && u.profesion.toLowerCase().includes(query)) ||
-                (u.genero && u.genero.toLowerCase().includes(query)) ||
-                (u.salario && u.salario.toLowerCase().includes(query))
-            );
-        });
-        renderAdminUsersTable(filtered);
-    };
-
-    // Conmutar campos visibles según rol (Administrador no debe tener profesión, datos laborales ni Planilla ARC)
-    function updateAdminFormVisibility(modal) {
-        if (!modal) modal = document.getElementById('loginModal');
-        if (!modal) return;
-        const roleSelect = modal.querySelector('#formRole');
-        const isAdmin = roleSelect && roleSelect.value === 'admin';
-
-        const profGroup = modal.querySelector('#formProfesionGroup');
-        const laboralSection = modal.querySelector('#formLaboralSection');
-        const racGroup = modal.querySelector('#formCodigoRacGroup');
-        const tlfGroup = modal.querySelector('#formTelefonoGroup');
-
-        const profSelect = modal.querySelector('#formProfesion');
-        const cargoInput = modal.querySelector('#formCargo');
-        const condSelect = modal.querySelector('#formCondicion');
-        const salInput = modal.querySelector('#formSalario');
-        const fechaInput = modal.querySelector('#formFechaIngreso');
-        const depSelect = modal.querySelector('#formDependencia');
-        const dirSelect = modal.querySelector('#formDireccion');
-        const racInput = modal.querySelector('#formCodigoRac');
-        const tlfNumInput = modal.querySelector('#formTelefonoNumero');
-        const bancoSelect = modal.querySelector('#formBanco');
-        const cuentaInput = modal.querySelector('#formCuenta');
-
-        if (isAdmin) {
-            if (profGroup) profGroup.style.display = 'none';
-            if (laboralSection) laboralSection.style.display = 'none';
-            if (racGroup) racGroup.style.display = 'none';
-            if (tlfGroup) tlfGroup.style.display = 'none';
-            if (profSelect) profSelect.required = false;
-            if (cargoInput) cargoInput.required = false;
-            if (condSelect) condSelect.required = false;
-            if (salInput) salInput.required = false;
-            if (fechaInput) fechaInput.required = false;
-            if (depSelect) depSelect.required = false;
-            if (dirSelect) dirSelect.required = false;
-            if (racInput) racInput.required = false;
-            if (tlfNumInput) tlfNumInput.required = false;
-            if (bancoSelect) bancoSelect.required = false;
-            if (cuentaInput) cuentaInput.required = false;
-        } else {
-            if (profGroup) profGroup.style.display = '';
-            if (laboralSection) laboralSection.style.display = 'contents';
-            if (racGroup) racGroup.style.display = '';
-            if (tlfGroup) tlfGroup.style.display = '';
-            if (profSelect) profSelect.required = true;
-            if (cargoInput) cargoInput.required = true;
-            if (condSelect) condSelect.required = true;
-            if (salInput) salInput.required = true;
-            if (fechaInput) fechaInput.required = true;
-            if (depSelect) depSelect.required = true;
-            if (dirSelect) dirSelect.required = true;
-            if (racInput) racInput.required = true;
-            if (tlfNumInput) tlfNumInput.required = true;
-            if (bancoSelect) bancoSelect.required = true;
-            if (cuentaInput) cuentaInput.required = true;
-        }
-    }
-
-    // Abrir Formulario para Crear Usuario (Pantalla Completa)
-    window.openCreateUserForm = () => {
-        editingUsername = null;
-        const modal = document.getElementById('loginModal');
-        const mainContent = document.getElementById('mainModalContent');
-        const closeBtn = modal.querySelector('#modalCloseBtn');
-        if (closeBtn) closeBtn.style.display = 'none';
-        if (mainContent) mainContent.classList.add('portal-fullscreen');
-
-        modal.querySelector('#adminView').style.display = 'none';
-        const userForm = modal.querySelector('#userFormView');
-        userForm.style.display = 'flex';
-
-        modal.querySelector('#userFormTitle').innerHTML = '<i class="fas fa-user-plus"></i> Registrar Nuevo Usuario / Trabajador';
-        modal.querySelector('#formUsername').disabled = false;
-        modal.querySelector('#formUsername').value = '';
-
-        // Contraseñas para nuevo usuario (siempre visibles y obligatorias)
-        const passBtnWrapper = modal.querySelector('#changePasswordBtnWrapper');
-        if (passBtnWrapper) passBtnWrapper.style.display = 'none';
-        const passContainer = modal.querySelector('#passwordFieldsContainer');
-        if (passContainer) passContainer.style.display = 'grid';
-        modal.querySelector('#formPassLabel').textContent = 'Contraseña *';
-        modal.querySelector('#formPassConfirmLabel').textContent = 'Confirmar Contraseña *';
-        modal.querySelector('#formPassword').value = '';
-        modal.querySelector('#formPassword').placeholder = 'Contraseña para el nuevo usuario';
-        modal.querySelector('#formPasswordConfirm').value = '';
-        modal.querySelector('#formPasswordConfirm').placeholder = 'Repita la contraseña para confirmar';
-
-        modal.querySelector('#formRole').value = 'trabajador';
-        updateAdminFormVisibility(modal);
-        modal.querySelector('#formNombres').value = '';
-        modal.querySelector('#formApellidos').value = '';
-        setFormGender('masculino');
-        updateFormProfesionOptions('masculino', 'Abogado');
-        modal.querySelector('#formCedula').value = '';
-        modal.querySelector('#formCodigoRac').value = '';
-        modal.querySelector('#formTelefonoCodigo').value = '0414';
-        modal.querySelector('#formTelefonoNumero').value = '';
-        modal.querySelector('#formBanco').value = 'Banco de Venezuela';
-        modal.querySelector('#formCuenta').value = '';
-        const formArcYear = modal.querySelector('#formArcYear');
-        if (formArcYear) formArcYear.value = '2025';
-        modal.querySelector('#formCargo').value = '';
-        modal.querySelector('#formCondicion').value = 'FIJO';
-        modal.querySelector('#formSalario').value = '1.000,00';
-        modal.querySelector('#formDependencia').value = 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO';
-        modal.querySelector('#formDireccion').value = 'DIRECCIÓN DE RECURSOS HUMANOS';
-        modal.querySelector('#formFechaIngreso').value = '';
-        modal.querySelector('#formAnos').value = '0';
-        
-        formSelectedArcFile = undefined;
-        const formArcNotice = modal.querySelector('#formArcSelectedNotice');
-        if (formArcNotice) formArcNotice.textContent = '';
-        const formArcBadge = modal.querySelector('#formArcStatusBadge');
-        if (formArcBadge) {
-            formArcBadge.textContent = 'Sin archivo';
-            formArcBadge.style.background = '#f1f5f9';
-            formArcBadge.style.color = '#64748b';
-            formArcBadge.style.borderColor = '#cbd5e1';
-        }
-        const prevBtn = modal.querySelector('#formArcPreviewBtn');
-        if (prevBtn) prevBtn.style.display = 'none';
-        const delBtn = modal.querySelector('#formArcDeleteBtn');
-        if (delBtn) delBtn.style.display = 'none';
-        const fileIn = modal.querySelector('#formArcFileInput');
-        if (fileIn) fileIn.value = '';
-
-        const err = modal.querySelector('#formUserError');
-        if (err) err.style.display = 'none';
-    };
-
-    // Abrir Formulario para Editar Usuario (Pantalla Completa)
-    window.openEditUserForm = (username) => {
-        const user = allUsersCache.find(u => u.username.toLowerCase() === username.toLowerCase());
-        if (!user) return;
-
-        editingUsername = username;
-        const modal = document.getElementById('loginModal');
-        const mainContent = document.getElementById('mainModalContent');
-        const closeBtn = modal.querySelector('#modalCloseBtn');
-        if (closeBtn) closeBtn.style.display = 'none';
-        if (mainContent) mainContent.classList.add('portal-fullscreen');
-
-        modal.querySelector('#adminView').style.display = 'none';
-        const userForm = modal.querySelector('#userFormView');
-        userForm.style.display = 'flex';
-
-        const gen = (user.genero || 'masculino').toLowerCase();
-        modal.querySelector('#userFormTitle').innerHTML = `<i class="fas fa-user-edit"></i> Modificar Datos: ${user.nombre || username}`;
-        modal.querySelector('#formUsername').value = user.username;
-        modal.querySelector('#formUsername').disabled = false;
-
-        // Botón Cambiar Contraseña en edición (oculto por defecto hasta pulsar botón)
-        const passBtnWrapper = modal.querySelector('#changePasswordBtnWrapper');
-        if (passBtnWrapper) passBtnWrapper.style.display = 'inline-flex';
-        const passBtn = modal.querySelector('#btnToggleChangePass');
-        if (passBtn) {
-            passBtn.innerHTML = '<i class="fas fa-key" style="color: #D4AF37;"></i> Cambiar Contraseña';
-            passBtn.style.background = '#f1f5f9';
-            passBtn.style.borderColor = '#cbd5e1';
-        }
-        const passContainer = modal.querySelector('#passwordFieldsContainer');
-        if (passContainer) passContainer.style.display = 'none';
-        modal.querySelector('#formPassLabel').textContent = 'Nueva Contraseña *';
-        modal.querySelector('#formPassConfirmLabel').textContent = 'Confirmar Nueva Contraseña *';
-        modal.querySelector('#formPassword').value = '';
-        modal.querySelector('#formPassword').placeholder = 'Escriba la nueva contraseña';
-        modal.querySelector('#formPasswordConfirm').value = '';
-        modal.querySelector('#formPasswordConfirm').placeholder = 'Confirme la nueva contraseña';
-
-        modal.querySelector('#formRole').value = user.role || 'trabajador';
-        updateAdminFormVisibility(modal);
-        
-        // Cargar nombres y apellidos por separado
-        const userNombres = user.nombres || '';
-        const userApellidos = user.apellidos || '';
-        if (!userNombres && !userApellidos && user.nombre) {
-            const split = splitNombreApellidos(user.nombre);
-            modal.querySelector('#formNombres').value = split.nombres;
-            modal.querySelector('#formApellidos').value = split.apellidos;
-        } else {
-            modal.querySelector('#formNombres').value = userNombres;
-            modal.querySelector('#formApellidos').value = userApellidos;
-        }
-
-        setFormGender(gen);
-        updateFormProfesionOptions(gen, user.profesion || 'Abogado');
-        modal.querySelector('#formCedula').value = cleanCedula(user.cedula);
-        modal.querySelector('#formCodigoRac').value = (user.codigo_rac || '').replace(/\D/g, '').slice(0, 10);
-
-        // Teléfono: código y número
-        let telCod = user.telefono_codigo || '';
-        let telNum = user.telefono_numero || '';
-        if (!telCod && user.telefono) {
-            const m = String(user.telefono).match(/^(0416|0426|0414|0424|0412|0422)[-\s]?(\d{7})$/);
-            if (m) {
-                telCod = m[1];
-                telNum = m[2];
-            } else {
-                telNum = String(user.telefono).replace(/\D/g, '').slice(-7);
-            }
-        }
-        modal.querySelector('#formTelefonoCodigo').value = telCod || '0414';
-        modal.querySelector('#formTelefonoNumero').value = (telNum || '').replace(/\D/g, '').slice(0, 7);
-
-        // Banco y Cuenta (Exclusivo Banco de Venezuela 0102)
-        modal.querySelector('#formBanco').value = 'Banco de Venezuela';
-        let rawCuentaVal = (user.cuenta || '').replace(/\D/g, '');
-        if (rawCuentaVal.startsWith('0102')) {
-            rawCuentaVal = rawCuentaVal.slice(4);
-        }
-        modal.querySelector('#formCuenta').value = rawCuentaVal.slice(0, 16);
-
-        const formArcYear = modal.querySelector('#formArcYear');
-        if (formArcYear) formArcYear.value = (user.arc_file && user.arc_file.year) ? String(user.arc_file.year) : '2025';
-
-        modal.querySelector('#formCargo').value = user.cargo || '';
-        modal.querySelector('#formCondicion').value = (user.condicion || 'FIJO').toUpperCase();
-        modal.querySelector('#formSalario').value = cleanSalarioAmount(user.salario);
-        modal.querySelector('#formDependencia').value = user.dependencia || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO';
-        modal.querySelector('#formDireccion').value = user.direccion || 'DIRECCIÓN DE RECURSOS HUMANOS';
-        modal.querySelector('#formFechaIngreso').value = toInputDateValue(user.fecha_ingreso);
-        
-        // Calcular años de servicio: cálculo exacto según fecha_ingreso
-        const autoYears = getCalculatedYearsOfService(user.fecha_ingreso, user.anos_servicio);
-        modal.querySelector('#formAnos').value = autoYears;
-
-        formSelectedArcFile = undefined;
-        const formArcNoticeEdit = modal.querySelector('#formArcSelectedNotice');
-        if (formArcNoticeEdit) formArcNoticeEdit.textContent = '';
-        const formArcBadgeEdit = modal.querySelector('#formArcStatusBadge');
-        const prevBtnEdit = modal.querySelector('#formArcPreviewBtn');
-        const delBtnEdit = modal.querySelector('#formArcDeleteBtn');
-        const fileInEdit = modal.querySelector('#formArcFileInput');
-        if (fileInEdit) fileInEdit.value = '';
-
-        if (user.arc_file && user.arc_file.data) {
-            if (formArcBadgeEdit) {
-                formArcBadgeEdit.textContent = 'Cargada ✓';
-                formArcBadgeEdit.style.background = '#dcfce7';
-                formArcBadgeEdit.style.color = '#166534';
-                formArcBadgeEdit.style.borderColor = '#86efac';
-            }
-            if (formArcNoticeEdit) {
-                formArcNoticeEdit.textContent = `Archivo actual: ${user.arc_file.name || 'Planilla ARC'} (${user.arc_file.uploaded_at || ''})`;
-            }
-            if (prevBtnEdit) prevBtnEdit.style.display = 'inline-flex';
-            if (delBtnEdit) delBtnEdit.style.display = 'inline-flex';
-        } else {
-            if (formArcBadgeEdit) {
-                formArcBadgeEdit.textContent = 'Sin archivo';
-                formArcBadgeEdit.style.background = '#f1f5f9';
-                formArcBadgeEdit.style.color = '#64748b';
-                formArcBadgeEdit.style.borderColor = '#cbd5e1';
-            }
-            if (prevBtnEdit) prevBtnEdit.style.display = 'none';
-            if (delBtnEdit) delBtnEdit.style.display = 'none';
-        }
-
-        const err = modal.querySelector('#formUserError');
-        if (err) err.style.display = 'none';
-    };
-
-    window.backToAdminView = () => {
-        const modal = document.getElementById('loginModal');
-        const mainContent = document.getElementById('mainModalContent');
-        const closeBtn = modal.querySelector('#modalCloseBtn');
-        if (closeBtn) closeBtn.style.display = 'none';
-        if (mainContent) {
-            mainContent.classList.add('portal-fullscreen');
-            mainContent.classList.add('admin-modal-size');
-        }
-        modal.querySelector('#userFormView').style.display = 'none';
-        modal.querySelector('#adminView').style.display = 'flex';
-    };
-
-    // Guardar Usuario (Crear o Editar)
-    async function handleSaveUser() {
-        const modal = document.getElementById('loginModal');
-        const errDiv = modal.querySelector('#formUserError');
-        const submitBtn = modal.querySelector('#saveUserSubmitBtn');
-
-        const username = modal.querySelector('#formUsername').value.trim().toLowerCase();
-        const role = modal.querySelector('#formRole').value;
-        const isAdmin = role === 'admin';
-        const nombres = modal.querySelector('#formNombres').value.trim().toUpperCase();
-        const apellidos = modal.querySelector('#formApellidos').value.trim().toUpperCase();
-        const cedula = cleanCedula(modal.querySelector('#formCedula').value);
-        const gen = getFormGender();
-
-        let profNormalized = '';
-        let cargo = '';
-        let condicion = '';
-        let salario = '';
-        let dependencia = '';
-        let direccion = '';
-        let fechaIng = '';
-        let autoYears = '0';
-        let codigoRac = '';
-        let telCodigo = '';
-        let telNumero = '';
-        let telefonoCompleto = '';
-        let banco = '';
-        let cuenta = '';
-
-        if (!isAdmin) {
-            const rawFechaIng = modal.querySelector('#formFechaIngreso').value.trim();
-            fechaIng = toDisplayDateValue(rawFechaIng);
-            const userTypedAnos = (modal.querySelector('#formAnos').value || '').trim();
-            if (userTypedAnos !== '' && !isNaN(parseInt(userTypedAnos, 10))) {
-                autoYears = String(Math.max(0, parseInt(userTypedAnos, 10)));
-            } else {
-                autoYears = getCalculatedYearsOfService(rawFechaIng || fechaIng, '0');
-            }
-            modal.querySelector('#formAnos').value = autoYears;
-            const profVal = modal.querySelector('#formProfesion').value;
-            profNormalized = formatProfessionByGender(profVal, gen);
-
-            cargo = modal.querySelector('#formCargo').value.trim().toUpperCase();
-            condicion = modal.querySelector('#formCondicion').value;
-            salario = formatSalarioBs(modal.querySelector('#formSalario').value);
-            dependencia = (modal.querySelector('#formDependencia').value || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO').trim().toUpperCase();
-            direccion = modal.querySelector('#formDireccion').value;
-
-            codigoRac = (modal.querySelector('#formCodigoRac').value || '').trim().replace(/\D/g, '').slice(0, 10);
-            telCodigo = (modal.querySelector('#formTelefonoCodigo').value || '0414').trim();
-            telNumero = (modal.querySelector('#formTelefonoNumero').value || '').trim().replace(/\D/g, '').slice(0, 7);
-            banco = 'Banco de Venezuela';
-            const rawRestoCuenta = (modal.querySelector('#formCuenta').value || '').trim().replace(/\D/g, '').slice(0, 16);
-            cuenta = rawRestoCuenta ? `0102${rawRestoCuenta}` : '';
-
-            if (telCodigo && telNumero) {
-                telefonoCompleto = `${telCodigo}-${telNumero}`;
-            }
-
-            if (cargo) {
-                addCargoToCatalog(cargo);
-            }
-
-            // Validación: Todos los campos deben ser obligatorios para trabajador
-            if (!username || !nombres || !apellidos || !cedula || !cargo || !condicion || !salario || !fechaIng || !dependencia || !direccion || !profVal) {
-                errDiv.style.display = 'block';
-                errDiv.textContent = 'Todos los campos son obligatorios. Por favor complete toda la información requerida.';
-                return;
-            }
-
-            if (!codigoRac) {
-                errDiv.style.display = 'block';
-                errDiv.textContent = 'El Código RAC es obligatorio (máximo 10 dígitos numéricos).';
-                return;
-            }
-
-            if (!telNumero || telNumero.length !== 7) {
-                errDiv.style.display = 'block';
-                errDiv.textContent = 'El Número de Teléfono debe contener exactamente 7 dígitos numéricos tras el código seleccionado.';
-                return;
-            }
-
-            if (!banco) {
-                errDiv.style.display = 'block';
-                errDiv.textContent = 'Debe seleccionar una Entidad Bancaria.';
-                return;
-            }
-
-            if (!cuenta) {
-                errDiv.style.display = 'block';
-                errDiv.textContent = 'El Número de Cuenta Bancaria es obligatorio (máximo 20 dígitos numéricos).';
-                return;
-            }
-        } else {
-            // Perfil Administrador: No debe tener esos datos ni profesion ni planilla ARC
-            if (!username || !nombres || !apellidos || !cedula) {
-                errDiv.style.display = 'block';
-                errDiv.textContent = 'Todos los campos de acceso y datos personales son obligatorios: Correo, Nombres, Apellidos y Cédula.';
-                return;
-            }
-            profNormalized = '';
-            cargo = 'ADMINISTRADOR DEL SISTEMA';
-            condicion = '';
-            salario = '';
-            dependencia = 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO';
-            direccion = 'DIRECCIÓN GENERAL';
-            fechaIng = '';
-            autoYears = '0';
-            codigoRac = '';
-            telCodigo = '';
-            telNumero = '';
-            telefonoCompleto = '';
-            banco = '';
-            cuenta = '';
-        }
-
-        // Validación de cédula: admite solo números
-        if (!/^\d+$/.test(cedula)) {
-            errDiv.style.display = 'block';
-            errDiv.textContent = 'La cédula de identidad debe contener solo números.';
-            return;
-        }
-
-        const nombreCompleto = `${nombres} ${apellidos}`.trim();
-
-        const userData = {
-            username: username,
-            role: role,
-            nombres: nombres,
-            apellidos: apellidos,
-            nombre: nombreCompleto,
-            genero: gen,
-            profesion: profNormalized,
-            cedula: cedula,
-            codigo_rac: codigoRac,
-            telefono_codigo: telCodigo,
-            telefono_numero: telNumero,
-            telefono: telefonoCompleto,
-            banco: banco,
-            cuenta: cuenta,
-            cargo: cargo,
-            condicion: condicion,
-            salario: salario,
-            dependencia: dependencia,
-            direccion: direccion,
-            fecha_ingreso: fechaIng,
-            anos_servicio: autoYears
-        };
-
-        const formArcYearSelect = modal.querySelector('#formArcYear');
-        const selectedYear = formArcYearSelect ? formArcYearSelect.value : '2025';
-
-        if (isAdmin) {
-            userData.arc_file = null;
-        } else if (formSelectedArcFile !== undefined) {
-            if (formSelectedArcFile) {
-                formSelectedArcFile.year = selectedYear;
-                userData.arc_file = formSelectedArcFile;
-                if (!userData.arc_files) userData.arc_files = {};
-                userData.arc_files[selectedYear] = formSelectedArcFile;
-            } else {
-                userData.arc_file = null;
-            }
-        }
-
-        // Validación de Contraseña
-        const pass = modal.querySelector('#formPassword').value.trim();
-        const passConfirm = modal.querySelector('#formPasswordConfirm').value.trim();
-
-        if (!editingUsername) {
-            // Al crear nuevo usuario, la contraseña y confirmación son obligatorias
-            if (!pass || !passConfirm) {
-                errDiv.style.display = 'block';
-                errDiv.textContent = 'Todos los campos son obligatorios: ingrese y confirme la contraseña.';
-                return;
-            }
-            if (pass !== passConfirm) {
-                errDiv.style.display = 'block';
-                errDiv.textContent = 'Las contraseñas no coinciden. Por favor verifique.';
-                return;
-            }
-            userData.password = pass;
-        } else {
-            // Al editar usuario existente
-            const passContainer = modal.querySelector('#passwordFieldsContainer');
-            const isChangingPass = passContainer && passContainer.style.display !== 'none';
-            if (isChangingPass || pass || passConfirm) {
-                if (!pass || !passConfirm) {
-                    errDiv.style.display = 'block';
-                    errDiv.textContent = 'Para cambiar la contraseña debe ingresar la nueva clave y confirmarla.';
-                    return;
-                }
-                if (pass !== passConfirm) {
-                    errDiv.style.display = 'block';
-                    errDiv.textContent = 'Las contraseñas no coinciden. Por favor verifique.';
-                    return;
-                }
-                userData.password = pass;
-            }
-        }
-
-        try {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
-            errDiv.style.display = 'none';
-
-            let response;
-            if (editingUsername) {
-                // Si se marcó explícitamente para quitar la Planilla ARC o el usuario es Administrador, eliminar en backend
-                if (formSelectedArcFile === null || isAdmin) {
-                    try {
-                        await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}/arc`, {
-                            method: 'DELETE'
-                        });
-                    } catch (eArcDel) {}
-                }
-
-                // Actualizar usuario existente: enviar a /users/update con username objetivo y new_username
-                const updatePayload = {
-                    ...userData,
-                    username: editingUsername,
-                    new_username: username
-                };
-                try {
-                    response = await fetch(`${API_URL}/users/update`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(updatePayload)
-                    });
-                } catch (e) {
-                    response = null;
-                }
-
-                // Fallback 1: POST /users/{username}/update
-                if (!response || !response.ok) {
-                    try {
-                        const fallbackRes = await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}/update`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(updatePayload)
-                        });
-                        if (fallbackRes.ok || !response) response = fallbackRes;
-                    } catch (e2) {}
-                }
-
-                // Fallback 2: PUT /users/{username}
-                if (!response || !response.ok) {
-                    try {
-                        const fallbackRes2 = await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(updatePayload)
-                        });
-                        if (fallbackRes2.ok || !response) response = fallbackRes2;
-                    } catch (e3) {}
-                }
-            } else {
-                // Crear nuevo usuario
-                response = await fetch(`${API_URL}/users`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(userData)
-                });
-            }
-
-            if (response && response.ok) {
-                const successMsg = editingUsername ? '¡Usuario actualizado exitosamente!' : '¡Usuario creado exitosamente!';
-                const finalUsername = username || editingUsername;
-                if (editingUsername) {
-                    const idx = allUsersCache.findIndex(u => u.username.toLowerCase() === editingUsername.toLowerCase());
-                    if (idx !== -1) {
-                        allUsersCache[idx] = { ...allUsersCache[idx], ...userData, username: finalUsername };
-                        if (formSelectedArcFile === null || isAdmin) {
-                            delete allUsersCache[idx].arc_file;
-                            allUsersCache[idx].arc_file = null;
-                        }
-                    }
-                    if (currentUser && currentUser.username.toLowerCase() === editingUsername.toLowerCase()) {
-                        currentUser = { ...currentUser, ...userData, username: finalUsername };
-                        if (formSelectedArcFile === null || isAdmin) {
-                            delete currentUser.arc_file;
-                            currentUser.arc_file = null;
-                        }
-                        localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
-                    }
-                } else {
-                    allUsersCache.push(userData);
-                }
-                localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
-                window.backToAdminView();
-                renderAdminUsersTable(allUsersCache);
-                await window.showFloatingDialog({
-                    title: editingUsername ? 'Usuario Modificado' : 'Usuario Registrado',
-                    message: successMsg,
-                    type: 'success',
-                    confirmText: 'Aceptar'
-                });
-                loadAdminUsers();
-            } else {
-                const data = response ? await response.json().catch(() => ({})) : {};
-                errDiv.style.display = 'block';
-                errDiv.textContent = data.detail || 'Error al guardar los datos del usuario en el servidor.';
-                await window.showFloatingDialog({
-                    title: 'Error al Guardar',
-                    message: data.detail || 'Error al guardar los datos del usuario en el servidor.',
-                    type: 'danger',
-                    confirmText: 'Aceptar'
-                });
-            }
-        } catch (error) {
-            // Guardado en memoria si la API estuviera offline
-            if (editingUsername) {
-                const idx = allUsersCache.findIndex(u => u.username.toLowerCase() === editingUsername.toLowerCase());
-                if (idx !== -1) {
-                    allUsersCache[idx] = { ...allUsersCache[idx], ...userData };
-                    if (formSelectedArcFile === null || isAdmin) {
-                        delete allUsersCache[idx].arc_file;
-                        allUsersCache[idx].arc_file = null;
-                    }
-                }
-            } else {
-                allUsersCache.push(userData);
-            }
-            localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
-            window.backToAdminView();
-            renderAdminUsersTable(allUsersCache);
-            await window.showFloatingDialog({
-                title: 'Almacenamiento Local',
-                message: '¡Usuario guardado localmente!',
-                type: 'warning',
-                confirmText: 'Aceptar'
-            });
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fas fa-save"></i> Guardar Usuario';
-        }
-    }
-
-    // Eliminar Usuario con Ventana Flotante Centrada
-    window.confirmDeleteUser = async (username, nombre) => {
-        const confirmed = await window.showFloatingDialog({
-            title: 'Confirmar Eliminación de Usuario',
-            message: `¿Está seguro de que desea eliminar al usuario "${nombre || username}"?\n\nEsta acción no se puede deshacer y removerá permanentemente al trabajador del sistema.`,
-            type: 'delete',
-            confirmText: 'Sí, Eliminar Usuario',
-            cancelText: 'Cancelar',
-            isConfirm: true
-        });
-
-        if (!confirmed) {
-            return;
-        }
-
-        try {
-            let res;
-            try {
-                res = await fetch(`${API_URL}/users/delete`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: username })
-                });
-            } catch (e) {
-                res = null;
-            }
-
-            // Fallback 1: POST /users/{username}/delete
-            if (!res || !res.ok) {
-                try {
-                    const fallbackRes = await fetch(`${API_URL}/users/${encodeURIComponent(username)}/delete`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username: username })
-                    });
-                    if (fallbackRes.ok || !res) res = fallbackRes;
-                } catch (e2) {}
-            }
-
-            // Fallback 2: DELETE /users/{username}
-            if (!res || !res.ok) {
-                try {
-                    const fallbackRes2 = await fetch(`${API_URL}/users/${encodeURIComponent(username)}`, {
-                        method: 'DELETE'
-                    });
-                    if (fallbackRes2.ok || !res) res = fallbackRes2;
-                } catch (e3) {}
-            }
-
-            if (res && res.ok) {
-                allUsersCache = allUsersCache.filter(u => u.username.toLowerCase() !== username.toLowerCase());
-                localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
-                renderAdminUsersTable(allUsersCache);
-                await window.showFloatingDialog({
-                    title: 'Usuario Eliminado',
-                    message: `El usuario ${username} ha sido eliminado exitosamente del sistema.`,
-                    type: 'success',
-                    confirmText: 'Aceptar'
-                });
-                loadAdminUsers();
-            } else {
-                const data = res ? await res.json().catch(() => ({})) : {};
-                await window.showFloatingDialog({
-                    title: 'Error al Eliminar',
-                    message: data.detail || 'No se pudo eliminar el usuario en el servidor.',
-                    type: 'danger',
-                    confirmText: 'Aceptar'
-                });
-            }
-        } catch (error) {
-            // Eliminar de cache local
-            allUsersCache = allUsersCache.filter(u => u.username.toLowerCase() !== username.toLowerCase());
-            localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
-            renderAdminUsersTable(allUsersCache);
-            await window.showFloatingDialog({
-                title: 'Eliminación Local',
-                message: `El usuario ${username} ha sido eliminado localmente.`,
-                type: 'warning',
-                confirmText: 'Aceptar'
-            });
-        }
-    };
-
-    // Funciones auxiliares para formato en cliente (Cédula, Salario en Letras, Fecha en Letras)
-    function formatCedulaConPuntos(val) {
-        if (!val) return '';
-        const clean = String(val).replace(/[^0-9]/g, '');
-        if (!clean) return String(val);
-        return Number(clean).toLocaleString('es-VE').replace(/,/g, '.');
-    }
-
-    function _seccionCentenasJS(n) {
-        if (n === 0) return '';
-        if (n === 100) return 'CIEN';
-        const centenas = ['', 'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS', 'QUINIENTOS', 'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS'];
-        const decenas = ['', 'DIEZ', 'VEINTE', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA'];
-        const diezY = ['DIEZ', 'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE', 'DIECISÉIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE'];
-        const veinti = ['VEINTE', 'VEINTIÚN', 'VEINTIDÓS', 'VEINTITRÉS', 'VEINTICUATRO', 'VEINTICINCO', 'VEINTISÉIS', 'VEINTISIETE', 'VEINTIOCHO', 'VEINTINUEVE'];
-        const unidades = ['', 'UN', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
-
-        const c = Math.floor(n / 100);
-        const resto = n % 100;
-        const txtC = centenas[c] || '';
-        if (resto === 0) return txtC;
-        let txtD = '';
-        if (resto < 10) txtD = unidades[resto];
-        else if (resto < 20) txtD = diezY[resto - 10];
-        else if (resto < 30) txtD = veinti[resto - 20];
-        else {
-            const d = Math.floor(resto / 10);
-            const u = resto % 10;
-            txtD = decenas[d] + (u > 0 ? ` Y ${unidades[u]}` : '');
-        }
-        return `${txtC} ${txtD}`.trim();
-    }
-
-    function numeroALetrasEnteroJS(n) {
-        if (n === 0) return 'CERO';
-        const millones = Math.floor(n / 1000000);
-        const restoM = n % 1000000;
-        const miles = Math.floor(restoM / 1000);
-        const unidades = restoM % 1000;
-        const partes = [];
-        if (millones === 1) partes.push('UN MILLÓN');
-        else if (millones > 1) partes.push(`${_seccionCentenasJS(millones)} MILLONES`);
-        if (miles === 1) partes.push('UN MIL');
-        else if (miles > 1) partes.push(`${_seccionCentenasJS(miles)} MIL`);
-        if (unidades > 0) partes.push(_seccionCentenasJS(unidades));
-        return partes.join(' ').trim();
-    }
-
-    function formatearSalarioLetrasJS(salarioRaw) {
-        let clean = String(salarioRaw || '1000').replace(/Bs\.?/g, '').trim();
-        clean = clean.replace(/\./g, '').replace(/,/g, '.');
-        let val = parseFloat(clean);
-        if (isNaN(val)) val = 1000.0;
-        const entero = Math.floor(val);
-        const centimos = Math.round((val - entero) * 100);
-        const letrasEntero = numeroALetrasEnteroJS(entero);
-        const letrasCentimos = numeroALetrasEnteroJS(centimos);
-        const textoCompleto = centimos === 0 ? `${letrasEntero} CON CERO CÉNTIMOS` : `${letrasEntero} CON ${letrasCentimos} CÉNTIMOS`;
-        const formatoNum = `Bs. ${entero.toLocaleString('es-VE').replace(/,/g, '.')},${String(centimos).padStart(2, '0')}`;
-        return { textoCompleto, formatoNum };
-    }
-
-    function fechaALetrasExpedicionJS(dt) {
-        const diasLetras = {
-            1: 'un (1)', 2: 'dos (2)', 3: 'tres (3)', 4: 'cuatro (4)', 5: 'cinco (5)',
-            6: 'seis (6)', 7: 'siete (7)', 8: 'ocho (8)', 9: 'nueve (9)', 10: 'diez (10)',
-            11: 'once (11)', 12: 'doce (12)', 13: 'trece (13)', 14: 'catorce (14)', 15: 'quince (15)',
-            16: 'dieciséis (16)', 17: 'diecisiete (17)', 18: 'dieciocho (18)', 19: 'diecinueve (19)',
-            20: 'veinte (20)', 21: 'veintiún (21)', 22: 'veintidós (22)', 23: 'veintitrés (23)',
-            24: 'veinticuatro (24)', 25: 'veinticinco (25)', 26: 'veintiséis (26)', 27: 'veintisiete (27)',
-            28: 'veintiocho (28)', 29: 'veintinueve (29)', 30: 'treinta (30)', 31: 'treinta y un (31)'
-        };
-        const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-        const anosLetras = {
-            2024: 'dos mil veinticuatro (2024)',
-            2025: 'dos mil veinticinco (2025)',
-            2026: 'dos mil veintiséis (2026)',
-            2027: 'dos mil veintisiete (2027)',
-            2028: 'dos mil veintiocho (2028)'
-        };
-        const dia = dt.getDate();
-        const diaTxt = diasLetras[dia] || `${dia} (${dia})`;
-        const mesTxt = meses[dt.getMonth()];
-        const ano = dt.getFullYear();
-        const anoTxt = anosLetras[ano] || `dos mil veintiséis (${ano})`;
-        return `los ${diaTxt} días del mes de ${mesTxt} del año ${anoTxt}`;
-    }
-
-    // Helper para construir la constancia en el cliente (idéntico a las 3 imágenes reales)
-    function buildClientCertificate(user, conSalario = true, motivo = 'Trámites personales') {
-        const cond = (user.condicion || 'FIJO').toUpperCase();
-        const genero = (user.genero || 'masculino').toLowerCase();
-        const esFemenino = genero === 'femenino';
-        const prof = formatProfessionByGender(user.profesion || '', genero);
-        const nombreConTitulo = formatFullNameWithTitle(user.nombre, prof, genero);
-        const cedulaOficial = formatCedulaOficial(user.cedula);
-        const cargo = user.cargo || 'FUNCIONARIO';
-        const dir = user.direccion || 'DIRECCIÓN GENERAL';
-        const fIngreso = user.fecha_ingreso || 'N/D';
-        const anos = getCalculatedYearsOfService(fIngreso, user.anos_servicio);
-        const incluirSalario = conSalario === true || conSalario === 'true' || conSalario === 1;
-        const { textoCompleto: salarioLetras, formatoNum: salarioBs } = formatearSalarioLetrasJS(user.salario || 'Bs. 1.000,00');
-
-        const now = new Date();
-        const fechaExpedicion = fechaALetrasExpedicionJS(now);
-        const correlativo = `PGET  ${now.getFullYear()} Nº S/N`;
-
-        const tratamiento = esFemenino ? 'la ciudadana:' : 'el ciudadano:';
-        const nacionalidad = esFemenino ? 'venezolana' : 'venezolano';
-        const adscritoTxt = esFemenino ? 'adscrita' : 'adscrito';
-        const jubiladoTxt = esFemenino ? 'jubilada' : 'jubilado';
-
-        // Preposición correcta para dirección (Despacho es masculino -> "al Despacho", otras -> "a la")
-        const prepAdscrito = (dir || '').trim().toUpperCase().startsWith('DESPACHO') ? 'al' : 'a la';
-
-        // Verificación de si la constancia es para la Directora de Recursos Humanos (la suscribe la Procuradora)
-        const cleanUserCedula = String(user.cedula || '').replace(/[^0-9]/g, '').trim();
-        const cleanCargo = String(user.cargo || '').toUpperCase();
-        const isDirectoraRRHH = (
-            cleanUserCedula === '14780947' ||
-            String(user.username || '').toLowerCase().includes('elvimar') ||
-            (cleanCargo.includes('RECURSOS HUMANOS') && cleanCargo.includes('DIRECTOR'))
-        );
-
-        let firmanteNombre = 'ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.';
-        let firmanteCargo = 'DIRECTORA (E) DE RECURSOS HUMANOS DE LA\nPROCURADURÍA GENERAL DEL ESTADO TRUJILLO.';
-        let firmanteSuscripcion = 'Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de **DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ';
-        let inicialesSuscribe = 'EL';
-
-        if (isDirectoraRRHH) {
-            firmanteNombre = 'ABG. DORA ALICIA MATHEUS.';
-            firmanteCargo = 'PROCURADORA GENERAL DEL ESTADO TRUJILLO.';
-            firmanteSuscripcion = 'Quien suscribe, **Abog. DORA ALICIA MATHEUS**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 10.035.929**, en mi condición de **PROCURADORA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ';
-            inicialesSuscribe = 'DM';
-        }
-
-        let cuerpo = '';
-        if (cond === 'JUBILADO') {
-            const clausulaSal = incluirSalario ? `, devengando una asignación mensual por jubilación de Bolívares **${salarioLetras} (${salarioBs})**.` : '.';
-            cuerpo = `${firmanteSuscripcion}${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **${cedulaOficial}**, prestó sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** actualmente es ${jubiladoTxt} de este organismo${clausulaSal}`;
-        } else if (cond === 'CONTRATADO') {
-            const clausulaSal = incluirSalario ? `, con una Asignación Mensual de Bolívares **${salarioLetras} (${salarioBs})**.` : '.';
-            cuerpo = `${firmanteSuscripcion}${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la cédula de Identidad Nº. **${cedulaOficial}**, presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** desde el **${fIngreso}**, desempeñándose en la actualidad como **${cargo} (CONTRATADO)**, ${adscritoTxt} ${prepAdscrito} ${dir} de la Procuraduría General del Estado Trujillo${clausulaSal}`;
-        } else { // FIJO
-            const clausulaSal = incluirSalario ? `, con una Asignación Mensual de Bolívares **${salarioLetras} (${salarioBs})**.` : '.';
-            cuerpo = `${firmanteSuscripcion}${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **${cedulaOficial}** presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, desde el **${fIngreso}** desempeñándose como **${cargo}**, ${adscritoTxt} ${prepAdscrito} ${dir} P.G.E.T.${clausulaSal}`;
-        }
-
-        const mesesMayusculas = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
-        const diaExpedicion = now.getDate();
-        const mesExpedicion = mesesMayusculas[now.getMonth()];
-        const anoExpedicion = now.getFullYear();
-
-        const inicialesTrabajador = (getWorkerInitials(user) || 'xx').toLowerCase();
-        const iniciales = `${inicialesSuscribe}/${inicialesTrabajador}`;
-
-        return {
-            titulo: 'C O N S T A N C I A .',
-            correlativo,
-            cuerpo,
-            motivo: motivo || 'Trámites personales',
-            dia_expedicion: diaExpedicion,
-            mes_expedicion: mesExpedicion,
-            ano_expedicion: anoExpedicion,
-            beneficiario: nombreConTitulo,
-            cedula: cedulaOficial,
-            cargo,
-            condicion: cond,
-            direccion: dir,
-            dependencia: user.dependencia || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO',
-            con_salario: incluirSalario,
-            salario: incluirSalario ? salarioBs : null,
-            salario_en_letras: incluirSalario ? salarioLetras : null,
-            fecha_emision: fechaExpedicion,
-            rif: 'G-20000417-7',
-            firmante_nombre: firmanteNombre,
-            firmante_cargo: firmanteCargo,
-            iniciales: iniciales
-        };
-    }
-
-    // Helper para generar el nombre de archivo al descargar/imprimir:
-    // Formato exacto requerido: Constancia, fecha y nombre y apellido del trabajador
-    // Ej: Constancia - 15-10-2026 - Lorenzo Fabian Giulliano Avila Gonzalez
-    function getConstanciaDownloadFileName(cert) {
-        const today = new Date();
-        const dd = String(today.getDate()).padStart(2, '0');
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const yyyy = today.getFullYear();
-        const fechaStr = `${dd}-${mm}-${yyyy}`;
-
-        let rawName = '';
-        if (currentUser) {
-            if (currentUser.nombres && currentUser.apellidos) {
-                rawName = `${currentUser.nombres} ${currentUser.apellidos}`.trim();
-            } else if (currentUser.nombre) {
-                rawName = currentUser.nombre.trim();
-            }
-        }
-        if (!rawName && cert && cert.beneficiario) {
-            rawName = cert.beneficiario.trim();
-        }
-        if (!rawName) rawName = 'Trabajador';
-
-        // Quitar prefijos académicos si vinieran pegados (ABG., ING., LIC., etc.)
-        const cleanName = rawName
-            .replace(/^(ABG\.|ING\.|LIC\.|SOC\.|ECON\.|TSU\.|PROF\.|DR\.|DRA\.)\s+/i, '')
-            .replace(/[\/\\:*?"<>|]/g, '')
-            .trim();
-
-        return `Constancia - ${fechaStr} - ${cleanName}`;
-    }
-
-    // Cerrar modal de visualización de la constancia y restaurar el título del navegador
-    window.closeConstanciaModal = () => {
-        const modal = document.getElementById('constanciaPrintModal');
-        if (modal) {
-            modal.style.display = 'none';
-        }
-        document.body.style.overflow = '';
-        if (window._originalPageTitle) {
-            document.title = window._originalPageTitle;
-        } else {
-            document.title = 'Procuraduría General del Estado Trujillo - Portal Oficial';
-        }
-    };
-
-    // Imprimir garantizando el nombre de descarga del archivo PDF
-    window.printConstancia = () => {
-        if (window._constanciaFileName) {
-            document.title = window._constanciaFileName;
-        }
-        window.print();
-    };
-
-    // Escuchar evento de fin de impresión para restaurar el título si el modal se cerró
-    window.addEventListener('afterprint', () => {
-        const modal = document.getElementById('constanciaPrintModal');
-        if (!modal || modal.style.display === 'none') {
-            if (window._originalPageTitle) {
-                document.title = window._originalPageTitle;
-            }
-        }
-    });
-
-    // Escuchar Escape para cerrar modal de constancia si está abierto
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            const modal = document.getElementById('constanciaPrintModal');
-            if (modal && modal.style.display !== 'none') {
-                window.closeConstanciaModal();
-            }
-        }
-    });
-
-    // Modal oficial para visualización e impresión de la constancia (100% fiel a las imágenes oficiales)
-    window.showConstanciaDocument = (cert) => {
-        let modal = document.getElementById('constanciaPrintModal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'constanciaPrintModal';
-            modal.className = 'constancia-modal-backdrop';
-            document.body.appendChild(modal);
-        }
-        
-        // Guardar título original de la página y fijar el título exacto para la descarga del PDF
-        if (!window._originalPageTitle) {
-            window._originalPageTitle = document.title;
-        }
-        const downloadFileName = getConstanciaDownloadFileName(cert);
-        window._constanciaFileName = downloadFileName;
-        document.title = downloadFileName;
-
-        // Formatear iniciales asegurando: Suscribe en MAYÚSCULAS (EL) / Trabajador en minúsculas (ej. la)
-        let displayInitials = cert.iniciales || 'EL/xx';
-        if (displayInitials.includes('/')) {
-            const parts = displayInitials.split('/');
-            const sus = (parts[0] || 'EL').trim().toUpperCase();
-            const trab = (parts.slice(1).join('/') || 'xx').trim().toLowerCase();
-            displayInitials = `${sus}/${trab}`;
-        }
-
-        const rawParagraphs = (cert.cuerpo || '').split('\n\n').filter(p => p.trim());
-        const mainParagraphs = rawParagraphs.filter(p => !p.toLowerCase().includes('constancia que se expide'));
-        const cuerpoHTML = (mainParagraphs.length > 0 ? mainParagraphs : rawParagraphs.slice(0, 1)).map(p => `
-            <p class="constancia-paragraph">
-                ${p.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}
-            </p>
-        `).join('');
-
-        const mesesMayus = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
-        const nowObj = new Date();
-        const diaCierre = cert.dia_expedicion || nowObj.getDate();
-        const mesCierre = cert.mes_expedicion || mesesMayus[nowObj.getMonth()];
-        const anoCierre = cert.ano_expedicion || nowObj.getFullYear();
-        const motivoOficial = (cert.motivo || 'Trámites personales').trim().toUpperCase();
-
-        modal.innerHTML = `
-            <!-- Barra superior de control FLOTANTE / STICKY (no imprimible) -->
-            <div class="constancia-controls-bar no-print">
-                <div style="display: flex; flex-direction: column; gap: 3px;">
-                    <span style="font-size: 0.95rem; color: #1e293b; font-weight: 700; display: flex; align-items: center; gap: 8px;">
-                        <i class="fas fa-file-contract" style="color: #6A0D25; font-size: 1.1rem;"></i> 
-                        <span>Constancia Oficial Generada Exitosamente</span>
-                    </span>
-                    <span style="font-size: 0.82rem; color: #64748b; font-weight: 600;">
-                        Archivo al guardar como PDF: <strong style="color: #6A0D25;">${downloadFileName}.pdf</strong>
-                    </span>
-                </div>
-                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <button type="button" onclick="window.printConstancia()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(106,13,37,0.3); transition: all 0.2s ease;">
-                        <i class="fas fa-print"></i> Imprimir / Guardar como PDF
-                    </button>
-                    <button type="button" onclick="window.closeConstanciaModal()" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 18px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
-                        <i class="fas fa-times"></i> Cerrar
-                    </button>
-                </div>
-            </div>
-
-            <div class="constancia-paper" id="constanciaPaperSheet">
-                <!-- 1. Encabezado Oficial a 0.7cm desde el borde -->
-                <div class="constancia-header">
-                    <img class="constancia-logo" src="assets/logo.png" alt="Escudo Oficial PGET" onerror="this.src='https://via.placeholder.com/75?text=PGET'">
-                    <div class="constancia-rif">G-20000417-7</div>
-                </div>
-
-                <!-- 2. Cuerpo Principal (Margen superior 3.95cm, Margen inferior 3cm) -->
-                <div class="constancia-body">
-                    <!-- Correlativo Oficial al margen izquierdo -->
-                    <div class="constancia-correlativo">
-                        ${cert.correlativo || ('PGET  ' + new Date().getFullYear() + ' Nº S/N')}
-                    </div>
-
-                    <!-- Título Centrado Oficial con Espaciado -->
-                    <div class="constancia-title-wrap">
-                        <h2 class="constancia-title">
-                            C O N S T A N C I A .
-                        </h2>
-                    </div>
-
-                    <!-- Cuerpo de la Constancia Justificado con Indentación -->
-                    <div class="constancia-paragraphs">
-                        ${cuerpoHTML}
-                    </div>
-
-                    <!-- Bloque Oficial de Motivo (Fiel a img 2: en caja amarilla institucional, tipografía Arial) -->
-                    <div class="constancia-motivo-box" style="background: #fff9db; border: 1.5px solid #facc15; border-radius: 4px; padding: 8px 18px; margin: 22px 0 16px 0; text-align: center; font-family: Arial, Helvetica, sans-serif !important; font-weight: 700; font-size: 11.5pt; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">
-                        MOTIVO: ${escapeHtml(motivoOficial)}
-                    </div>
-
-                    <!-- Párrafo de Cierre y Fecha (Fiel a img 2: cursiva con negritas) -->
-                    <p class="constancia-paragraph constancia-cierre-italic" style="font-style: italic; text-indent: 0; margin-top: 0; line-height: 1.8;">
-                        Constancia que se expide en la ciudad de Trujillo, a los <strong>${diaCierre}</strong> días del mes de <strong>${mesCierre}</strong> de <strong>${anoCierre}</strong>. Válida por <strong>un (1) mes</strong>.
-                    </p>
-
-                    <!-- Bloque de Firma Centrado Oficial -->
-                    <div class="constancia-firma">
-                        <strong>${cert.firmante_nombre || 'ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.'}</strong><br>
-                        ${(cert.firmante_cargo || 'DIRECTORA (E) DE RECURSOS HUMANOS DE LA\nPROCURADURÍA GENERAL DEL ESTADO TRUJILLO.')
-                            .split('\n')
-                            .map(line => `<strong>${escapeHtml(line.trim())}</strong>`)
-                            .join('<br>')}
-                    </div>
-
-                    <!-- Iniciales de Transcripción al margen izquierdo -->
-                    <div class="constancia-iniciales">
-                        ${displayInitials}
-                    </div>
-                </div>
-
-                <!-- 3. Pie de Página Oficial a 2.38cm desde el borde -->
-                <div class="constancia-footer">
-                    <hr class="constancia-footer-line">
-                    <div class="constancia-footer-text">
-                        <div class="constancia-footer-address">
-                            Av. Independencia frente a la Plaza Bolívar, Palacio de Gobierno, 2do piso, Trujillo, edo. Trujillo<br>
-                            TELEFAX. (0272) 2365126, CORREO ELECTRÓNICO: procuraduríageneraltrujillo@gmail.com
-                        </div>
-                        <div class="constancia-footer-legal">
-                            <strong>Documentación Oficial de Uso Restringido:</strong><br>
-                            <strong>Ley Contra la Corrupción: Art. 66:</strong> El funcionario público que utilice, para sí o para otro, informaciones o datos de carácter reservado de los cuales tenga conocimiento en razón de su cargo, será penado con prisión de uno (1) a seis (6) años y multa de hasta el cincuenta por ciento (50%) del beneficio perseguido u obtenido, siempre que el hecho no constituya otro delito. Si del hecho resultare algún perjuicio a la Administración Pública, la pena será aumentada de un tercio (1/3) a la mitad (1/2).
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Barra inferior adicional de control (no imprimible) para facilidad al llegar al final del documento -->
-                <div class="no-print" style="margin-top: 25px; padding-top: 15px; border-top: 1px dashed #cbd5e1; display: flex; justify-content: flex-end; gap: 12px; align-items: center;">
-                    <button type="button" onclick="window.printConstancia()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.25);">
-                        <i class="fas fa-print"></i> Imprimir / Guardar como PDF
-                    </button>
-                    <button type="button" onclick="window.closeConstanciaModal()" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 18px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
-                        <i class="fas fa-times"></i> Cerrar
-                    </button>
-                </div>
-            </div>
-        `;
-
-        modal.onclick = (e) => {
-            if (e.target === modal) {
-                window.closeConstanciaModal();
-            }
-        };
-
-        modal.style.display = 'flex';
-        modal.scrollTop = 0;
-        document.body.style.overflow = 'hidden';
-    };
-
-    // ==========================================
-    // SISTEMA DE GESTIÓN Y VISOR DE PLANILLAS ARC
-    // ==========================================
-
-    window.downloadArcFile = (arcFile, user) => {
-        if (!arcFile || !arcFile.data) return;
-        const cleanName = (user.nombre || user.username || 'Trabajador').replace(/[^a-zA-Z0-9_\-]/g, '_');
-        const ext = arcFile.name ? (arcFile.name.split('.').pop() || 'pdf') : (arcFile.type && arcFile.type.includes('pdf') ? 'pdf' : 'jpg');
-        const filename = `Planilla_ARC_${cleanName}.${ext}`;
-
-        const a = document.createElement('a');
-        a.href = arcFile.data;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    };
-
-    window.printArcFile = (arcFile, user) => {
-        if (!arcFile || !arcFile.data) return;
-        const isPdf = (arcFile.type && arcFile.type.includes('pdf')) || (arcFile.name && arcFile.name.toLowerCase().endsWith('.pdf')) || (arcFile.data && arcFile.data.startsWith('data:application/pdf'));
-
-        if (isPdf) {
-            const iframe = document.getElementById('arcViewerIframe');
-            if (iframe && iframe.contentWindow) {
-                try {
-                    iframe.contentWindow.focus();
-                    iframe.contentWindow.print();
-                    return;
-                } catch (e) {
-                    console.log('Iframe print error', e);
-                }
-            }
-            const printWindow = window.open(arcFile.data, '_blank');
-            if (printWindow) {
-                printWindow.focus();
-            }
-        } else {
-            const printWindow = window.open('', '_blank');
-            if (printWindow) {
-                printWindow.document.write(`
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <title>Planilla ARC - ${escapeHtml(user.nombre || '')}</title>
-                        <style>
-                            @page { size: letter portrait; margin: 0.8cm; }
-                            body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: white; }
-                            img { max-width: 100%; max-height: 100%; object-fit: contain; }
-                        </style>
-                    </head>
-                    <body>
-                        <img src="${arcFile.data}" onload="setTimeout(() => { window.print(); window.close(); }, 300);" />
-                    </body>
-                    </html>
-                `);
-                printWindow.document.close();
-            }
-        }
-    };
-
-    window.showArcViewerModal = (arcFile, user) => {
-        let modal = document.getElementById('arcViewerModal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'arcViewerModal';
-            modal.className = 'arc-viewer-backdrop';
-            document.body.appendChild(modal);
-        }
-
-        const isPdf = (arcFile.type && arcFile.type.includes('pdf')) || (arcFile.name && arcFile.name.toLowerCase().endsWith('.pdf')) || (arcFile.data && arcFile.data.startsWith('data:application/pdf'));
-
-        const userName = escapeHtml(user.nombre || user.username || 'Trabajador');
-        const fileName = escapeHtml(arcFile.name || 'Documento ARC');
-        const uploadDate = escapeHtml(arcFile.uploaded_at || 'Oficial');
-
-        modal.innerHTML = `
-            <div class="arc-viewer-container">
-                <!-- Header -->
-                <div style="background: linear-gradient(135deg, #6A0D25 0%, #83122F 100%); color: white; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #D4AF37; flex-wrap: wrap; gap: 10px;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="background: white; border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; color: #6A0D25; box-shadow: 0 2px 6px rgba(0,0,0,0.15); border: 1px solid #D4AF37;">
-                            <i class="fas fa-file-invoice" style="font-size: 1.15rem;"></i>
-                        </div>
-                        <div>
-                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: white;">Planilla de ARC &bull; ${userName}</h3>
-                            <span style="font-size: 0.82rem; color: #F7E7B4;">${fileName} &bull; ${uploadDate}</span>
-                        </div>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <button type="button" id="arcViewerPrintBtn" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.2s;">
-                            <i class="fas fa-print"></i> Imprimir
-                        </button>
-                        <button type="button" id="arcViewerDownloadBtn" style="background: #D4AF37; border: none; color: #1e293b; padding: 8px 16px; border-radius: 6px; font-weight: 800; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); transition: all 0.2s;">
-                            <i class="fas fa-download"></i> Descargar
-                        </button>
-                        <button type="button" onclick="window.closeArcViewerModal()" style="background: rgba(0,0,0,0.25); border: none; color: white; width: 34px; height: 34px; border-radius: 50%; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-left: 5px;">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Body Viewer -->
-                <div style="flex: 1; min-height: 450px; max-height: 78vh; overflow: auto; background: #334155; padding: 15px; display: flex; align-items: center; justify-content: center;">
-                    ${isPdf ? `
-                        <iframe id="arcViewerIframe" src="${arcFile.data}" style="width: 100%; height: 75vh; border: none; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);"></iframe>
-                    ` : `
-                        <div style="width: 100%; height: 75vh; display: flex; align-items: center; justify-content: center; overflow: auto;">
-                            <img id="arcViewerImage" src="${arcFile.data}" alt="Planilla ARC" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); background: white;">
-                        </div>
-                    `}
-                </div>
-            </div>
-        `;
-
-        modal.querySelector('#arcViewerPrintBtn').onclick = () => window.printArcFile(arcFile, user);
-        modal.querySelector('#arcViewerDownloadBtn').onclick = () => window.downloadArcFile(arcFile, user);
-
-        modal.onclick = (e) => {
-            if (e.target === modal) window.closeArcViewerModal();
-        };
-
-        modal.style.display = 'flex';
-    };
-
-    window.closeArcViewerModal = () => {
-        const modal = document.getElementById('arcViewerModal');
-        if (modal) modal.style.display = 'none';
-    };
-
-    window.openAdminArcModal = (username, targetYear = '2026') => {
-        const user = (allUsersCache && allUsersCache.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()))
-            || (typeof defaultAccounts !== 'undefined' && defaultAccounts.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()));
-        if (!user) {
-            console.warn('Usuario no encontrado para modal ARC:', username);
-            if (typeof window.pgetAlert === 'function') {
-                window.pgetAlert(`No se pudo encontrar al usuario ${username}.`, 'Usuario No Encontrado', 'Aceptar', 'warning');
-            }
-            return;
-        }
-
-        let modal = document.getElementById('adminArcManagementModal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'adminArcManagementModal';
-            document.body.appendChild(modal);
-        }
-        modal.className = 'admin-arc-management-backdrop';
-        modal.style.position = 'fixed';
-        modal.style.top = '0';
-        modal.style.left = '0';
-        modal.style.width = '100vw';
-        modal.style.height = '100vh';
-        modal.style.zIndex = '99999999';
-        modal.style.alignItems = 'center';
-        modal.style.justifyContent = 'center';
-        modal.style.background = 'rgba(15, 23, 42, 0.75)';
-        modal.style.backdropFilter = 'blur(6px)';
-        modal.style.webkitBackdropFilter = 'blur(6px)';
-        modal.style.padding = '15px';
-        modal.style.boxSizing = 'border-box';
-
-        const safeName = escapeHtml(user.nombre || user.username);
-        const safeCargo = escapeHtml(user.cargo || 'Sin cargo');
-        const safeCedula = escapeHtml(formatCedulaOficial(user.cedula) || user.cedula || 'N/A');
-        
-        const availableYearsAdmin = getArcAvailableYears(user);
-        const yearArc = (user.arc_files && user.arc_files[targetYear]) || (String(targetYear) === '2026' && user.arc_file && (!user.arc_file.year || String(user.arc_file.year) === '2026') ? user.arc_file : null);
-        const hasArc = yearArc && yearArc.data;
-
-        modal.innerHTML = `
-            <div style="background: white; width: 100%; max-width: 620px; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); border: 1px solid #e2e8f0; display: flex; flex-direction: column;">
-                <!-- Header Vinotinto Institucional -->
-                <div style="background: linear-gradient(135deg, #6A0D25 0%, #83122F 100%); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <div style="background: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: #6A0D25; box-shadow: 0 2px 6px rgba(0,0,0,0.15); border: 1.5px solid #D4AF37;">
-                            <i class="fas fa-file-invoice" style="font-size: 1.2rem;"></i>
-                        </div>
-                        <div>
-                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: white;">Planilla de ARC por Año</h3>
-                            <span style="font-size: 0.8rem; opacity: 0.95; color: #F7E7B4;">Comprobante de Retención Anual del Trabajador</span>
-                        </div>
-                    </div>
-                    <button type="button" onclick="window.closeAdminArcModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-
-                <!-- Info Usuario -->
-                <div style="background: #fdfaf6; border-bottom: 1px solid #e2e8f0; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                    <div>
-                        <strong style="color: #1e293b; font-size: 0.95rem; display: block;">${safeName}</strong>
-                        <span style="font-size: 0.82rem; color: #64748b;">${safeCargo} &bull; ${safeCedula}</span>
-                    </div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <span style="font-size: 0.78rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; ${hasArc ? 'background: #fdf2f4; color: #6A0D25; border: 1.5px solid #D4AF37;' : 'background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1;'}">
-                            ${hasArc ? `<i class="fas fa-check-circle" style="color: #D4AF37;"></i> ARC ${targetYear} Asignada` : `<i class="fas fa-clock"></i> Pendiente para ${targetYear}`}
-                        </span>
-                    </div>
-                </div>
-
-                <!-- Selector de Año Fiscal de la Planilla -->
-                <div style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-weight: 700; font-size: 0.88rem; color: #334155;">Seleccionar Año Fiscal:</span>
-                        <select id="adminArcYearSelect" style="padding: 6px 14px; border: 1.5px solid #D4AF37; border-radius: 6px; font-weight: 700; color: #6A0D25; background: white; cursor: pointer; font-size: 0.9rem;">
-                            ${availableYearsAdmin.map(y => `<option value="${y}" ${String(targetYear) === String(y) ? 'selected' : ''}>${y}</option>`).join('')}
-                        </select>
-                    </div>
-                    <span style="font-size: 0.8rem; color: #64748b; font-weight: 600;">
-                        Consolidado anual de asignaciones y deducciones
-                    </span>
-                </div>
-
-                <div style="padding: 24px; overflow-y: auto; max-height: 70vh;">
-                    ${hasArc ? `
-                    <!-- Detalle de la Planilla ARC del Año Seleccionado -->
-                    <div style="background: #fdfaf6; border: 1.5px solid #D4AF37; border-radius: 12px; padding: 18px; margin-bottom: 22px; box-shadow: 0 2px 8px rgba(106,13,37,0.04);">
-                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-                            <span style="font-weight: 700; font-size: 0.9rem; color: #6A0D25; display: flex; align-items: center; gap: 8px;">
-                                <i class="fas ${yearArc.type && yearArc.type.includes('pdf') ? 'fa-file-pdf' : 'fa-file-image'}" style="font-size: 1.2rem; color: #83122F;"></i>
-                                ${escapeHtml(yearArc.name || `Planilla_ARC_${targetYear}`)} <span style="font-size: 0.8rem; color: #15803d; font-weight: 700;">(Año ${targetYear})</span>
-                            </span>
-                            <span style="font-size: 0.78rem; color: #64748b; font-weight: 600;">
-                                ${yearArc.uploaded_at ? `Subida: ${yearArc.uploaded_at}` : ''}
-                            </span>
-                        </div>
-                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                            <button type="button" id="adminPreviewArcBtn" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1px solid #D4AF37; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.2s;">
-                                <i class="fas fa-eye" style="color: #F7E7B4;"></i> Ver / Imprimir
-                            </button>
-                            <button type="button" id="adminDownloadArcBtn" style="background: #D4AF37; border: 1px solid #c59b27; color: #1e293b; padding: 8px 16px; border-radius: 6px; font-weight: 800; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                                <i class="fas fa-download"></i> Descargar
-                            </button>
-                            <button type="button" onclick="window.deleteUserArc('${user.username}', '${targetYear}')" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px; margin-left: auto;">
-                                <i class="fas fa-trash"></i> Eliminar (${targetYear})
-                            </button>
-                        </div>
-                    </div>
-                    ` : ''}
-
-                    <!-- Subir o Reemplazar Documento para el Año Seleccionado -->
-                    <div>
-                        <h4 style="margin: 0 0 10px 0; color: #1e293b; font-size: 0.95rem; font-weight: 700;">
-                            ${hasArc ? `<i class="fas fa-sync-alt" style="color:#6A0D25;"></i> Reemplazar Planilla ARC para el Año ${targetYear}:` : `<i class="fas fa-upload" style="color:#6A0D25;"></i> Subir Planilla ARC para el Año ${targetYear}:`}
-                        </h4>
-                        
-                        <!-- Input File fuera del dropzone para evitar doble click / bloqueo del selector nativo -->
-                        <input type="file" id="adminArcFileInput" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" style="display: none;">
-                        
-                        <div id="adminArcDropzone" style="border: 2px dashed #D4AF37; border-radius: 12px; padding: 25px; text-align: center; background: #fdfaf6; cursor: pointer; transition: all 0.2s;">
-                            <i class="fas fa-cloud-upload-alt" style="font-size: 2.4rem; color: #6A0D25; margin-bottom: 8px;"></i>
-                            <div style="font-weight: 700; color: #1e293b; font-size: 0.95rem; margin-bottom: 4px;">
-                                Haga clic para seleccionar archivo o arrástrelo aquí
-                            </div>
-                            <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 12px;">
-                                Formatos aceptados: Documentos PDF o Imágenes (JPG, PNG, WEBP) &bull; Máx. 10 MB
-                            </div>
-                            <button type="button" id="adminArcBrowseBtn" style="background: white; border: 1.5px solid #6A0D25; color: #6A0D25; padding: 8px 18px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                                <i class="fas fa-folder-open" style="color: #83122F;"></i> Explorar Archivo
-                            </button>
-                        </div>
-
-                        <div id="adminArcSelectedFileBox" style="display: none; margin-top: 15px; background: #fdf2f4; border: 1px solid #fecdd3; border-radius: 8px; padding: 12px 16px; align-items: center; justify-content: space-between;">
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <i class="fas fa-check-circle" style="color: #6A0D25; font-size: 1.2rem;"></i>
-                                <div>
-                                    <strong id="adminArcSelectedName" style="color: #6A0D25; font-size: 0.88rem; display: block;">archivo.pdf</strong>
-                                    <span id="adminArcSelectedSize" style="font-size: 0.78rem; color: #64748b;">0 KB</span>
-                                </div>
-                            </div>
-                            <button type="button" id="adminArcClearFileBtn" style="background: transparent; border: none; color: #dc2626; cursor: pointer; font-size: 0.9rem;" title="Cancelar selección">
-                                <i class="fas fa-times-circle"></i>
-                            </button>
-                        </div>
-
-                        <div id="adminArcUploadMsg" style="display: none; margin-top: 12px; font-size: 0.85rem; text-align: center; font-weight: 600;"></div>
-
-                        <button type="button" id="adminUploadArcBtn" disabled style="width: 100%; margin-top: 18px; background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; opacity: 0.6; color: white; padding: 13px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: not-allowed; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(106,13,37,0.2);">
-                            <i class="fas fa-cloud-upload-alt"></i> Subir y Asignar Planilla ARC (${targetYear})
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Footer -->
-                <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 12px 24px; display: flex; justify-content: flex-end;">
-                    <button type="button" onclick="window.closeAdminArcModal()" style="background: #e2e8f0; border: none; color: #475569; padding: 8px 18px; border-radius: 6px; font-weight: 600; font-size: 0.88rem; cursor: pointer;">
-                        Cerrar
-                    </button>
-                </div>
-            </div>
-        `;
-
-        // Conectar selector de año fiscal
-        const yearSelectEl = modal.querySelector('#adminArcYearSelect');
-        if (yearSelectEl) {
-            yearSelectEl.onchange = (e) => {
-                window.openAdminArcModal(username, e.target.value);
-            };
-        }
-
-        if (hasArc) {
-            const previewBtn = modal.querySelector('#adminPreviewArcBtn');
-            if (previewBtn) previewBtn.onclick = () => window.showArcViewerModal(yearArc, user);
-            const downloadBtn = modal.querySelector('#adminDownloadArcBtn');
-            if (downloadBtn) downloadBtn.onclick = () => window.downloadArcFile(yearArc, user);
-        }
-
-        const dropzone = modal.querySelector('#adminArcDropzone');
-        const fileInput = modal.querySelector('#adminArcFileInput');
-        const browseBtn = modal.querySelector('#adminArcBrowseBtn');
-        const selectedBox = modal.querySelector('#adminArcSelectedFileBox');
-        const selectedName = modal.querySelector('#adminArcSelectedName');
-        const selectedSize = modal.querySelector('#adminArcSelectedSize');
-        const clearBtn = modal.querySelector('#adminArcClearFileBtn');
-        const uploadBtn = modal.querySelector('#adminUploadArcBtn');
-
-        let pendingFile = null;
-
-        if (browseBtn) {
-            browseBtn.onclick = (e) => {
-                e.stopPropagation();
-                fileInput.click();
-            };
-        }
-
-        dropzone.onclick = (e) => {
-            if (e.target !== fileInput && e.target !== browseBtn) {
-                fileInput.click();
-            }
-        };
-
-        fileInput.onclick = (e) => {
-            e.stopPropagation();
-        };
-
-        dropzone.ondragover = (e) => { 
-            e.preventDefault(); 
-            dropzone.style.borderColor = '#6A0D25'; 
-            dropzone.style.background = '#fdf2f4'; 
-        };
-        dropzone.ondragleave = () => { 
-            dropzone.style.borderColor = '#D4AF37'; 
-            dropzone.style.background = '#fdfaf6'; 
-        };
-        dropzone.ondrop = (e) => {
-            e.preventDefault();
-            dropzone.style.borderColor = '#D4AF37';
-            dropzone.style.background = '#fdfaf6';
-            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                handleFileSelection(e.dataTransfer.files[0]);
-            }
-        };
-
-        fileInput.onchange = () => {
-            if (fileInput.files && fileInput.files[0]) {
-                handleFileSelection(fileInput.files[0]);
-            }
-        };
-
-        function handleFileSelection(file) {
-            if (file.size > 10 * 1024 * 1024) {
-                window.pgetAlert('El archivo excede el tamaño máximo permitido de 10 MB.', 'Archivo Muy Grande', 'Aceptar', 'warning');
-                return;
-            }
-            pendingFile = file;
-            selectedName.textContent = file.name;
-            selectedSize.textContent = `${(file.size / 1024).toFixed(1)} KB`;
-            selectedBox.style.display = 'flex';
-            uploadBtn.disabled = false;
-            uploadBtn.style.opacity = '1';
-            uploadBtn.style.cursor = 'pointer';
-        }
-
-        clearBtn.onclick = () => {
-            pendingFile = null;
-            fileInput.value = '';
-            selectedBox.style.display = 'none';
-            uploadBtn.disabled = true;
-            uploadBtn.style.opacity = '0.6';
-            uploadBtn.style.cursor = 'not-allowed';
-        };
-
-        uploadBtn.onclick = () => {
-            if (!pendingFile) return;
-            uploadBtn.disabled = true;
-            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo y procesando...';
-
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-                const dataUrl = ev.target.result;
-                const arcPayload = {
-                    name: pendingFile.name,
-                    type: pendingFile.type || (pendingFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
-                    data: dataUrl,
-                    size: pendingFile.size,
-                    year: targetYear,
-                    uploaded_at: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-                };
-
-                try {
-                    const postRes = await fetch(`${API_URL}/users/${encodeURIComponent(username)}/arc`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(arcPayload)
-                    });
-                    if (!postRes.ok) throw new Error('Fallback update');
-                } catch (err) {
-                    try {
-                        await fetch(`${API_URL}/users/update`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ username: username, arc_file: arcPayload })
-                        });
-                    } catch (e2) {}
-                }
-
-                if (!user.arc_files) user.arc_files = {};
-                user.arc_files[targetYear] = arcPayload;
-                if (String(targetYear) === '2025' || !user.arc_file) {
-                    user.arc_file = arcPayload;
-                }
-
-                const uIdx = allUsersCache.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
-                if (uIdx !== -1) {
-                    allUsersCache[uIdx] = { ...user };
-                }
-                localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
-                if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
-                    currentUser = { ...user };
-                    localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
-                }
-
-                renderAdminUsersTable(allUsersCache);
-                window.openAdminArcModal(username, targetYear);
-                window.pgetAlert(
-                    `La Planilla ARC del año ${targetYear} (<strong>${escapeHtml(pendingFile.name)}</strong>) fue subida y asignada exitosamente al usuario <strong>${safeName}</strong>.`,
-                    'Planilla ARC Guardada',
-                    'Aceptar',
-                    'success'
-                );
-            };
-            reader.readAsDataURL(pendingFile);
-        };
-
-        modal.onclick = (e) => {
-            if (e.target === modal) window.closeAdminArcModal();
-        };
-
-        modal.style.setProperty('display', 'flex', 'important');
-    };
-
-    window.closeAdminArcModal = () => {
-        const modal = document.getElementById('adminArcManagementModal');
-        if (modal) {
-            modal.style.setProperty('display', 'none', 'important');
-        }
-    };
-
-    window.deleteUserArc = async (username, year = null) => {
-        const user = (allUsersCache && allUsersCache.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()))
-            || (typeof defaultAccounts !== 'undefined' && defaultAccounts.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()));
-        if (!user) return;
-        const targetYear = year || (document.getElementById('adminArcYearSelect') ? document.getElementById('adminArcYearSelect').value : '2026');
-        const ok = await window.pgetConfirm(
-            `¿Está seguro de que desea eliminar la Planilla de ARC del año <strong>${targetYear}</strong> de <strong>${escapeHtml(user.nombre || user.username)}</strong>?<br><br>El trabajador ya no podrá verla ni descargarla en su perfil para ese año fiscal.`,
-            `Eliminar Planilla ARC ${targetYear}`,
-            'Sí, Eliminar',
-            'Cancelar',
-            'danger'
-        );
-        if (!ok) return;
-
-        try {
-            await fetch(`${API_URL}/users/${encodeURIComponent(username)}/arc?year=${encodeURIComponent(targetYear)}`, {
-                method: 'DELETE'
-            });
-        } catch (e) {}
-
-        try {
-            await fetch(`${API_URL}/users/update`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: username, arc_file: null })
-            });
-        } catch (e2) {}
-
-        if (user.arc_files && user.arc_files[targetYear]) {
-            delete user.arc_files[targetYear];
-        }
-        if (String(targetYear) === '2026' || !user.arc_files || Object.keys(user.arc_files).length === 0) {
-            user.arc_file = null;
-            delete user.arc_file;
-        }
-        const uIdx = allUsersCache.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
-        if (uIdx !== -1) {
-            allUsersCache[uIdx] = { ...user };
-        }
-        localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
-        if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
-            currentUser = { ...user };
-            localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
-        }
-        renderAdminUsersTable(allUsersCache);
-        window.openAdminArcModal(username, targetYear);
-        window.pgetAlert(`La Planilla de ARC del año ${targetYear} fue eliminada exitosamente.`, 'Operación Exitosa', 'Aceptar', 'success');
-    };
-
-    // Solicitar Constancia (Solo Trabajador)
-    async function handleRequestCert() {
-        const modal = document.getElementById('loginModal');
-        const certBtn = modal.querySelector('#requestCertBtn');
-        const certMsg = modal.querySelector('#certMessage');
-        const conSalarioSelect = modal.querySelector('#conSalarioSelect');
-        const conSalarioVal = conSalarioSelect ? conSalarioSelect.value : 'true';
-        const certMotivoSelect = modal.querySelector('#certMotivoSelect');
-        const motivoVal = certMotivoSelect ? certMotivoSelect.value : 'Trámites personales';
-
-        if (currentUser && currentUser.role === 'admin') {
-            certMsg.style.color = '#dc2626';
-            certMsg.innerHTML = '<i class="fas fa-ban"></i> Los administradores gestionan el personal y no emiten constancias de trabajo personales.';
-            return;
-        }
-
-        try {
-            certBtn.disabled = true;
-            certBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando documento oficial...';
-
-            let certData = null;
-            try {
-                const response = await fetch(`${API_URL}/constancia?token=${currentToken}&username=${currentUser ? currentUser.username : ''}&con_salario=${encodeURIComponent(conSalarioVal)}&motivo=${encodeURIComponent(motivoVal)}`);
-                if (response.ok) {
-                    certData = await response.json();
-                }
-            } catch (apiErr) {
-                console.warn('API constancia offline, utilizando generador local:', apiErr);
-            }
-
-            if (!certData) {
-                // Fallback cliente garantizado
-                certData = buildClientCertificate(currentUser, conSalarioVal, motivoVal);
-            }
-
-            if (!certData.motivo) {
-                certData.motivo = motivoVal;
-            }
-
-            certMsg.style.color = '#6A0D25';
-            certMsg.innerHTML = `<i class="fas fa-check-circle" style="color: #D4AF37;"></i> ¡Constancia generada exitosamente! Se ha abierto el documento oficial.`;
-            
-            // Abrir documento para previsualización e impresión
-            window.showConstanciaDocument(certData);
-
-        } catch (error) {
-            certMsg.style.color = '#dc2626';
-            certMsg.innerHTML = '<i class="fas fa-times-circle"></i> Ocurrió un error al generar la constancia.';
-        } finally {
-            certBtn.disabled = false;
-            certBtn.innerHTML = '<i class="fas fa-file-alt"></i> Generar y Ver Constancia Oficial';
-        }
-    }
-
-    // Salir / Logout
-    window.pgetLogout = () => {
-        currentToken = null;
-        currentUser = null;
-        localStorage.removeItem('pget_auth_token');
-        localStorage.removeItem('pget_auth_user');
-        localStorage.removeItem('pget_session_open');
-
-        const modal = document.getElementById('loginModal');
-        const mainContent = document.getElementById('mainModalContent');
-        if (mainContent) {
-            mainContent.classList.remove('portal-fullscreen');
-            mainContent.classList.remove('admin-modal-size');
-        }
-
-        const closeBtn = modal.querySelector('#modalCloseBtn');
-        if (closeBtn) closeBtn.style.display = 'block';
-        
-        modal.querySelector('#loginView').style.display = 'block';
-        modal.querySelector('#workerView').style.display = 'none';
-        modal.querySelector('#adminView').style.display = 'none';
-        modal.querySelector('#userFormView').style.display = 'none';
-        
-        const loginBtn = document.getElementById('loginBtn');
-        if (loginBtn) {
-            loginBtn.innerHTML = '<i class="fas fa-user"></i> Iniciar Sesión';
-        }
-
-        const loginForm = modal.querySelector('#loginForm');
-        if (loginForm) loginForm.reset();
-    };
-
-    // Attach to existing modal if already in HTML
-    const initialModal = document.getElementById('loginModal');
-    if (initialModal) {
-        attachModalEvents(initialModal);
-    }
-
-    // Abrir Modal de Inicio de Sesión de forma limpia y confiable
-    window.openLoginModal = () => {
-        const modal = ensureLoginModal();
-        if (!modal) return;
-        const mainContent = document.getElementById('mainModalContent');
-        const closeBtn = modal.querySelector('#modalCloseBtn');
-
-        if (!currentUser) {
-            if (closeBtn) closeBtn.style.display = 'block';
-            if (mainContent) {
-                mainContent.classList.remove('portal-fullscreen');
-                mainContent.classList.remove('admin-modal-size');
-            }
-            const lv = modal.querySelector('#loginView');
-            const wv = modal.querySelector('#workerView');
-            const av = modal.querySelector('#adminView');
-            const uf = modal.querySelector('#userFormView');
-            if (lv) lv.style.display = 'block';
-            if (wv) wv.style.display = 'none';
-            if (av) av.style.display = 'none';
-            if (uf) uf.style.display = 'none';
-            const errDiv = modal.querySelector('#loginError');
-            if (errDiv) {
-                errDiv.style.display = 'none';
-                errDiv.textContent = '';
-            }
-        } else {
-            if (closeBtn) closeBtn.style.display = 'none';
-            handlePostLogin(currentUser);
-        }
-        modal.classList.add('show');
-    };
-
-    // Attach to loginBtn in navbar
-    const loginBtn = document.getElementById('loginBtn');
-    if (loginBtn) {
-        loginBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            window.openLoginModal();
-        });
-    }
-
-    // Navbar scroll effect
-    window.addEventListener('scroll', () => {
-        const navbar = document.querySelector('.navbar');
-        if (navbar) {
-            if (window.scrollY > 50) {
-                navbar.style.padding = '8px 0';
-                navbar.style.background = 'rgba(32, 34, 38, 0.96)';
-            } else {
-                navbar.style.padding = '12px 0';
-                navbar.style.background = 'rgba(38, 41, 46, 0.90)';
-            }
-        }
-    });
-
-    // Sistema Automático de Menú Móvil Responsive para todas las páginas
-    function setupResponsiveMobileNav() {
-        const navContainer = document.querySelector('.nav-container');
-        if (!navContainer) return;
-
-        // 1. Crear e insertar botón Hamburguesa si no existe
-        if (!document.getElementById('mobileMenuBtn')) {
-            const btn = document.createElement('button');
-            btn.id = 'mobileMenuBtn';
-            btn.className = 'mobile-menu-btn';
-            btn.setAttribute('aria-label', 'Abrir Menú de Navegación');
-            btn.innerHTML = '<i class="fas fa-bars"></i>';
-            navContainer.appendChild(btn);
-        }
-
-        // 2. Crear Drawer y Overlay si no existen
-        if (!document.getElementById('mobileNavDrawer')) {
-            const overlay = document.createElement('div');
-            overlay.id = 'mobileNavOverlay';
-            overlay.className = 'mobile-nav-overlay';
-            document.body.appendChild(overlay);
-
-            const drawer = document.createElement('div');
-            drawer.id = 'mobileNavDrawer';
-            drawer.className = 'mobile-nav-drawer';
-
-            const currentPath = window.location.pathname.split('/').pop() || 'index.html';
-
-            drawer.innerHTML = `
-                <div class="mobile-drawer-header">
-                    <div class="mobile-drawer-logo">
-                        <img src="assets/logo.png" alt="Logo PGET" onerror="this.src='https://via.placeholder.com/40?text=PGET'">
-                        <div class="mobile-drawer-logo-text">
-                            <h3>PROCURADURÍA GENERAL</h3>
-                            <span>ESTADO TRUJILLO</span>
-                        </div>
-                    </div>
-                    <button id="mobileDrawerCloseBtn" class="mobile-drawer-close" aria-label="Cerrar Menú">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-
-                <div class="mobile-drawer-links">
-                    <a href="index.html" class="mobile-drawer-link ${currentPath === 'index.html' || currentPath === '' ? 'active' : ''}">
-                        <span><i class="fas fa-home" style="margin-right: 8px; color: #D4AF37;"></i> Inicio</span>
-                        <i class="fas fa-chevron-right"></i>
-                    </a>
-                    
-                    <a href="quienes-somos.html" class="mobile-drawer-link ${currentPath === 'quienes-somos.html' ? 'active' : ''}">
-                        <span><i class="fas fa-landmark" style="margin-right: 8px; color: #D4AF37;"></i> ¿Quiénes Somos?</span>
-                        <i class="fas fa-chevron-right"></i>
-                    </a>
-
-                    <!-- Submenú Filosofía -->
-                    <div class="mobile-submenu-group">
-                        <div class="mobile-submenu-header" id="subFilosofiaHeader">
-                            <span><i class="fas fa-book-open" style="margin-right: 8px; color: #D4AF37;"></i> Filosofía Institucional</span>
-                            <i class="fas fa-chevron-down"></i>
-                        </div>
-                        <div class="mobile-submenu-items" id="subFilosofiaItems">
-                            <a href="mision-vision.html" class="mobile-submenu-item ${currentPath === 'mision-vision.html' ? 'active' : ''}">
-                                &bull; Misión y Visión
-                            </a>
-                            <a href="valores.html" class="mobile-submenu-item ${currentPath === 'valores.html' ? 'active' : ''}">
-                                &bull; Valores y Principios
-                            </a>
-                        </div>
-                    </div>
-
-                    <!-- Submenú Organización -->
-                    <div class="mobile-submenu-group">
-                        <div class="mobile-submenu-header" id="subOrgHeader">
-                            <span><i class="fas fa-sitemap" style="margin-right: 8px; color: #D4AF37;"></i> Organización</span>
-                            <i class="fas fa-chevron-down"></i>
-                        </div>
-                        <div class="mobile-submenu-items" id="subOrgItems">
-                            <a href="organigrama.html?v=3" class="mobile-submenu-item ${currentPath.includes('organigrama') ? 'active' : ''}">
-                                &bull; Organigrama Oficial
-                            </a>
-                            <a href="direcciones.html" class="mobile-submenu-item ${currentPath === 'direcciones.html' ? 'active' : ''}">
-                                &bull; Direcciones y Unidades
-                            </a>
-                        </div>
-                    </div>
-
-                    <a href="bases-juridicas.html" class="mobile-drawer-link ${currentPath === 'bases-juridicas.html' ? 'active' : ''}">
-                        <span><i class="fas fa-balance-scale" style="margin-right: 8px; color: #D4AF37;"></i> Bases Jurídicas</span>
-                        <i class="fas fa-chevron-right"></i>
-                    </a>
-
-                    <a href="contacto.html" class="mobile-drawer-link ${currentPath === 'contacto.html' ? 'active' : ''}">
-                        <span><i class="fas fa-map-marker-alt" style="margin-right: 8px; color: #D4AF37;"></i> Contacto y Ubicación</span>
-                        <i class="fas fa-chevron-right"></i>
-                    </a>
-                </div>
-
-                <div class="mobile-drawer-footer">
-                    <button id="mobileDrawerLoginBtn" class="mobile-drawer-login-btn">
-                        <i class="fas fa-user-shield"></i> Acceso al Sistema PGET
-                    </button>
-                </div>
-            `;
-            document.body.appendChild(drawer);
-
-            // Toggle eventos
-            const menuBtn = document.getElementById('mobileMenuBtn');
-            const closeBtn = document.getElementById('mobileDrawerCloseBtn');
-            const drawerEl = document.getElementById('mobileNavDrawer');
-            const overlayEl = document.getElementById('mobileNavOverlay');
-
-            const openDrawer = () => {
-                drawerEl.classList.add('active');
-                overlayEl.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            };
-
-            const closeDrawer = () => {
-                drawerEl.classList.remove('active');
-                overlayEl.classList.remove('active');
-                document.body.style.overflow = '';
-            };
-
-            if (menuBtn) menuBtn.addEventListener('click', openDrawer);
-            if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
-            if (overlayEl) overlayEl.addEventListener('click', closeDrawer);
-
-            // Submenú Toggles
-            const toggleSubmenu = (headerId, itemsId) => {
-                const header = document.getElementById(headerId);
-                const items = document.getElementById(itemsId);
-                if (header && items) {
-                    header.addEventListener('click', () => {
-                        header.classList.toggle('active');
-                        items.classList.toggle('active');
-                    });
-                }
-            };
-            toggleSubmenu('subFilosofiaHeader', 'subFilosofiaItems');
-            toggleSubmenu('subOrgHeader', 'subOrgItems');
-
-            // Botón de login en el drawer
-            const drawerLoginBtn = document.getElementById('mobileDrawerLoginBtn');
-            if (drawerLoginBtn) {
-                if (currentUser) {
-                    drawerLoginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${currentUser.nombre ? currentUser.nombre.split(' ')[0] : currentUser.username}`;
-                }
-                drawerLoginBtn.addEventListener('click', () => {
-                    closeDrawer();
-                    window.openLoginModal();
-                });
-            }
-        }
-    }
-
-    // =========================================================================
-    // RESTAURACIÓN AUTOMÁTICA DE SESIÓN AL ACTUALIZAR LA PÁGINA (F5 / RECARGA)
-    // =========================================================================
-    // RESTAURACIÓN SILENCIOSA DE SESIÓN AL ACTUALIZAR LA PÁGINA (F5 / RECARGA)
-    // =========================================================================
-    async function restoreSavedSession() {
-        const savedToken = localStorage.getItem('pget_auth_token');
-        const savedUserRaw = localStorage.getItem('pget_auth_user');
-        localStorage.removeItem('pget_session_open'); // Prevenir que el modal se abra automáticamente
-        if (!savedToken || !savedUserRaw) return;
-
-        try {
-            const parsedUser = JSON.parse(savedUserRaw);
-            if (parsedUser && parsedUser.username) {
-                currentToken = savedToken;
-                currentUser = parsedUser;
-
-                const displayName = currentUser.role === 'admin' 
-                    ? 'ADMINISTRADOR' 
-                    : (currentUser.nombre ? currentUser.nombre.split(' ')[0] : currentUser.username);
-
-                // Actualizar botón de iniciar sesión en barra superior manteniendo la página actual
-                const loginBtn = document.getElementById('loginBtn');
-                if (loginBtn) {
-                    loginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${displayName}`;
-                }
-
-                // Actualizar botón en el menú móvil si existe
-                const drawerLoginBtn = document.getElementById('mobileDrawerLoginBtn');
-                if (drawerLoginBtn) {
-                    drawerLoginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${displayName}`;
-                }
-
-                // Sincronizar en segundo plano datos frescos del usuario desde el backend
-                try {
-                    fetch(`${API_URL}/users`)
-                        .then(r => r.ok ? r.json() : null)
-                        .then(users => {
-                            if (Array.isArray(users) && currentUser) {
-                                const fresh = users.find(u => u.username.toLowerCase() === currentUser.username.toLowerCase());
-                                if (fresh) {
-                                    currentUser = { ...currentUser, ...fresh };
-                                    localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
-                                }
-                            }
-                        })
-                        .catch(() => {});
-                } catch (e) {}
-            }
-        } catch (err) {
-            console.warn('Error al restaurar sesión previa:', err);
-        }
-    }
-
-    // Desplazamiento suave para el indicador de scroll en la portada
-    const heroScrollIndicator = document.getElementById('heroScrollIndicator');
-    if (heroScrollIndicator) {
-        heroScrollIndicator.addEventListener('click', function(e) {
-            e.preventDefault();
-            const targetSection = document.getElementById('instagram-feed') || document.getElementById('quienes-somos');
-            if (targetSection) {
-                targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-        });
-    }
-
-    setupResponsiveMobileNav();
-    restoreSavedSession();
-});
+// Global JavaScript for PGET Portal - Authentication & Admin Management
+document.addEventListener('DOMContentLoaded', () => {
+    // Detección dinámica de entorno (Local vs Producción en Vercel)
+    const isLocal = window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1' || 
+                    window.location.protocol === 'file:';
+    // En Vercel la API corre en el mismo dominio bajo /api:
+    const PROD_API_URL = `${window.location.origin}/api`;
+    const LOCAL_API_URL = 'http://127.0.0.1:8000/api';
+    const API_URL = isLocal ? LOCAL_API_URL : (window.PGET_API_URL || localStorage.getItem('PGET_API_URL') || PROD_API_URL);
+    let currentToken = null;
+    let currentUser = null;
+    let allUsersCache = [];
+    let editingUsername = null;
+    let currentCondicionFilter = ''; // '' (Todos), 'FIJO', 'CONTRATADO', 'JUBILADO'
+    let formSelectedArcFile = undefined;
+
+    const defaultCargosInitial = [
+        "ABOGADO",
+        "ABOGADO I",
+        "ABOGADO II",
+        "ABOGADO III",
+        "ADMINISTRADOR DEL SISTEMA",
+        "ADMINISTRADOR PROFESIONAL I",
+        "ANALISTA CENTRAL DE COMPUTACIÓN Y SISTEMAS",
+        "ANALISTA CONTABLE",
+        "ANALISTA DE PERSONAL",
+        "ANALISTA DE PRESUPUESTO",
+        "ASEADORA",
+        "ASISTENTE ADMINISTRATIVO",
+        "ASISTENTE ADMINISTRATIVO I",
+        "ASISTENTE CONTABLE",
+        "ASISTENTE JURÍDICO",
+        "AUDITOR JEFE",
+        "AUXILIAR TÉCNICO",
+        "CHOFER",
+        "COORDINADORA DE BIENES Y SERVICIOS",
+        "DIRECTOR DE ADMINISTRACIÓN",
+        "DIRECTOR DE ASUNTOS JURÍDICOS",
+        "DIRECTOR DE LÍNEA",
+        "DIRECTOR GENERAL",
+        "DIRECTORA (E) DE RECURSOS HUMANOS",
+        "DIRECTORA DE RECURSOS HUMANOS",
+        "DIRECTORA GENERAL",
+        "ESPECIALISTA EN BIENES Y SERVICIOS",
+        "FISCAL DE BIENES",
+        "JUBILADO",
+        "MENSAJERO",
+        "OBRERO",
+        "PENSIONADO",
+        "PROCURADORA",
+        "SECRETARIA",
+        "SECRETARIA EJECUTIVA",
+        "SECRETARIA I"
+];
+    let allCargosCache = [...defaultCargosInitial];
+
+    // Helpers para formateo de fechas entre Input Date (YYYY-MM-DD) y formato institucional (DD/MM/AAAA)
+    function toInputDateValue(dateStr) {
+        if (!dateStr) return '';
+        const clean = String(dateStr).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+        if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(clean)) {
+            const parts = clean.split(/[\/\-]/);
+            const day = parts[0].padStart(2, '0');
+            const month = parts[1].padStart(2, '0');
+            const year = parts[2];
+            return `${year}-${month}-${day}`;
+        }
+        return '';
+    }
+
+    function toDisplayDateValue(dateStr) {
+        if (!dateStr) return '';
+        const clean = String(dateStr).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+            const parts = clean.split('-');
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return clean;
+    }
+
+    // Helpers para Salario con prefijo Bs. fijo (no borrable)
+    function cleanSalarioAmount(salarioStr) {
+        if (!salarioStr) return '1.000,00';
+        return String(salarioStr).replace(/^[bB][sS]\.?\s*/, '').trim() || '1.000,00';
+    }
+
+    function formatSalarioBs(amountStr) {
+        if (!amountStr) return 'Bs. 1.000,00';
+        const clean = String(amountStr).replace(/^[bB][sS]\.?\s*/, '').trim();
+        return clean ? `Bs. ${clean}` : 'Bs. 1.000,00';
+    }
+
+    async function loadCargosCatalog() {
+        try {
+            const local = localStorage.getItem('pget_custom_cargos');
+            if (local) {
+                const parsed = JSON.parse(local);
+                if (Array.isArray(parsed)) {
+                    parsed.forEach(c => {
+                        const norm = String(c).trim().toUpperCase();
+                        if (norm && !allCargosCache.includes(norm)) allCargosCache.push(norm);
+                    });
+                }
+            }
+        } catch (e) {}
+
+        try {
+            const res = await fetch(`${API_URL}/cargos`);
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    data.forEach(c => {
+                        const norm = String(c).trim().toUpperCase();
+                        if (norm && !allCargosCache.includes(norm)) allCargosCache.push(norm);
+                    });
+                    localStorage.setItem('pget_custom_cargos', JSON.stringify(allCargosCache));
+                }
+            }
+        } catch (err) {
+            console.warn('API cargos offline, utilizando catalogo local');
+        }
+        allCargosCache.sort();
+    }
+
+    loadCargosCatalog();
+
+    // Helper para dividir nombres y apellidos si vienen en un solo campo
+    function splitNombreApellidos(nombreCompleto) {
+        if (!nombreCompleto) return { nombres: '', apellidos: '' };
+        const parts = nombreCompleto.trim().split(/\s+/);
+        if (parts.length <= 1) return { nombres: parts[0] || '', apellidos: '' };
+        if (parts.length === 2) return { nombres: parts[0], apellidos: parts[1] };
+        const mid = Math.floor(parts.length / 2);
+        return {
+            nombres: parts.slice(0, mid).join(' '),
+            apellidos: parts.slice(mid).join(' ')
+        };
+    }
+
+    // Helper de seguridad contra XSS (Cross-Site Scripting)
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // Helper para obtener las iniciales del trabajador en minúsculas (ej. LORENZO AVILA -> la, VICTORIA CARMONA -> vc)
+    function getWorkerInitials(user) {
+        if (!user) return 'xx';
+        const cleanStr = (str) => {
+            if (!str) return '';
+            return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+        };
+        const stripPrefix = (str) => {
+            return cleanStr(str)
+                .replace(/^(abog\.|abogada|abogado|ing\.|ingeniero|ingeniera|lic\.|licenciado|licenciada|t\.s\.u\.|tsu|prof\.|profesor|profesora|dra?\.|doctor|doctora)\s+/i, '')
+                .trim();
+        };
+
+        const n = stripPrefix(user.nombres || '');
+        const a = stripPrefix(user.apellidos || '');
+
+        if (n && a) {
+            const firstN = n.split(/\s+/)[0];
+            const firstA = a.split(/\s+/)[0];
+            const initN = firstN ? firstN[0] : '';
+            const initA = firstA ? firstA[0] : '';
+            if (initN && initA) {
+                return `${initN}${initA}`.toLowerCase();
+            }
+        }
+
+        const fullName = stripPrefix(user.nombre || '');
+        if (fullName) {
+            const split = splitNombreApellidos(fullName);
+            const sn = stripPrefix(split.nombres);
+            const sa = stripPrefix(split.apellidos);
+            if (sn && sa) {
+                const partN = sn.split(/\s+/)[0];
+                const partA = sa.split(/\s+/)[0];
+                if (partN && partA) {
+                    return `${partN[0]}${partA[0]}`.toLowerCase();
+                }
+            }
+            const parts = fullName.split(/\s+/).filter(Boolean);
+            if (parts.length >= 2) {
+                return `${parts[0][0]}${parts[1][0]}`.toLowerCase();
+            } else if (parts.length === 1) {
+                return `${parts[0][0]}x`.toLowerCase();
+            }
+        }
+
+        return 'xx';
+    }
+
+    // Cuentas institucionales oficiales predefinidas para respaldo y modelos de constancias
+    const defaultAccounts = [
+        {
+                "username": "admin@pget.com",
+                "password": "admin123",
+                "role": "admin",
+                "nombres": "ADMINISTRADOR GENERAL",
+                "apellidos": "PGET",
+                "nombre": "ADMINISTRADOR GENERAL PGET",
+                "profesion": "Ingeniero",
+                "genero": "masculino",
+                "cedula": "12345678",
+                "cargo": "ADMINISTRADOR DEL SISTEMA",
+                "condicion": "FIJO",
+                "salario": "Bs. 1.500,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DESPACHO DEL PROCURADOR GENERAL",
+                "fecha_ingreso": "01/01/2020",
+                "anos_servicio": "6",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020000000000000000"
+        },
+        {
+                "username": "admin@pget.gob.ve",
+                "password": "admin123",
+                "role": "admin",
+                "nombres": "ADMINISTRADOR GENERAL",
+                "apellidos": "PGET",
+                "nombre": "ADMINISTRADOR GENERAL PGET",
+                "profesion": "Ingeniero",
+                "genero": "masculino",
+                "cedula": "12345678",
+                "cargo": "ADMINISTRADOR DEL SISTEMA",
+                "condicion": "FIJO",
+                "salario": "Bs. 1.500,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DESPACHO DEL PROCURADOR GENERAL",
+                "fecha_ingreso": "01/01/2020",
+                "anos_servicio": "6",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020000000000000000"
+        },
+        {
+                "username": "dora.matheus@pget.com",
+                "password": "Pget10035929",
+                "role": "trabajador",
+                "nombres": "DORA ALICIA",
+                "apellidos": "MATHEUS",
+                "nombre": "DORA ALICIA MATHEUS",
+                "profesion": "Abogado",
+                "genero": "femenino",
+                "cedula": "10035929",
+                "cargo": "PROCURADORA",
+                "condicion": "FIJO",
+                "salario": "Bs. 961,51",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DESPACHO DEL PROCURADOR GENERAL",
+                "fecha_ingreso": "21/01/2026",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020373220000419109"
+        },
+        {
+                "username": "virginia.rojas@pget.com",
+                "password": "Pget5783889",
+                "role": "trabajador",
+                "nombres": "VIRGINIA DEL CARMEN",
+                "apellidos": "ROJAS CONTRERAS",
+                "nombre": "VIRGINIA DEL CARMEN ROJAS CONTRERAS",
+                "profesion": "Licenciado",
+                "genero": "femenino",
+                "cedula": "5783889",
+                "cargo": "DIRECTORA GENERAL",
+                "condicion": "FIJO",
+                "salario": "Bs. 937,67",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN GENERAL",
+                "fecha_ingreso": "01/04/2024",
+                "anos_servicio": "2",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369470100072126"
+        },
+        {
+                "username": "lizamar.briceno@pget.com",
+                "password": "Pget20400747",
+                "role": "trabajador",
+                "nombres": "LIZAMAR INDIRA",
+                "apellidos": "BRICEÑO VALECILLOS",
+                "nombre": "LIZAMAR INDIRA BRICEÑO VALECILLOS",
+                "profesion": "Abogado",
+                "genero": "femenino",
+                "cedula": "20400747",
+                "cargo": "DIRECTOR DE ASUNTOS JURÍDICOS",
+                "condicion": "FIJO",
+                "salario": "Bs. 949,50",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
+                "fecha_ingreso": "01/07/2014",
+                "anos_servicio": "12",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020494120000102429"
+        },
+        {
+                "username": "elvimar.lopez@pget.com",
+                "password": "Pget14780947",
+                "role": "trabajador",
+                "nombres": "ELVIMAR CAROLINA",
+                "apellidos": "LOPEZ ARAUJO",
+                "nombre": "ELVIMAR CAROLINA LOPEZ ARAUJO",
+                "profesion": "Licenciado",
+                "genero": "femenino",
+                "cedula": "14780947",
+                "cargo": "DIRECTORA DE RECURSOS HUMANOS",
+                "condicion": "FIJO",
+                "salario": "Bs. 933,88",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "15/08/2012",
+                "anos_servicio": "14",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020119590000115076"
+        },
+        {
+                "username": "marcos.lopez@pget.com",
+                "password": "Pget13048233",
+                "role": "trabajador",
+                "nombres": "MARCOS EDUARDO",
+                "apellidos": "LOPEZ CAMACHO",
+                "nombre": "MARCOS EDUARDO LOPEZ CAMACHO",
+                "profesion": "Licenciado",
+                "genero": "masculino",
+                "cedula": "13048233",
+                "cargo": "DIRECTOR DE ADMINISTRACIÓN",
+                "condicion": "FIJO",
+                "salario": "Bs. 882,89",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
+                "fecha_ingreso": "15/09/2025",
+                "anos_servicio": "1",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020747940000055482"
+        },
+        {
+                "username": "yuleide.rosario@pget.com",
+                "password": "Pget14556310",
+                "role": "trabajador",
+                "nombres": "YULEIDE DEL VALLE",
+                "apellidos": "ROSARIO PAREDES",
+                "nombre": "YULEIDE DEL VALLE ROSARIO PAREDES",
+                "profesion": "Licenciado",
+                "genero": "femenino",
+                "cedula": "14556310",
+                "cargo": "COORDINADORA DE BIENES Y SERVICIOS",
+                "condicion": "FIJO",
+                "salario": "Bs. 829,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
+                "fecha_ingreso": "18/02/2025",
+                "anos_servicio": "1",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102110000237695"
+        },
+        {
+                "username": "roxanna.mercado@pget.com",
+                "password": "Pget23596460",
+                "role": "trabajador",
+                "nombres": "ROXANNA KAROLINA",
+                "apellidos": "MERCADO HIDALGO",
+                "nombre": "ROXANNA KAROLINA MERCADO HIDALGO",
+                "profesion": "Abogado",
+                "genero": "femenino",
+                "cedula": "23596460",
+                "cargo": "ABOGADO I",
+                "condicion": "FIJO",
+                "salario": "Bs. 568,31",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
+                "fecha_ingreso": "16/04/2018",
+                "anos_servicio": "8",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102180000237747"
+        },
+        {
+                "username": "marlene.angulo@pget.com",
+                "password": "Pget14150007",
+                "role": "trabajador",
+                "nombres": "MARLENE JOSEFINA",
+                "apellidos": "ANGULO HERNANDEZ",
+                "nombre": "MARLENE JOSEFINA ANGULO HERNANDEZ",
+                "profesion": "Licenciado",
+                "genero": "femenino",
+                "cedula": "14150007",
+                "cargo": "ASISTENTE ADMINISTRATIVO I",
+                "condicion": "FIJO",
+                "salario": "Bs. 746,96",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
+                "fecha_ingreso": "01/07/2005",
+                "anos_servicio": "21",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102100000237679"
+        },
+        {
+                "username": "susana.nunez@pget.com",
+                "password": "Pget12940789",
+                "role": "trabajador",
+                "nombres": "SUSANA CAROLINA",
+                "apellidos": "NUÑEZ DE AGUILAR",
+                "nombre": "SUSANA CAROLINA NUÑEZ DE AGUILAR",
+                "profesion": "Licenciado",
+                "genero": "femenino",
+                "cedula": "12940789",
+                "cargo": "ASISTENTE ADMINISTRATIVO I",
+                "condicion": "FIJO",
+                "salario": "Bs. 507,40",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
+                "fecha_ingreso": "01/06/2023",
+                "anos_servicio": "3",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369470000002354"
+        },
+        {
+                "username": "cesar.morillo@pget.com",
+                "password": "Pget6148776",
+                "role": "trabajador",
+                "nombres": "CESAR AUGUSTO",
+                "apellidos": "MORILLO PEREZ",
+                "nombre": "CESAR AUGUSTO MORILLO PEREZ",
+                "profesion": "Licenciado",
+                "genero": "masculino",
+                "cedula": "6148776",
+                "cargo": "FISCAL DE BIENES",
+                "condicion": "FIJO",
+                "salario": "Bs. 730,08",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
+                "fecha_ingreso": "15/05/2006",
+                "anos_servicio": "20",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102160000237815"
+        },
+        {
+                "username": "lennys.mendez@pget.com",
+                "password": "Pget11134714",
+                "role": "trabajador",
+                "nombres": "LENNYS COROMOTO",
+                "apellidos": "MENDEZ BASTIDAS",
+                "nombre": "LENNYS COROMOTO MENDEZ BASTIDAS",
+                "profesion": "Técnico Superior",
+                "genero": "femenino",
+                "cedula": "11134714",
+                "cargo": "AUXILIAR TÉCNICO",
+                "condicion": "FIJO",
+                "salario": "Bs. 526,68",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
+                "fecha_ingreso": "01/02/2021",
+                "anos_servicio": "5",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369400000261108"
+        },
+        {
+                "username": "pedro.parica@pget.com",
+                "password": "Pget10579837",
+                "role": "trabajador",
+                "nombres": "PEDRO DAMIAN",
+                "apellidos": "PARICA BRITO",
+                "nombre": "PEDRO DAMIAN PARICA BRITO",
+                "profesion": "Técnico Superior",
+                "genero": "masculino",
+                "cedula": "10579837",
+                "cargo": "ASISTENTE CONTABLE",
+                "condicion": "FIJO",
+                "salario": "Bs. 455,82",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
+                "fecha_ingreso": "01/02/2021",
+                "anos_servicio": "5",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020485290100027238"
+        },
+        {
+                "username": "jose.paredes@pget.com",
+                "password": "Pget24618946",
+                "role": "trabajador",
+                "nombres": "JOSE ARMANDO",
+                "apellidos": "PAREDES BECERRA",
+                "nombre": "JOSE ARMANDO PAREDES BECERRA",
+                "profesion": "Licenciado",
+                "genero": "masculino",
+                "cedula": "24618946",
+                "cargo": "ANALISTA CONTABLE",
+                "condicion": "FIJO",
+                "salario": "Bs. 532,87",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
+                "fecha_ingreso": "02/12/2019",
+                "anos_servicio": "6",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369490000300742"
+        },
+        {
+                "username": "yusmary.canizalez@pget.com",
+                "password": "Pget26191008",
+                "role": "trabajador",
+                "nombres": "YUSMARY DEL CARMEN",
+                "apellidos": "CAÑIZALEZ RIVERA",
+                "nombre": "YUSMARY DEL CARMEN CAÑIZALEZ RIVERA",
+                "profesion": "Licenciado",
+                "genero": "femenino",
+                "cedula": "26191008",
+                "cargo": "ANALISTA DE PERSONAL",
+                "condicion": "FIJO",
+                "salario": "Bs. 544,31",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "16/03/2020",
+                "anos_servicio": "6",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369410100093868"
+        },
+        {
+                "username": "janet.nehme@pget.com",
+                "password": "Pget12798734",
+                "role": "trabajador",
+                "nombres": "JANET ILIANA",
+                "apellidos": "NEHME ABOU",
+                "nombre": "JANET ILIANA NEHME ABOU",
+                "profesion": "Licenciado",
+                "genero": "femenino",
+                "cedula": "12798734",
+                "cargo": "ASISTENTE ADMINISTRATIVO",
+                "condicion": "FIJO",
+                "salario": "Bs. 656,88",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
+                "fecha_ingreso": "01/12/2013",
+                "anos_servicio": "12",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020494190000265777"
+        },
+        {
+                "username": "gustavo.fernandez@pget.com",
+                "password": "Pget14310168",
+                "role": "trabajador",
+                "nombres": "GUSTAVO ANDRES",
+                "apellidos": "FERNANDEZ MEDINA",
+                "nombre": "GUSTAVO ANDRES FERNANDEZ MEDINA",
+                "profesion": "Técnico Superior",
+                "genero": "masculino",
+                "cedula": "14310168",
+                "cargo": "ASISTENTE ADMINISTRATIVO",
+                "condicion": "FIJO",
+                "salario": "Bs. 507,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
+                "fecha_ingreso": "01/02/2014",
+                "anos_servicio": "12",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369410000075446"
+        },
+        {
+                "username": "yonexi.moreno@pget.com",
+                "password": "Pget16738909",
+                "role": "trabajador",
+                "nombres": "YONEXI CAROLINA",
+                "apellidos": "MORENO HERNANDEZ",
+                "nombre": "YONEXI CAROLINA MORENO HERNANDEZ",
+                "profesion": "Abogado",
+                "genero": "femenino",
+                "cedula": "16738909",
+                "cargo": "ABOGADO",
+                "condicion": "FIJO",
+                "salario": "Bs. 653,63",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
+                "fecha_ingreso": "06/06/2013",
+                "anos_servicio": "13",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102140000237718"
+        },
+        {
+                "username": "maria.avila@pget.com",
+                "password": "Pget16276502",
+                "role": "trabajador",
+                "nombres": "MARIA CAROLINA",
+                "apellidos": "AVILA NUÑEZ",
+                "nombre": "MARIA CAROLINA AVILA NUÑEZ",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "16276502",
+                "cargo": "SECRETARIA",
+                "condicion": "FIJO",
+                "salario": "Bs. 312,66",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
+                "fecha_ingreso": "05/09/2019",
+                "anos_servicio": "7",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369450100088022"
+        },
+        {
+                "username": "ana.barrios@pget.com",
+                "password": "Pget20655577",
+                "role": "trabajador",
+                "nombres": "ANA MARIBEL",
+                "apellidos": "BARRIOS VILORIA",
+                "nombre": "ANA MARIBEL BARRIOS VILORIA",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "20655577",
+                "cargo": "ASEADORA",
+                "condicion": "FIJO",
+                "salario": "Bs. 316,79",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
+                "fecha_ingreso": "07/08/2017",
+                "anos_servicio": "9",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102160000237734"
+        },
+        {
+                "username": "maria.demora@pget.com",
+                "password": "Pget2683568",
+                "role": "trabajador",
+                "nombres": "MARIA",
+                "apellidos": "DE MORA BRICEÑO",
+                "nombre": "MARIA DE MORA BRICEÑO",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "2683568",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 142,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369410100066632"
+        },
+        {
+                "username": "ofelia.villegas@pget.com",
+                "password": "Pget3903511",
+                "role": "trabajador",
+                "nombres": "OFELIA",
+                "apellidos": "VILEGAS DE VILLEGAS",
+                "nombre": "OFELIA VILEGAS DE VILLEGAS",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "3903511",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 142,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102110000237776"
+        },
+        {
+                "username": "gladys.graterol@pget.com",
+                "password": "Pget4314147",
+                "role": "trabajador",
+                "nombres": "GLADYS",
+                "apellidos": "GRATEROL DE AGÜERO",
+                "nombre": "GLADYS GRATEROL DE AGÜERO",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "4314147",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 142,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102130000237789"
+        },
+        {
+                "username": "adelfo.teran@pget.com",
+                "password": "Pget7755945",
+                "role": "trabajador",
+                "nombres": "ADELFO",
+                "apellidos": "TERAN ARAUJO",
+                "nombre": "ADELFO TERAN ARAUJO",
+                "profesion": "Bachiller",
+                "genero": "masculino",
+                "cedula": "7755945",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 228,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369490100074845"
+        },
+        {
+                "username": "mario.mazzei@pget.com",
+                "password": "Pget9019850",
+                "role": "trabajador",
+                "nombres": "MARIO ANTONIO",
+                "apellidos": "MAZZEI CASTELLANOS",
+                "nombre": "MARIO ANTONIO MAZZEI CASTELLANOS",
+                "profesion": "Licenciado",
+                "genero": "masculino",
+                "cedula": "9019850",
+                "cargo": "AUDITOR JEFE",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 142,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "UNIDAD DE AUDITORÍA INTERNA",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102180000237831"
+        },
+        {
+                "username": "maria.delgado@pget.com",
+                "password": "Pget9156806",
+                "role": "trabajador",
+                "nombres": "MARIA",
+                "apellidos": "DELGADO GODOY",
+                "nombre": "MARIA DELGADO GODOY",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "9156806",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 142,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102100000237844"
+        },
+        {
+                "username": "cesar.gonzalez@pget.com",
+                "password": "Pget8717623",
+                "role": "trabajador",
+                "nombres": "CESAR E.",
+                "apellidos": "GONZALEZ GODOY",
+                "nombre": "CESAR E. GONZALEZ GODOY",
+                "profesion": "Bachiller",
+                "genero": "masculino",
+                "cedula": "8717623",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 142,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369470000088006"
+        },
+        {
+                "username": "jose.briceno@pget.com",
+                "password": "Pget4315989",
+                "role": "trabajador",
+                "nombres": "JOSE ELIAS",
+                "apellidos": "BRECEÑO",
+                "nombre": "JOSE ELIAS BRECEÑO",
+                "profesion": "Bachiller",
+                "genero": "masculino",
+                "cedula": "4315989",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 142,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102130000237792"
+        },
+        {
+                "username": "sara.bastidas@pget.com",
+                "password": "Pget9327975",
+                "role": "trabajador",
+                "nombres": "SARA",
+                "apellidos": "BASTIDAS CASTELLANOS",
+                "nombre": "SARA BASTIDAS CASTELLANOS",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "9327975",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 252,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102110000237860"
+        },
+        {
+                "username": "sullin.perez@pget.com",
+                "password": "Pget12723568",
+                "role": "trabajador",
+                "nombres": "SULLIN",
+                "apellidos": "PEREZ",
+                "nombre": "SULLIN PEREZ",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "12723568",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 181,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020493370000184803"
+        },
+        {
+                "username": "jackeline.cobarrubia@pget.com",
+                "password": "Pget11125239",
+                "role": "trabajador",
+                "nombres": "JACKELINE",
+                "apellidos": "COBARRUBIA",
+                "nombre": "JACKELINE COBARRUBIA",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "11125239",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 181,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102180000237909"
+        },
+        {
+                "username": "rafael.marquez@pget.com",
+                "password": "Pget10318773",
+                "role": "trabajador",
+                "nombres": "RAFAEL",
+                "apellidos": "MARQUEZ",
+                "nombre": "RAFAEL MARQUEZ",
+                "profesion": "Bachiller",
+                "genero": "masculino",
+                "cedula": "10318773",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 200,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102170000237899"
+        },
+        {
+                "username": "evelia.villegas@pget.com",
+                "password": "Pget8721560",
+                "role": "trabajador",
+                "nombres": "EVELIA",
+                "apellidos": "VILLEGAS",
+                "nombre": "EVELIA VILLEGAS",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "8721560",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 181,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369450000563767"
+        },
+        {
+                "username": "mariela.castellanos@pget.com",
+                "password": "Pget5794214",
+                "role": "trabajador",
+                "nombres": "MARIELA",
+                "apellidos": "CASTELLANOS",
+                "nombre": "MARIELA CASTELLANOS",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "5794214",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 228,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020493310100017903"
+        },
+        {
+                "username": "carlos.nunez@pget.com",
+                "password": "Pget8715943",
+                "role": "trabajador",
+                "nombres": "CARLOS",
+                "apellidos": "NUÑEZ",
+                "nombre": "CARLOS NUÑEZ",
+                "profesion": "Bachiller",
+                "genero": "masculino",
+                "cedula": "8715943",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 283,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369410000535575"
+        },
+        {
+                "username": "luis.godoy@pget.com",
+                "password": "Pget5788873",
+                "role": "trabajador",
+                "nombres": "LUIS",
+                "apellidos": "GODOY",
+                "nombre": "LUIS GODOY",
+                "profesion": "Bachiller",
+                "genero": "masculino",
+                "cedula": "5788873",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 279,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020747940000222066"
+        },
+        {
+                "username": "nora.torres@pget.com",
+                "password": "Pget5780455",
+                "role": "trabajador",
+                "nombres": "NORA",
+                "apellidos": "TORRES",
+                "nombre": "NORA TORRES",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "5780455",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 142,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102140000237802"
+        },
+        {
+                "username": "yudith.balza@pget.com",
+                "password": "Pget13376253",
+                "role": "trabajador",
+                "nombres": "YUDITH",
+                "apellidos": "BALZA",
+                "nombre": "YUDITH BALZA",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "13376253",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 279,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369450100093169"
+        },
+        {
+                "username": "jennifer.colmenares@pget.com",
+                "password": "Pget9173481",
+                "role": "trabajador",
+                "nombres": "JENNIFER",
+                "apellidos": "COLMENARES",
+                "nombre": "JENNIFER COLMENARES",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "9173481",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 279,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102110000237857"
+        },
+        {
+                "username": "claudia.mendoza@pget.com",
+                "password": "Pget11134597",
+                "role": "trabajador",
+                "nombres": "CLAUDIA",
+                "apellidos": "MENDOZA",
+                "nombre": "CLAUDIA MENDOZA",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "11134597",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 281,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102100000237925"
+        },
+        {
+                "username": "iris.kraus@pget.com",
+                "password": "Pget11321649",
+                "role": "trabajador",
+                "nombres": "IRIS",
+                "apellidos": "KRAUS BETANCOURT",
+                "nombre": "IRIS KRAUS BETANCOURT",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "11321649",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 250,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102110000237938"
+        },
+        {
+                "username": "adelso.vazquez@pget.com",
+                "password": "Pget11897416",
+                "role": "trabajador",
+                "nombres": "ADELSO",
+                "apellidos": "VAZQUEZ",
+                "nombre": "ADELSO VAZQUEZ",
+                "profesion": "Bachiller",
+                "genero": "masculino",
+                "cedula": "11897416",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 300,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102110000237941"
+        },
+        {
+                "username": "luz.cabrera@pget.com",
+                "password": "Pget10310605",
+                "role": "trabajador",
+                "nombres": "LUZ MARINA",
+                "apellidos": "CABRERA",
+                "nombre": "LUZ MARINA CABRERA",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "10310605",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 312,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102150000237886"
+        },
+        {
+                "username": "guiseppie.agrisano@pget.com",
+                "password": "Pget11315304",
+                "role": "trabajador",
+                "nombres": "GUISEPPIE",
+                "apellidos": "AGRISANO",
+                "nombre": "GUISEPPIE AGRISANO",
+                "profesion": "Bachiller",
+                "genero": "masculino",
+                "cedula": "11315304",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 409,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020373220100082177"
+        },
+        {
+                "username": "marilyn.boscan@pget.com",
+                "password": "Pget14718952",
+                "role": "trabajador",
+                "nombres": "MARILYN",
+                "apellidos": "BOSCAN",
+                "nombre": "MARILYN BOSCAN",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "14718952",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 570,32",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102120000237705"
+        },
+        {
+                "username": "edgar.teran@pget.com",
+                "password": "Pget13260262",
+                "role": "trabajador",
+                "nombres": "EDGAR",
+                "apellidos": "TERAN",
+                "nombre": "EDGAR TERAN",
+                "profesion": "Bachiller",
+                "genero": "masculino",
+                "cedula": "13260262",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 528,76",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102160000237653"
+        },
+        {
+                "username": "eddy.pacheco@pget.com",
+                "password": "Pget13001383",
+                "role": "trabajador",
+                "nombres": "EDDY",
+                "apellidos": "PACHECO",
+                "nombre": "EDDY PACHECO",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "13001383",
+                "cargo": "JUBILADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 577,80",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102140000237637"
+        },
+        {
+                "username": "luz.marquez@pget.com",
+                "password": "Pget8721191",
+                "role": "trabajador",
+                "nombres": "LUZ MAIRA",
+                "apellidos": "MARQUEZ MARQUEZ",
+                "nombre": "LUZ MAIRA MARQUEZ MARQUEZ",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "8721191",
+                "cargo": "PENSIONADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 142,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369460100076427"
+        },
+        {
+                "username": "diana.cardenas@pget.com",
+                "password": "Pget1401218",
+                "role": "trabajador",
+                "nombres": "DIANA",
+                "apellidos": "CARDENAS DE SALAS",
+                "nombre": "DIANA CARDENAS DE SALAS",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "1401218",
+                "cargo": "PENSIONADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 142,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102180000237750"
+        },
+        {
+                "username": "jose.orozco@pget.com",
+                "password": "Pget4320705",
+                "role": "trabajador",
+                "nombres": "JOSE ERNESTO",
+                "apellidos": "OROZCO",
+                "nombre": "JOSE ERNESTO OROZCO",
+                "profesion": "Bachiller",
+                "genero": "masculino",
+                "cedula": "4320705",
+                "cargo": "PENSIONADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 142,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369400000416238"
+        },
+        {
+                "username": "maria.angulo@pget.com",
+                "password": "Pget3216900",
+                "role": "trabajador",
+                "nombres": "MARIA MERCEDES",
+                "apellidos": "ANGULO",
+                "nombre": "MARIA MERCEDES ANGULO",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "3216900",
+                "cargo": "PENSIONADO",
+                "condicion": "JUBILADO",
+                "salario": "Bs. 142,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
+                "fecha_ingreso": "",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020494130100023122"
+        },
+        {
+                "username": "tatiana.ramirez@pget.com",
+                "password": "Pget15315709",
+                "role": "trabajador",
+                "nombres": "TATIANA MARILIN",
+                "apellidos": "RAMIREZ OROPEZA",
+                "nombre": "TATIANA MARILIN RAMIREZ OROPEZA",
+                "profesion": "Abogado",
+                "genero": "femenino",
+                "cedula": "15315709",
+                "cargo": "ABOGADO I",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 656,88",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
+                "fecha_ingreso": "27/07/2009",
+                "anos_servicio": "17",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020286810100014597"
+        },
+        {
+                "username": "carlos.deabreu@pget.com",
+                "password": "Pget10446852",
+                "role": "trabajador",
+                "nombres": "CARLOS EDUARDO",
+                "apellidos": "DE ABREU HERNANDEZ",
+                "nombre": "CARLOS EDUARDO DE ABREU HERNANDEZ",
+                "profesion": "Doctor",
+                "genero": "masculino",
+                "cedula": "10446852",
+                "cargo": "ABOGADO I",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 631,45",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
+                "fecha_ingreso": "15/05/2016",
+                "anos_servicio": "10",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102180000240132"
+        },
+        {
+                "username": "yulianova.vale@pget.com",
+                "password": "Pget26591763",
+                "role": "trabajador",
+                "nombres": "YULIANOVA PAOLA",
+                "apellidos": "VALE VALERA",
+                "nombre": "YULIANOVA PAOLA VALE VALERA",
+                "profesion": "Abogado",
+                "genero": "femenino",
+                "cedula": "26591763",
+                "cargo": "ABOGADO I",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 522,60",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
+                "fecha_ingreso": "15/08/2021",
+                "anos_servicio": "5",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369410100087416"
+        },
+        {
+                "username": "maria.ojeda@pget.com",
+                "password": "Pget26046163",
+                "role": "trabajador",
+                "nombres": "MARIA DE LOS ANGELES",
+                "apellidos": "OJEDA NUÑEZ",
+                "nombre": "MARIA DE LOS ANGELES OJEDA NUÑEZ",
+                "profesion": "Abogado",
+                "genero": "femenino",
+                "cedula": "26046163",
+                "cargo": "ABOGADO I",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 522,60",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
+                "fecha_ingreso": "01/09/2021",
+                "anos_servicio": "5",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369470000470410"
+        },
+        {
+                "username": "lilibeth.sanchez@pget.com",
+                "password": "Pget13404142",
+                "role": "trabajador",
+                "nombres": "LILIBETH DAYANA",
+                "apellidos": "SANCHEZ MONSALVE",
+                "nombre": "LILIBETH DAYANA SANCHEZ MONSALVE",
+                "profesion": "Abogado",
+                "genero": "femenino",
+                "cedula": "13404142",
+                "cargo": "ABOGADO I",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 534,76",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
+                "fecha_ingreso": "01/09/2022",
+                "anos_servicio": "4",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369480000078812"
+        },
+        {
+                "username": "maria.barrios@pget.com",
+                "password": "Pget17037437",
+                "role": "trabajador",
+                "nombres": "MARIA ALCIRA",
+                "apellidos": "BARRIOS",
+                "nombre": "MARIA ALCIRA BARRIOS",
+                "profesion": "Abogado",
+                "genero": "femenino",
+                "cedula": "17037437",
+                "cargo": "ABOGADO I",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 541,69",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
+                "fecha_ingreso": "02/05/2025",
+                "anos_servicio": "1",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369410100091742"
+        },
+        {
+                "username": "julio.barrios@pget.com",
+                "password": "Pget14459865",
+                "role": "trabajador",
+                "nombres": "JULIO ALEXANDER",
+                "apellidos": "BARRIOS",
+                "nombre": "JULIO ALEXANDER BARRIOS",
+                "profesion": "Abogado",
+                "genero": "masculino",
+                "cedula": "14459865",
+                "cargo": "ABOGADO I",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 470,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
+                "fecha_ingreso": "01/10/2026",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020373220002321758"
+        },
+        {
+                "username": "lorenzo.avila@pget.com",
+                "password": "Pget25006611",
+                "role": "trabajador",
+                "nombres": "LORENZO FABIAN",
+                "apellidos": "AVILA GONZALEZ",
+                "nombre": "LORENZO FABIAN AVILA GONZALEZ",
+                "profesion": "Ingeniero",
+                "genero": "masculino",
+                "cedula": "25006611",
+                "cargo": "ANALISTA CENTRAL DE COMPUTACIÓN Y SISTEMAS",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 424,06",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
+                "fecha_ingreso": "01/11/2022",
+                "anos_servicio": "4",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369440000972523"
+        },
+        {
+                "username": "armando.briceno@pget.com",
+                "password": "Pget5780167",
+                "role": "trabajador",
+                "nombres": "ARMANDO JOSE",
+                "apellidos": "BRICEÑO FERNANDEZ",
+                "nombre": "ARMANDO JOSE BRICEÑO FERNANDEZ",
+                "profesion": "Abogado",
+                "genero": "masculino",
+                "cedula": "5780167",
+                "cargo": "ABOGADO",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 515,68",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
+                "fecha_ingreso": "01/10/2023",
+                "anos_servicio": "3",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102110000268347"
+        },
+        {
+                "username": "samir.barrios@pget.com",
+                "password": "Pget24882735",
+                "role": "trabajador",
+                "nombres": "SAMIR ISRRAEL",
+                "apellidos": "BARRIOS CABRITA",
+                "nombre": "SAMIR ISRRAEL BARRIOS CABRITA",
+                "profesion": "Técnico Superior",
+                "genero": "masculino",
+                "cedula": "24882735",
+                "cargo": "ASISTENTE ADMINISTRATIVO",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 401,40",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
+                "fecha_ingreso": "02/03/2026",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020373270000407661"
+        },
+        {
+                "username": "vivian.morales@pget.com",
+                "password": "Pget27070258",
+                "role": "trabajador",
+                "nombres": "VIVIAN CECILIA",
+                "apellidos": "MORALES FONSECA",
+                "nombre": "VIVIAN CECILIA MORALES FONSECA",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "27070258",
+                "cargo": "SECRETARIA I",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 275,10",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
+                "fecha_ingreso": "01/02/2023",
+                "anos_servicio": "3",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369410000656713"
+        },
+        {
+                "username": "humberto.molina@pget.com",
+                "password": "Pget20790382",
+                "role": "trabajador",
+                "nombres": "HUMBERTO JOSE",
+                "apellidos": "MOLINA UZCATEGUI",
+                "nombre": "HUMBERTO JOSE MOLINA UZCATEGUI",
+                "profesion": "Abogado",
+                "genero": "masculino",
+                "cedula": "20790382",
+                "cargo": "ABOGADO",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 485,63",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
+                "fecha_ingreso": "02/01/2026",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020747950000186788"
+        },
+        {
+                "username": "arnoldo.paredes@pget.com",
+                "password": "Pget8964679",
+                "role": "trabajador",
+                "nombres": "ARNOLDO",
+                "apellidos": "PAREDES BECERRA",
+                "nombre": "ARNOLDO PAREDES BECERRA",
+                "profesion": "Bachiller",
+                "genero": "masculino",
+                "cedula": "8964679",
+                "cargo": "MENSAJERO",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 294,63",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
+                "fecha_ingreso": "01/10/2021",
+                "anos_servicio": "5",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020102180000237828"
+        },
+        {
+                "username": "rafael.gomez@pget.com",
+                "password": "Pget26191219",
+                "role": "trabajador",
+                "nombres": "RAFAEL JOSE",
+                "apellidos": "GOMEZ TORRES",
+                "nombre": "RAFAEL JOSE GOMEZ TORRES",
+                "profesion": "Bachiller",
+                "genero": "masculino",
+                "cedula": "26191219",
+                "cargo": "CHOFER",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 262,60",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
+                "fecha_ingreso": "01/08/2023",
+                "anos_servicio": "3",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369490000818852"
+        },
+        {
+                "username": "carlos.perez@pget.com",
+                "password": "Pget26114896",
+                "role": "trabajador",
+                "nombres": "CARLOS ELY",
+                "apellidos": "PEREZ MORENO",
+                "nombre": "CARLOS ELY PEREZ MORENO",
+                "profesion": "Bachiller",
+                "genero": "masculino",
+                "cedula": "26114896",
+                "cargo": "OBRERO",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 260,00",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
+                "fecha_ingreso": "01/08/2025",
+                "anos_servicio": "1",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020493300100021880"
+        },
+        {
+                "username": "ophir.gonzalez@pget.com",
+                "password": "Pget24002486",
+                "role": "trabajador",
+                "nombres": "OPHIR SOPHIA",
+                "apellidos": "GONZALEZ VADELL",
+                "nombre": "OPHIR SOPHIA GONZALEZ VADELL",
+                "profesion": "Bachiller",
+                "genero": "femenino",
+                "cedula": "24002486",
+                "cargo": "OBRERO",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 272,50",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
+                "fecha_ingreso": "03/02/2026",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020369440000914086"
+        },
+        {
+                "username": "damaris.valecillos@pget.com",
+                "password": "Pget13633524",
+                "role": "trabajador",
+                "nombres": "DAMARIS CAROLINA",
+                "apellidos": "VALECILLOS JUAREZ",
+                "nombre": "DAMARIS CAROLINA VALECILLOS JUAREZ",
+                "profesion": "Licenciado",
+                "genero": "femenino",
+                "cedula": "13633524",
+                "cargo": "ANALISTA DE PRESUPUESTO",
+                "condicion": "CONTRATADO",
+                "salario": "Bs. 507,60",
+                "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
+                "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
+                "fecha_ingreso": "01/10/2026",
+                "anos_servicio": "0",
+                "banco": "BANCO DE VENEZUELA",
+                "cuenta": "01020494110000062886"
+        }
+];
+
+    function checkOfflineAuth(username, password) {
+        const cleanUser = String(username).toLowerCase().trim();
+        const cleanPass = String(password).trim();
+        for (const acc of defaultAccounts) {
+            const aliasMatch = (cleanUser === 'admin' && acc.username.startsWith('admin@')) ||
+                               (cleanUser === 'trabajador1' && acc.username.startsWith('victoria@')) ||
+                               (acc.cedula && cleanUser === String(acc.cedula).trim()) ||
+                               (cleanUser === acc.username.toLowerCase()) ||
+                               (cleanUser === acc.username.split('@')[0].toLowerCase());
+            const passMatch = acc.password === cleanPass ||
+                              acc.password.toLowerCase() === cleanPass.toLowerCase();
+            if (aliasMatch && passMatch) {
+                const userCopy = { ...acc };
+                delete userCopy.password;
+                return userCopy;
+            }
+        }
+        return null;
+    }
+
+    // Helper para cálculo automático de años de servicio según la fecha de ingreso
+    function calculateYearsOfService(dateStr) {
+        if (!dateStr || typeof dateStr !== 'string') return 0;
+        const cleanStr = dateStr.trim();
+        if (!cleanStr) return 0;
+
+        let day = 1, month = 0, year = 2000;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+            const parts = cleanStr.split('-');
+            year = parseInt(parts[0], 10);
+            month = parseInt(parts[1], 10) - 1;
+            day = parseInt(parts[2], 10);
+        } else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(cleanStr)) {
+            const parts = cleanStr.split(/[\/\-]/);
+            day = parseInt(parts[0], 10);
+            month = parseInt(parts[1], 10) - 1;
+            year = parseInt(parts[2], 10);
+        } else {
+            const parsed = new Date(cleanStr);
+            if (!isNaN(parsed.getTime())) {
+                day = parsed.getDate();
+                month = parsed.getMonth();
+                year = parsed.getFullYear();
+            } else {
+                return 0;
+            }
+        }
+
+        const entryDate = new Date(year, month, day);
+        if (isNaN(entryDate.getTime())) return 0;
+
+        const today = new Date();
+        let years = today.getFullYear() - entryDate.getFullYear();
+        const monthDiff = today.getMonth() - entryDate.getMonth();
+        const dayDiff = today.getDate() - entryDate.getDate();
+
+        if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+            years--;
+        }
+        return Math.max(0, years);
+    }
+    // Helper oficial para obtener los años de servicio calculados según fecha de ingreso
+    function getCalculatedYearsOfService(fechaIngreso, fallbackAnos) {
+        const cleanFecha = String(fechaIngreso || '').trim();
+        if (cleanFecha && cleanFecha !== 'N/D') {
+            const calc = calculateYearsOfService(cleanFecha);
+            if (typeof calc === 'number' && !isNaN(calc)) {
+                return calc.toString();
+            }
+        }
+        if (fallbackAnos !== undefined && fallbackAnos !== null && String(fallbackAnos).trim() !== '') {
+            return String(fallbackAnos);
+        }
+        return '0';
+    }
+
+
+    // Helper para garantizar el formato estricto oficial de cédula: V- 12.345.678
+    function formatCedulaOficial(cedula) {
+        if (!cedula) return '';
+        const clean = String(cedula).replace(/[^0-9]/g, '');
+        if (!clean) return String(cedula);
+        const withDots = clean.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        return `V- ${withDots}`;
+    }
+
+    // Helper para limpiar la cédula y extraer únicamente los dígitos numéricos
+    function cleanCedula(val) {
+        if (!val) return '';
+        return String(val).replace(/[^0-9]/g, '').trim();
+    }
+
+    // Helper para formatear la profesión según el género (sin arrobas @)
+    function formatProfessionByGender(prof, gender) {
+        if (!prof) return '';
+        const isFem = String(gender).toLowerCase() === 'femenino';
+        let p = String(prof).trim();
+        if (p.includes('@')) {
+            p = p.replace(/@/g, isFem ? 'a' : 'o');
+        }
+        const lower = p.toLowerCase();
+        if (lower.startsWith('abog')) return isFem ? 'Abogada' : 'Abogado';
+        if (lower.startsWith('ing')) return isFem ? 'Ingeniera' : 'Ingeniero';
+        if (lower.startsWith('lic')) return isFem ? 'Licenciada' : 'Licenciado';
+        if (lower.startsWith('prof')) return isFem ? 'Profesora' : 'Profesor';
+        if (lower.startsWith('dr') || lower.startsWith('doct')) return isFem ? 'Doctora' : 'Doctor';
+        if (lower.includes('tecnic') || lower.includes('t.s.u') || lower.includes('tsu')) return isFem ? 'Técnica Superior' : 'Técnico Superior';
+        return p;
+    }
+
+    // Helper para obtener el prefijo según la profesión y género del trabajador
+    function getProfessionPrefix(prof, gender) {
+        if (!prof) return '';
+        const p = String(prof).toLowerCase();
+        const isFem = String(gender).toLowerCase() === 'femenino';
+        if (p.includes('abog')) return 'Abog. ';
+        if (p.includes('ing')) return 'Ing. ';
+        if (p.includes('tecnic') || p.includes('t.s.u') || p.includes('tsu')) return 'T.S.U. ';
+        if (p.includes('lic')) return 'Lic. ';
+        if (p.includes('prof')) return isFem ? 'Profa. ' : 'Prof. ';
+        if (p.includes('dr') || p.includes('doct')) return isFem ? 'Dra. ' : 'Dr. ';
+        return '';
+    }
+
+    // Helper para formatear nombre completo con su título profesional
+    function formatFullNameWithTitle(nombre, prof, gender) {
+        if (!nombre) return '';
+        const prefix = getProfessionPrefix(prof, gender);
+        if (!prefix) return nombre;
+        if (nombre.toLowerCase().startsWith(prefix.toLowerCase().trim())) {
+            return nombre;
+        }
+        return `${prefix}${nombre}`;
+    }
+
+    // Helper para enmascarar número de cuenta para trabajadores: 0102**************1267 (Fiel a img 3)
+    function formatMaskedAccount(cuenta) {
+        if (!cuenta) return 'No registrada';
+        const clean = String(cuenta).replace(/[^0-9]/g, '');
+        if (clean.length < 8) return clean || 'No registrada';
+        const first4 = clean.slice(0, 4);
+        const last4 = clean.slice(-4);
+        return `${first4}**************${last4}`;
+    }
+
+    // Helper para formatear número de teléfono (código + 7 dígitos)
+    function formatTelefono(cod, num) {
+        const c = String(cod || '').trim();
+        const n = String(num || '').trim().replace(/[^0-9]/g, '');
+        if (c && n) return `${c}-${n}`;
+        if (n) return n;
+        return 'No registrado';
+    }
+
+    // Actualiza dinámicamente las opciones del desplegable de profesión según el género seleccionado
+    function updateFormProfesionOptions(gender, currentVal) {
+        const modal = document.getElementById('loginModal');
+        if (!modal) return;
+        const select = modal.querySelector('#formProfesion');
+        if (!select) return;
+        const isFem = String(gender).toLowerCase() === 'femenino';
+        const options = [
+            { val: isFem ? 'Abogada' : 'Abogado', label: `${isFem ? 'Abogada' : 'Abogado'} (Prefijo: Abog. Nombre)` },
+            { val: isFem ? 'Ingeniera' : 'Ingeniero', label: `${isFem ? 'Ingeniera' : 'Ingeniero'} (Prefijo: Ing. Nombre)` },
+            { val: isFem ? 'Licenciada' : 'Licenciado', label: `${isFem ? 'Licenciada' : 'Licenciado'} (Prefijo: Lic. Nombre)` },
+            { val: isFem ? 'Técnica Superior' : 'Técnico Superior', label: `${isFem ? 'Técnica Superior' : 'Técnico Superior'} (Prefijo: T.S.U. Nombre)` },
+            { val: isFem ? 'Profesora' : 'Profesor', label: `${isFem ? 'Profesora' : 'Profesor'} (Prefijo: ${isFem ? 'Profa.' : 'Prof.'} Nombre)` },
+            { val: isFem ? 'Doctora' : 'Doctor', label: `${isFem ? 'Doctora' : 'Doctor'} (Prefijo: ${isFem ? 'Dra.' : 'Dr.'} Nombre)` },
+            { val: 'Bachiller', label: 'Bachiller (Sin prefijo)' },
+            { val: 'Otro', label: 'Otro' }
+        ];
+
+        const normalizedVal = formatProfessionByGender(currentVal, isFem ? 'femenino' : 'masculino');
+        select.innerHTML = options.map(opt => `<option value="${opt.val}">${opt.label}</option>`).join('');
+
+        if (normalizedVal) {
+            select.value = normalizedVal;
+            if (!select.value) {
+                for (const opt of options) {
+                    if (opt.val.toLowerCase().slice(0, 4) === normalizedVal.toLowerCase().slice(0, 4)) {
+                        select.value = opt.val;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Helper para obtener el género seleccionado mediante los radio buttons
+    function getFormGender() {
+        const modal = document.getElementById('loginModal');
+        const checked = modal ? modal.querySelector('input[name="formGenero"]:checked') : null;
+        return checked ? checked.value : 'masculino';
+    }
+
+    // Helper para marcar el radio button del género
+    function setFormGender(genderVal) {
+        const modal = document.getElementById('loginModal');
+        if (!modal) return;
+        const val = String(genderVal || 'masculino').toLowerCase();
+        const radioM = modal.querySelector('#formGeneroMasculino');
+        const radioF = modal.querySelector('#formGeneroFemenino');
+        if (val === 'femenino') {
+            if (radioF) radioF.checked = true;
+        } else {
+            if (radioM) radioM.checked = true;
+        }
+    }
+
+    // Toggle minimalista con icono de ojo para ver/ocultar contraseñas
+    window.togglePasswordVisibility = (inputId, btn) => {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        const icon = btn.querySelector('i');
+        if (input.type === 'password') {
+            input.type = 'text';
+            if (icon) icon.className = 'fas fa-eye-slash';
+            btn.style.color = '#6A0D25';
+        } else {
+            input.type = 'password';
+            if (icon) icon.className = 'fas fa-eye';
+            btn.style.color = '#94a3b8';
+        }
+    };
+
+    // Botón para alternar sección de cambio de contraseña en modo edición
+    window.toggleChangePasswordSection = () => {
+        const modal = document.getElementById('loginModal');
+        if (!modal) return;
+        const container = modal.querySelector('#passwordFieldsContainer');
+        const btn = modal.querySelector('#btnToggleChangePass');
+        if (!container || !btn) return;
+        const isHidden = container.style.display === 'none';
+        if (isHidden) {
+            container.style.display = 'grid';
+            btn.innerHTML = '<i class="fas fa-times" style="color: #dc2626;"></i> Cancelar cambio de contraseña';
+            btn.style.background = '#fef2f2';
+            btn.style.borderColor = '#fecaca';
+            const p1 = modal.querySelector('#formPassword');
+            if (p1) p1.focus();
+        } else {
+            container.style.display = 'none';
+            btn.innerHTML = '<i class="fas fa-key" style="color: #D4AF37;"></i> Cambiar Contraseña';
+            btn.style.background = '#f1f5f9';
+            btn.style.borderColor = '#cbd5e1';
+            const p1 = modal.querySelector('#formPassword');
+            const p2 = modal.querySelector('#formPasswordConfirm');
+            if (p1) p1.value = '';
+            if (p2) p2.value = '';
+        }
+    };
+
+    // =========================================================================
+    // SISTEMA DE VENTANA FLOTANTE CENTRAL DE NOTIFICACIONES Y CONFIRMACIÓN PGET
+    // =========================================================================
+    function showFloatingDialog({
+        title = 'Procuraduría General del Estado Trujillo',
+        message = '',
+        type = 'info', // 'info', 'success', 'danger', 'delete', 'warning'
+        confirmText = 'Aceptar',
+        cancelText = null,
+        isConfirm = false
+    } = {}) {
+        return new Promise((resolve) => {
+            const oldDialog = document.getElementById('pgetFloatingDialogOverlay');
+            if (oldDialog) oldDialog.remove();
+
+            const isDanger = type === 'danger' || type === 'delete';
+            const hasCancel = isConfirm || !!cancelText;
+
+            let iconBadgeClass = type;
+            let badgeIconHtml = '<i class="fas fa-info-circle"></i>';
+            let defaultTitle = 'Notificación Institucional';
+
+            if (type === 'success') {
+                badgeIconHtml = '<i class="fas fa-check-circle"></i>';
+                defaultTitle = 'Operación Exitosa';
+            } else if (isDanger) {
+                badgeIconHtml = '<i class="fas fa-trash-alt"></i>';
+                defaultTitle = 'Confirmar Eliminación';
+            } else if (type === 'warning') {
+                badgeIconHtml = '<i class="fas fa-exclamation-triangle"></i>';
+                defaultTitle = 'Atención';
+            }
+
+            const finalTitle = title || defaultTitle;
+
+            const overlay = document.createElement('div');
+            overlay.id = 'pgetFloatingDialogOverlay';
+            overlay.className = 'pget-dialog-overlay';
+
+            overlay.innerHTML = `
+                <div class="pget-dialog-card" role="dialog" aria-modal="true">
+                    <div class="pget-dialog-header">
+                        <h3 class="pget-dialog-title">
+                            <i class="fas fa-shield-alt" style="color: #D4AF37;"></i>
+                            <span>${escapeHtml(finalTitle)}</span>
+                        </h3>
+                        <button type="button" class="pget-dialog-close" id="pgetDialogCloseBtn" aria-label="Cerrar">&times;</button>
+                    </div>
+                    <div class="pget-dialog-body">
+                        <div class="pget-dialog-icon-badge ${iconBadgeClass}">
+                            ${badgeIconHtml}
+                        </div>
+                        <div style="font-size: 1.02rem; color: #1e293b; line-height: 1.55; white-space: pre-line;">
+                            ${escapeHtml(message)}
+                        </div>
+                    </div>
+                    <div class="pget-dialog-footer">
+                        ${hasCancel ? `
+                            <button type="button" class="pget-dialog-btn-cancel" id="pgetDialogCancelBtn">
+                                ${escapeHtml(cancelText || 'Cancelar')}
+                            </button>
+                        ` : ''}
+                        <button type="button" class="pget-dialog-btn-confirm ${isDanger ? 'danger' : ''}" id="pgetDialogConfirmBtn">
+                            ${escapeHtml(confirmText || 'Aceptar')}
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            requestAnimationFrame(() => {
+                overlay.classList.add('active');
+            });
+
+            const confirmBtn = overlay.querySelector('#pgetDialogConfirmBtn');
+            const cancelBtn = overlay.querySelector('#pgetDialogCancelBtn');
+            const closeBtn = overlay.querySelector('#pgetDialogCloseBtn');
+
+            const cleanup = (result) => {
+                overlay.classList.remove('active');
+                document.removeEventListener('keydown', handleKeyDown);
+                setTimeout(() => {
+                    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                }, 240);
+                resolve(result);
+            };
+
+            const handleKeyDown = (e) => {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cleanup(false);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    cleanup(true);
+                }
+            };
+
+            document.addEventListener('keydown', handleKeyDown);
+
+            if (confirmBtn) {
+                confirmBtn.onclick = () => cleanup(true);
+                confirmBtn.focus();
+            }
+            if (cancelBtn) {
+                cancelBtn.onclick = () => cleanup(false);
+            }
+            if (closeBtn) {
+                closeBtn.onclick = () => cleanup(false);
+            }
+        });
+    }
+
+    window.showFloatingDialog = showFloatingDialog;
+
+    window.pgetAlert = (message, title = 'Notificación Institucional', type = 'info') => {
+        return showFloatingDialog({
+            title,
+            message,
+            type,
+            confirmText: 'Aceptar',
+            isConfirm: false
+        });
+    };
+
+    window.pgetConfirm = (message, title = 'Confirmar Acción', confirmText = 'Aceptar', cancelText = 'Cancelar', type = 'warning') => {
+        return showFloatingDialog({
+            title,
+            message,
+            type,
+            confirmText,
+            cancelText,
+            isConfirm: true
+        });
+    };
+
+    // Redirigir alert estándar a la ventana flotante central
+    window.alert = function(msg) {
+        return window.pgetAlert(msg);
+    };
+
+    // =========================================================================
+    // GESTIÓN Y CATÁLOGO DE CARGOS INSTITUCIONALES PGET
+    // =========================================================================
+    async function addCargoToCatalog(nombre) {
+        const clean = String(nombre || '').trim().toUpperCase();
+        if (!clean) return false;
+        if (!allCargosCache.includes(clean)) {
+            allCargosCache.push(clean);
+            allCargosCache.sort();
+        }
+        localStorage.setItem('pget_custom_cargos', JSON.stringify(allCargosCache));
+
+        try {
+            await fetch(`${API_URL}/cargos`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre: clean })
+            });
+        } catch (e) {
+            console.warn('API cargos offline, guardado en cache local');
+        }
+        return true;
+    }
+
+    async function deleteCargoFromCatalog(nombre) {
+        const clean = String(nombre || '').trim().toUpperCase();
+        allCargosCache = allCargosCache.filter(c => c !== clean);
+        localStorage.setItem('pget_custom_cargos', JSON.stringify(allCargosCache));
+
+        try {
+            await fetch(`${API_URL}/cargos/${encodeURIComponent(clean)}`, {
+                method: 'DELETE'
+            });
+        } catch (e) {
+            console.warn('API cargos offline, eliminado localmente');
+        }
+    }
+
+    window.quickAddCargoFromInput = async (nombre) => {
+        const clean = String(nombre || '').trim().toUpperCase();
+        if (!clean) return;
+        await addCargoToCatalog(clean);
+        const input = document.getElementById('formCargo');
+        if (input) input.value = clean;
+        const dropdown = document.getElementById('cargoDropdownList');
+        if (dropdown) dropdown.style.display = 'none';
+        window.pgetAlert(`El cargo "${clean}" ha sido añadido al catálogo y seleccionado.`, 'Cargo Registrado', 'success');
+    };
+
+    window.openManageCargosModal = (prefill = '') => {
+        const existing = document.getElementById('pgetManageCargosOverlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'pgetManageCargosOverlay';
+        overlay.className = 'pget-dialog-overlay';
+
+        overlay.innerHTML = `
+            <div class="pget-dialog-card" style="max-width: 580px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;" role="dialog" aria-modal="true">
+                <div class="pget-dialog-header">
+                    <h3 class="pget-dialog-title">
+                        <i class="fas fa-briefcase" style="color: #D4AF37;"></i>
+                        <span>Catálogo de Cargos Institucionales</span>
+                    </h3>
+                    <button type="button" class="pget-dialog-close" id="closeManageCargosBtn" aria-label="Cerrar">&times;</button>
+                </div>
+                
+                <div style="padding: 22px 24px; flex: 1; overflow-y: auto;">
+                    <p style="color: #64748b; font-size: 0.88rem; margin-top: 0; margin-bottom: 16px;">
+                        Añada nuevos cargos al sistema o consulte los cargos disponibles. Los nuevos cargos se guardan en la base de datos y estarán disponibles de inmediato para asignar a cualquier trabajador.
+                    </p>
+
+                    <!-- Formulario Añadir Nuevo Cargo -->
+                    <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; margin-bottom: 20px;">
+                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #1e293b; margin-bottom: 6px;">
+                            <i class="fas fa-plus-circle" style="color: #6A0D25;"></i> Registrar Nuevo Cargo:
+                        </label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="newCargoInputModal" placeholder="Ej. ASISTENTE LEGAL II, JEFE DE SECCIÓN..." value="${escapeHtml(prefill)}" style="flex: 1; padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.90rem; text-transform: uppercase;">
+                            <button type="button" id="submitNewCargoBtnModal" style="background: linear-gradient(135deg, #6A0D25, #83122F); color: white; border: 1.5px solid #D4AF37; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; box-shadow: 0 2px 6px rgba(106,13,37,0.25);">
+                                <i class="fas fa-save"></i> Guardar
+                            </button>
+                        </div>
+                        <div id="newCargoErrorModal" style="display: none; color: #dc2626; font-size: 0.82rem; margin-top: 6px; font-weight: 600;"></div>
+                    </div>
+
+                    <!-- Buscador de cargos existentes -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span id="cargosCountBadge" style="font-size: 0.84rem; font-weight: 700; color: #6A0D25; background: #fdf2f4; padding: 4px 10px; border-radius: 6px; border: 1px solid #fecdd3;">
+                            ${allCargosCache.length} Cargos Registrados
+                        </span>
+                        <input type="text" id="filterCargosInputModal" placeholder="Filtrar catálogo..." style="padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.82rem; width: 180px;">
+                    </div>
+
+                    <!-- Lista de Cargos -->
+                    <div id="cargosListContainerModal" style="max-height: 240px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; background: #fafafa;">
+                    </div>
+                </div>
+
+                <div style="padding: 12px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end;">
+                    <button type="button" id="closeManageCargosFooterBtn" style="background: #e2e8f0; border: none; padding: 9px 20px; border-radius: 8px; font-weight: 600; font-size: 0.90rem; cursor: pointer; color: #475569;">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+        requestAnimationFrame(() => overlay.classList.add('active'));
+
+        const renderCargosList = (q = '') => {
+            const container = overlay.querySelector('#cargosListContainerModal');
+            const countBadge = overlay.querySelector('#cargosCountBadge');
+            const filterStr = q.trim().toUpperCase();
+            const filtered = allCargosCache.filter(c => !filterStr || c.includes(filterStr));
+
+            if (countBadge) countBadge.textContent = `${allCargosCache.length} Cargos Registrados`;
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div style="text-align: center; padding: 20px; color: #94a3b8; font-size: 0.88rem;">No hay cargos que coincidan con "${escapeHtml(filterStr)}"</div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(c => {
+                const isDefault = defaultCargosInitial.includes(c);
+                return `
+                    <div class="cargo-manage-row">
+                        <span style="display: flex; align-items: center; gap: 8px;">
+                            <i class="fas fa-briefcase" style="color: #D4AF37;"></i>
+                            <span>${escapeHtml(c)}</span>
+                        </span>
+                        <div style="display: flex; gap: 6px; align-items: center;">
+                            ${!isDefault ? `
+                                <button type="button" class="btn-del-cargo" data-cargo="${escapeHtml(c)}" style="background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 5px 9px; border-radius: 6px; font-size: 0.8rem; cursor: pointer; transition: all 0.2s;" title="Eliminar cargo del catálogo">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            ` : `
+                                <span style="font-size: 0.75rem; color: #64748b; background: #f1f5f9; padding: 3px 8px; border-radius: 4px; font-weight: 600;">
+                                    Institucional
+                                </span>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.querySelectorAll('.btn-del-cargo').forEach(btn => {
+                btn.onclick = async () => {
+                    const cargoName = btn.getAttribute('data-cargo');
+                    const ok = await window.showFloatingDialog({
+                        title: 'Eliminar Cargo',
+                        message: `¿Desea eliminar el cargo personalizado "${cargoName}" del catálogo?`,
+                        type: 'delete',
+                        confirmText: 'Sí, Eliminar',
+                        cancelText: 'Cancelar',
+                        isConfirm: true
+                    });
+                    if (ok) {
+                        await deleteCargoFromCatalog(cargoName);
+                        renderCargosList(overlay.querySelector('#filterCargosInputModal').value);
+                    }
+                };
+            });
+        };
+
+        renderCargosList();
+
+        const filterInput = overlay.querySelector('#filterCargosInputModal');
+        if (filterInput) {
+            filterInput.addEventListener('input', () => renderCargosList(filterInput.value));
+        }
+
+        const inputNew = overlay.querySelector('#newCargoInputModal');
+        const submitBtn = overlay.querySelector('#submitNewCargoBtnModal');
+        const errDiv = overlay.querySelector('#newCargoErrorModal');
+
+        const handleSaveNewCargo = async () => {
+            const val = inputNew.value.trim().toUpperCase();
+            if (!val) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'Por favor escriba el nombre del cargo.';
+                return;
+            }
+            errDiv.style.display = 'none';
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+            await addCargoToCatalog(val);
+
+            const formCargoInput = document.getElementById('formCargo');
+            if (formCargoInput) formCargoInput.value = val;
+
+            inputNew.value = '';
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-save"></i> Guardar';
+            renderCargosList(filterInput ? filterInput.value : '');
+        };
+
+        submitBtn.onclick = handleSaveNewCargo;
+        inputNew.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSaveNewCargo();
+            }
+        });
+
+        const closeModal = () => {
+            overlay.classList.remove('active');
+            setTimeout(() => overlay.remove(), 240);
+        };
+
+        overlay.querySelector('#closeManageCargosBtn').onclick = closeModal;
+        overlay.querySelector('#closeManageCargosFooterBtn').onclick = closeModal;
+    };
+
+    function setupCargoSearchableDropdown(modal) {
+        const cargoInput = modal.querySelector('#formCargo');
+        const toggleBtn = modal.querySelector('#toggleCargoDropdownBtn');
+        const dropdown = modal.querySelector('#cargoDropdownList');
+        if (!cargoInput || !dropdown) return;
+
+        const renderCargoOptions = (filter = '') => {
+            const q = filter.trim().toUpperCase();
+            const matches = allCargosCache.filter(c => !q || c.includes(q));
+
+            let html = '';
+            if (matches.length > 0) {
+                html = matches.map(c => `
+                    <div class="cargo-option-item" data-value="${escapeHtml(c)}">
+                        <i class="fas fa-briefcase"></i>
+                        <span>${escapeHtml(c)}</span>
+                    </div>
+                `).join('');
+            } else {
+                html = `
+                    <div style="padding: 12px; text-align: center; color: #64748b; font-size: 0.85rem;">
+                        No se encontró "<strong>${escapeHtml(q)}</strong>"<br>
+                        <button type="button" onclick="window.quickAddCargoFromInput('${escapeHtml(q)}')" style="display: inline-block; margin-top: 8px; background: linear-gradient(135deg, #6A0D25, #83122F); color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 700; cursor: pointer;">
+                            <i class="fas fa-plus"></i> Registrar este cargo
+                        </button>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div style="padding: 9px 12px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;">
+                    <button type="button" onclick="window.openManageCargosModal()" style="background: none; border: none; color: #0284c7; font-weight: 700; font-size: 0.83rem; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-cog"></i> Administrar catálogo de cargos
+                    </button>
+                </div>
+            `;
+
+            dropdown.innerHTML = html;
+
+            dropdown.querySelectorAll('.cargo-option-item').forEach(el => {
+                el.onclick = () => {
+                    const val = el.getAttribute('data-value');
+                    if (val) {
+                        cargoInput.value = val;
+                        dropdown.style.display = 'none';
+                    }
+                };
+            });
+        };
+
+        cargoInput.addEventListener('focus', () => {
+            renderCargoOptions(cargoInput.value);
+            dropdown.style.display = 'block';
+        });
+
+        cargoInput.addEventListener('input', () => {
+            renderCargoOptions(cargoInput.value);
+            dropdown.style.display = 'block';
+        });
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (dropdown.style.display === 'block') {
+                    dropdown.style.display = 'none';
+                } else {
+                    renderCargoOptions(cargoInput.value);
+                    dropdown.style.display = 'block';
+                    cargoInput.focus();
+                }
+            });
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!cargoInput.contains(e.target) && !dropdown.contains(e.target) && !(toggleBtn && toggleBtn.contains(e.target))) {
+                dropdown.style.display = 'none';
+            }
+        });
+    }
+
+    // Helper to ensure Login & Management Modal exists in the document with all views
+    function ensureLoginModal() {
+        let modal = document.getElementById('loginModal');
+        if (!modal || !modal.querySelector('#adminView')) {
+            if (modal) modal.remove();
+            const modalHTML = `
+            <div id="loginModal" class="modal">
+                <div class="modal-content" id="mainModalContent">
+                    <span class="close-btn" id="modalCloseBtn" style="position: absolute; right: 18px; top: 16px; z-index: 20; cursor: pointer; font-size: 1.6rem; color: #64748b;">&times;</span>
+                    
+                    <!-- 1. VISTA DE LOGIN -->
+                    <div id="loginView" style="padding: 35px 30px;">
+                        <div style="text-align: center; margin-bottom: 25px;">
+                            <img src="assets/logo.png" alt="Logo PGET" style="height: 70px;" onerror="this.src='https://via.placeholder.com/60?text=PGET'">
+                            <h2 style="margin-top: 15px; color: #6A0D25; font-size: 1.8rem;">Iniciar Sesión</h2>
+                            <p style="color: #64748b; font-size: 0.95rem;">Ingresa tus credenciales institucionales</p>
+                        </div>
+                        
+                        <form id="loginForm">
+                            <div class="input-group" style="margin-bottom: 18px;">
+                                <label for="username" style="display: block; font-weight: 700; margin-bottom: 8px; color: #334155;">Correo Electrónico / Usuario</label>
+                                <div class="input-icon" style="position: relative;">
+                                    <i class="fas fa-envelope" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8;"></i>
+                                    <input type="text" id="username" placeholder="admin@pget.com o usuario" required style="width: 100%; padding: 12px 15px 12px 42px; border: 1.5px solid #D4AF37; border-radius: 8px; outline: none; font-size: 0.95rem; box-sizing: border-box;">
+                                </div>
+                            </div>
+                            
+                            <div class="input-group" style="margin-bottom: 18px;">
+                                <label for="password" style="display: block; font-weight: 700; margin-bottom: 8px; color: #334155;">Contraseña</label>
+                                <div class="input-icon" style="position: relative;">
+                                    <i class="fas fa-lock" style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8;"></i>
+                                    <input type="password" id="password" placeholder="Ingresa tu contraseña" required style="width: 100%; padding: 12px 40px; border: 1px solid #e2e8f0; border-radius: 8px; outline: none; font-size: 0.95rem; box-sizing: border-box;">
+                                    <i class="fas fa-eye toggle-password" id="togglePassword" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #94a3b8; cursor: pointer;"></i>
+                                </div>
+                            </div>
+                            
+                            <div style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+                                <label style="display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 0.9rem; cursor: pointer;">
+                                    <input type="checkbox" id="remember" style="accent-color: #6A0D25;">
+                                    Recordarme
+                                </label>
+                                <span style="font-size: 0.82rem; color: #0284c7; cursor: pointer;" title="Admin: admin@pget.com / admin123 | Trabajadores: correo@pget.com / Clave: Pget+Cédula">
+                                    <i class="fas fa-info-circle"></i> Cuentas del sistema
+                                </span>
+                            </div>
+
+                            <div id="loginError" class="error-msg" style="display:none; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; font-size: 0.9rem;"></div>
+                            
+                            <button type="submit" id="submitLoginBtn" style="width: 100%; background: linear-gradient(135deg, #6A0D25, #83122F); color: white; border: 1.5px solid #D4AF37; padding: 13px; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(106, 13, 37, 0.25);">
+                                <i class="fas fa-sign-in-alt"></i> Iniciar Sesión
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- 2. VISTA DE TRABAJADOR (PANTALLA COMPLETA - PUEDE GENERAR CONSTANCIAS) -->
+                    <div id="workerView" style="display: none; background: #f8fafc; height: 100%; flex-direction: column;">
+                        <div style="background: linear-gradient(135deg, #6A0D25, #450614); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15);">
+                            <div>
+                                <h3 style="margin: 0; font-size: 1.3rem;"><i class="fas fa-user-circle"></i> Portal del Trabajador</h3>
+                                <span style="font-size: 0.85rem; opacity: 0.9;">Procuraduría General del Estado Trujillo &bull; Trámites y Perfil</span>
+                            </div>
+                            <div style="display: flex; gap: 10px;">
+                                <button onclick="window.pgetLogout()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; font-size: 0.88rem; cursor: pointer; font-weight: 600;">
+                                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                                </button>
+                                <button onclick="document.getElementById('loginModal').classList.remove('show')" style="background: rgba(255,255,255,0.25); border: none; color: white; padding: 8px 16px; border-radius: 6px; font-size: 0.88rem; cursor: pointer; font-weight: 600;">
+                                    <i class="fas fa-times"></i> Volver al Portal Web
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div style="flex: 1; overflow-y: auto; padding: 35px 25px;">
+                            <div style="max-width: 950px; margin: 0 auto;">
+                                <div style="background: white; border: 1px solid #e2e8f0; border-radius: 16px; padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 20px;">
+                                        <h4 style="color: #6A0D25; font-size: 1.15rem; margin: 0;">
+                                            <i class="fas fa-id-card"></i> Datos Personales y Laborales del Trabajador
+                                        </h4>
+                                        <span id="workerCondicionBadge" class="condicion-badge fijo" style="font-size: 0.85rem; padding: 6px 14px;">
+                                            FIJO
+                                        </span>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; font-size: 0.95rem;">
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Nombres y Apellidos (con Título):</span>
+                                            <strong id="workerName" style="color: #1e293b; font-size: 1.1rem;">-</strong>
+                                        </div>
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Cédula de Identidad:</span>
+                                            <strong id="workerCedula" style="color: #1e293b; font-size: 1.05rem;">-</strong>
+                                        </div>
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Código RAC:</span>
+                                            <strong id="workerCodigoRac" style="color: #1e293b; font-size: 1.05rem;">-</strong>
+                                        </div>
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Número de Teléfono:</span>
+                                            <strong id="workerTelefono" style="color: #1e293b; font-size: 1.05rem;">-</strong>
+                                        </div>
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Entidad Bancaria:</span>
+                                            <strong id="workerBanco" style="color: #1e293b; font-size: 1.05rem;">-</strong>
+                                        </div>
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Número de Cuenta:</span>
+                                            <strong id="workerCuenta" class="masked-account-text">-</strong>
+                                        </div>
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Profesión / Titulación:</span>
+                                            <strong id="workerProfesion" style="color: #0369a1; font-size: 1rem;">-</strong>
+                                        </div>
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Condición Laboral:</span>
+                                            <strong id="workerCondicionText" style="color: #6A0D25; font-size: 1rem;">PERSONAL FIJO</strong>
+                                        </div>
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Cargo Institucional:</span>
+                                            <strong id="workerCargo" style="color: #6A0D25; font-size: 1rem;">-</strong>
+                                        </div>
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Fecha de Ingreso:</span>
+                                            <strong id="workerFechaIngreso" style="color: #1e293b; font-size: 1rem;">-</strong>
+                                        </div>
+                                        <div style="display: none;">
+                                            <strong id="workerSalario">Bs. 0,00</strong>
+                                        </div>
+                                        <div>
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Años de Servicio:</span>
+                                            <strong id="workerYears" style="color: #1e293b; font-size: 1.05rem;">-</strong>
+                                        </div>
+                                        <div style="grid-column: 1 / -1;">
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Dependencia Administrativa:</span>
+                                            <strong id="workerDep" style="color: #1e293b;">-</strong>
+                                        </div>
+                                        <div style="grid-column: 1 / -1;">
+                                            <span style="color: #64748b; font-size: 0.82rem; display: block; margin-bottom: 3px;">Dirección / Oficina Adscrita:</span>
+                                            <strong id="workerDireccion" style="color: #6A0D25; font-size: 1.02rem;">-</strong>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Generador de Constancia (Solo para trabajadores) -->
+                                <div style="background: white; border: 2px dashed #D4AF37; border-radius: 16px; padding: clamp(16px, 3vw, 28px); box-shadow: 0 4px 15px rgba(106,13,37,0.06);">
+                                    <h4 id="workerCertHeader" style="color: #6A0D25; font-size: clamp(1rem, 2.5vw, 1.15rem); margin-bottom: 8px; line-height: 1.45; font-weight: 700; word-break: normal;">
+                                        <i class="fas fa-file-invoice" style="color: #D4AF37; margin-right: 6px;"></i> Generar Constancia Oficial <span style="display: inline-block; white-space: nowrap;">(<span id="workerCertModelBadge">Personal Fijo</span>)</span>
+                                    </h4>
+                                    <p id="workerCertDesc" style="font-size: 0.92rem; color: #64748b; margin-bottom: 20px;">
+                                        Modelo oficial adaptado automáticamente a su condición laboral.
+                                    </p>
+
+                                    <!-- Lista desplegable para seleccionar el motivo de la constancia -->
+                                    <div style="margin-bottom: 18px;">
+                                        <label style="display: block; font-weight: 700; font-size: 0.88rem; color: #334155; margin-bottom: 8px;">
+                                            <i class="fas fa-list-ul" style="color: #D4AF37;"></i> Motivo de la Solicitud: *
+                                        </label>
+                                        <select id="certMotivoSelect" style="width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; font-weight: 600; color: #1e293b; cursor: pointer;">
+                                            <option value="Trámites bancarios">Trámites bancarios</option>
+                                            <option value="Trámites personales" selected>Trámites personales</option>
+                                            <option value="Fines legales">Fines legales</option>
+                                            <option value="Otros trámites">Otros trámites</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div style="margin-bottom: 20px;">
+                                        <label style="display: block; font-weight: 700; font-size: 0.88rem; color: #334155; margin-bottom: 8px;">
+                                            <i class="fas fa-coins" style="color: #D4AF37;"></i> Modalidad Salarial:
+                                        </label>
+                                        <select id="conSalarioSelect" style="width: 100%; padding: 12px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.95rem; outline: none; background: #f8fafc; font-weight: 600; color: #1e293b;">
+                                            <option value="true">Con Salario (Refleja Asignación Mensual en letras y números)</option>
+                                            <option value="false">Sin Salario (Solo cargo, dependencia y tiempo de servicio)</option>
+                                        </select>
+                                    </div>
+
+                                    <button id="requestCertBtn" style="width: 100%; background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 14px; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(106,13,37,0.25);">
+                                        <i class="fas fa-file-alt"></i> Generar y Ver Constancia Oficial
+                                    </button>
+                                    <div id="certMessage" style="margin-top: 15px; font-size: 0.95rem; text-align: center; font-weight: 600;"></div>
+
+                                    <!-- Aviso informativo para constancias (Fiel a img 2) -->
+                                    <div class="constancia-mobile-alert">
+                                        <i class="fas fa-info-circle"></i>
+                                        <div>
+                                            <strong>Aviso:</strong> si estás generando la constancia desde un celular o tablet, la descarga puede realizarse en segundo plano sin mostrar ningún aviso visible. Si no ves nada después de presionar el botón, revisa la carpeta <strong>Descargas</strong> de tu dispositivo o el gestor de descargas de tu navegador antes de volver a intentarlo.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Sección Oficial Planilla ARC por Año (Fiel a img 1) -->
+                                <div class="arc-year-section">
+                                    <h3 class="arc-year-title">Planilla ARC</h3>
+                                    
+                                    <!-- Selector interactivo de Año Fiscal (Ordenados desde 2026 en adelante) -->
+                                    <div id="workerArcYearTabsContainer" style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap;">
+                                        <span style="font-size: 0.88rem; font-weight: 700; color: #475569; margin-right: 4px;">Año Fiscal:</span>
+                                        <button type="button" class="arc-year-tab-btn active" data-year="2026" onclick="window.setWorkerArcYear('2026')">2026</button>
+                                    </div>
+
+                                    <!-- Tarjeta Centrada Exacta a img 1 (Estilo Vinotinto Institucional) -->
+                                    <div class="arc-year-card">
+                                        <div id="workerArcDisplayYear" class="arc-year-number">2026</div>
+                                        <div class="arc-year-subtitle">Planilla ARC</div>
+                                        <button type="button" id="btnDownloadArcYear" class="btn-arc-download-vinotinto" onclick="window.downloadWorkerArcSelectedYear()">
+                                            <i class="fas fa-download"></i> Descargar
+                                        </button>
+                                    </div>
+
+                                    <!-- Banner de Información debajo del botón (Fiel a img 1) -->
+                                    <div class="arc-info-banner">
+                                        <i class="fas fa-info-circle"></i>
+                                        <span><strong>Información:</strong> La Planilla ARC muestra el consolidado anual de sus asignaciones y deducciones de ley.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. VISTA DE ADMINISTRADOR (PANTALLA COMPLETA - GESTIÓN TOTAL DE PERSONAL) -->
+                    <div id="adminView" style="display: none; background: #f8fafc; height: 100%; flex: 1; min-height: 0; flex-direction: column;">
+                        <div class="admin-header">
+                            <div>
+                                <h3 style="margin: 0; font-size: 1.3rem;"><i class="fas fa-user-shield"></i> Panel de Administración PGET</h3>
+                                <span style="font-size: 0.85rem; opacity: 0.9;">Control y Gestión General de Usuarios y Personal</span>
+                            </div>
+                            <div style="display: flex; gap: 10px;">
+                                <button onclick="window.pgetLogout()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; font-size: 0.88rem; cursor: pointer; font-weight: 600;">
+                                    <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                                </button>
+                                <button onclick="document.getElementById('loginModal').classList.remove('show')" style="background: rgba(255,255,255,0.25); border: none; color: white; padding: 8px 16px; border-radius: 6px; font-size: 0.88rem; cursor: pointer; font-weight: 600;">
+                                    <i class="fas fa-times"></i> Volver al Portal Web
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Barra de herramientas Admin -->
+                        <div class="admin-toolbar" style="padding: 15px 30px; background: white; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                                <span id="adminUsersCount" style="font-size: 0.92rem; font-weight: 700; color: #1e293b; background: #e2e8f0; padding: 7px 16px; border-radius: 20px;">
+                                    0 Usuarios Registrados
+                                </span>
+                                <input type="text" id="adminUserFilter" placeholder="Buscar por nombre, cargo, cédula, dirección..." onkeyup="window.filterAdminUsers()" style="padding: 9px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; outline: none; width: 280px;">
+                                
+                                <!-- Filtro por Condición Laboral: Fijos, Contratados, Jubilados -->
+                                <div id="condFilterGroup" style="display: flex; gap: 4px; align-items: center; background: #f1f5f9; padding: 4px; border-radius: 8px; border: 1px solid #cbd5e1;">
+                                    <button type="button" class="cond-filter-btn active" data-cond="" onclick="window.setCondicionFilter('')" style="border: 1px solid #D4AF37; background: #6A0D25; color: white; padding: 6px 13px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                                        Todos
+                                    </button>
+                                    <button type="button" class="cond-filter-btn" data-cond="FIJO" onclick="window.setCondicionFilter('FIJO')" style="border: none; background: transparent; color: #6A0D25; padding: 6px 13px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                                        Fijos
+                                    </button>
+                                    <button type="button" class="cond-filter-btn" data-cond="CONTRATADO" onclick="window.setCondicionFilter('CONTRATADO')" style="border: none; background: transparent; color: #0284c7; padding: 6px 13px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                                        Contratados
+                                    </button>
+                                    <button type="button" class="cond-filter-btn" data-cond="JUBILADO" onclick="window.setCondicionFilter('JUBILADO')" style="border: none; background: transparent; color: #7e22ce; padding: 6px 13px; border-radius: 6px; font-size: 0.83rem; font-weight: 700; cursor: pointer; transition: all 0.2s;">
+                                        Jubilados
+                                    </button>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                <button type="button" onclick="window.openManageCargosModal()" style="background: #ffffff; border: 1.5px solid #cbd5e1; color: #1e293b; padding: 10px 16px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); transition: all 0.2s;">
+                                    <i class="fas fa-briefcase" style="color: #6A0D25;"></i> Añadir / Gestionar Cargos
+                                </button>
+                                <button onclick="window.openCreateUserForm()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.25);">
+                                    <i class="fas fa-user-plus"></i> + Registrar Nuevo Usuario
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Tabla de Usuarios (Aprovecha 100% de la altura disponible) -->
+                        <div class="admin-table-container" style="flex: 1; min-height: 0; overflow-y: auto; padding: 20px 30px;">
+                            <table class="admin-users-table" id="adminUsersTable">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre y Cédula</th>
+                                        <th>Correo / Usuario</th>
+                                        <th>Cargo, Dependencia y Dirección</th>
+                                        <th>Rol</th>
+                                        <th style="text-align: right;">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="adminUsersListBody">
+                                    <tr>
+                                        <td colspan="5" style="text-align: center; padding: 25px; color: #64748b;">
+                                             <i class="fas fa-spinner fa-spin"></i> Cargando usuarios...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Aviso Legal Administrador (Barra Compacta Elegante) -->
+                        <div style="background: #f1f5f9; border-top: 1px solid #cbd5e1; padding: 9px 30px; font-size: 0.8rem; color: #475569; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+                            <span><i class="fas fa-lock"></i> Modo Administrador activo: El administrador gestiona el personal y no emite constancias individuales.</span>
+                            <span style="font-weight: 700; color: #6A0D25;">Procuraduría General del Estado Trujillo</span>
+                        </div>
+                    </div>
+
+                    <!-- 4. VISTA / FORMULARIO CREAR Y EDITAR USUARIO (PANTALLA COMPLETA) -->
+                    <div id="userFormView" style="display: none; background: #f8fafc; height: 100%; flex-direction: column;">
+                        <div style="background: linear-gradient(135deg, #6A0D25, #450614); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.15);">
+                            <h3 id="userFormTitle" style="margin: 0; font-size: 1.25rem;"><i class="fas fa-user-edit"></i> Registrar Nuevo Usuario</h3>
+                            <button type="button" onclick="window.backToAdminView()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas fa-arrow-left"></i> Volver al Panel
+                            </button>
+                        </div>
+
+                        <div style="flex: 1; overflow-y: auto; padding: 30px 20px;">
+                            <form id="saveUserForm" style="max-width: 1050px; margin: 0 auto; background: white; padding: 35px 40px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
+                                    
+                                    <div style="grid-column: span 2;">
+                                        <h4 style="color: #6A0D25; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
+                                            <i class="fas fa-key"></i> 1. Credenciales de Acceso
+                                        </h4>
+                                    </div>
+                                    
+                                    <div>
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Correo Electrónico *</label>
+                                        <input type="email" id="formUsername" required placeholder="ejemplo@pget.com" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
+                                    </div>
+
+                                    <div>
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Rol del Usuario *</label>
+                                        <select id="formRole" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white;">
+                                            <option value="trabajador">Trabajador (Puede generar y descargar constancias)</option>
+                                            <option value="admin">Administrador (Gestión total de personal y sistema)</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Botón para Cambiar Contraseña (Solo en Modo Edición) -->
+                                    <div id="changePasswordBtnWrapper" style="grid-column: span 2; display: none; margin: 4px 0 6px 0;">
+                                        <button type="button" id="btnToggleChangePass" onclick="window.toggleChangePasswordSection()" style="background: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s;">
+                                            <i class="fas fa-key" style="color: #D4AF37;"></i> Cambiar Contraseña
+                                        </button>
+                                        <span style="font-size: 0.82rem; color: #64748b; margin-left: 12px;">(Pulse este botón si desea asignar una nueva contraseña a este usuario)</span>
+                                    </div>
+
+                                    <!-- Contenedor de Contraseña y Confirmación con ojitos minimalistas -->
+                                    <div id="passwordFieldsContainer" style="grid-column: span 2; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                        <div>
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                <span id="formPassLabel">Contraseña *</span>
+                                            </label>
+                                            <div style="position: relative;">
+                                                <input type="password" id="formPassword" placeholder="Contraseña segura" style="width: 100%; padding: 11px 42px 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
+                                                <button type="button" onclick="window.togglePasswordVisibility('formPassword', this)" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: transparent; border: none; cursor: pointer; color: #94a3b8; font-size: 0.9rem; padding: 6px; display: flex; align-items: center; justify-content: center; outline: none;" title="Mostrar / Ocultar">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                <span id="formPassConfirmLabel">Confirmar Contraseña *</span>
+                                            </label>
+                                            <div style="position: relative;">
+                                                <input type="password" id="formPasswordConfirm" placeholder="Confirme la contraseña" style="width: 100%; padding: 11px 42px 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
+                                                <button type="button" onclick="window.togglePasswordVisibility('formPasswordConfirm', this)" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: transparent; border: none; cursor: pointer; color: #94a3b8; font-size: 0.9rem; padding: 6px; display: flex; align-items: center; justify-content: center; outline: none;" title="Mostrar / Ocultar">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style="grid-column: span 2; margin-top: 15px;">
+                                        <h4 style="color: #6A0D25; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
+                                            <i class="fas fa-address-card"></i> 2. Datos Personales
+                                        </h4>
+                                    </div>
+
+                                    <div>
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Nombres *</label>
+                                        <input type="text" id="formNombres" required placeholder="ej. VICTORIA ALEJANDRA" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
+                                    </div>
+
+                                    <div>
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Apellidos *</label>
+                                        <input type="text" id="formApellidos" required placeholder="ej. CARMONA TORRES" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
+                                    </div>
+
+                                    <div>
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                            Cédula de Identidad * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Solo números)</span>
+                                        </label>
+                                        <input type="text" id="formCedula" required inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="Solo números (ej. 12345678)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
+                                    </div>
+
+                                    <div>
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Género *</label>
+                                        <div style="display: flex; gap: 24px; align-items: center; padding: 10px 14px; background: white; border: 1px solid #cbd5e1; border-radius: 8px; min-height: 44px; box-sizing: border-box;">
+                                            <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.92rem; font-weight: 600; color: #1e293b; margin: 0;">
+                                                <input type="radio" name="formGenero" id="formGeneroMasculino" value="masculino" checked style="width: 18px; height: 18px; accent-color: #6A0D25; cursor: pointer;">
+                                                <span>Masculino</span>
+                                            </label>
+                                            <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.92rem; font-weight: 600; color: #1e293b; margin: 0;">
+                                                <input type="radio" name="formGenero" id="formGeneroFemenino" value="femenino" style="width: 18px; height: 18px; accent-color: #6A0D25; cursor: pointer;">
+                                                <span>Femenino</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div id="formCodigoRacGroup">
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                            Código RAC * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Máx. 10 dígitos numéricos)</span>
+                                        </label>
+                                        <input type="text" id="formCodigoRac" maxlength="10" inputmode="numeric" pattern="[0-9]*" placeholder="Solo números (ej. 0001234567)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box;">
+                                    </div>
+
+                                    <div id="formTelefonoGroup">
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                            Número de Teléfono * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Código + 7 dígitos numéricos)</span>
+                                        </label>
+                                        <div style="display: flex; gap: 0; align-items: stretch; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: white;">
+                                            <select id="formTelefonoCodigo" style="width: 95px; padding: 11px 8px; border: none; border-right: 1px solid #cbd5e1; font-size: 0.92rem; background: #f8fafc; font-weight: 700; color: #1e293b; outline: none; cursor: pointer;">
+                                                <option value="0416">0416</option>
+                                                <option value="0426">0426</option>
+                                                <option value="0414" selected>0414</option>
+                                                <option value="0424">0424</option>
+                                                <option value="0412">0412</option>
+                                                <option value="0422">0422</option>
+                                            </select>
+                                            <input type="text" id="formTelefonoNumero" maxlength="7" inputmode="numeric" pattern="[0-9]*" placeholder="7 dígitos (ej. 1234567)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="flex: 1; padding: 11px 14px; border: none; font-size: 0.92rem; box-sizing: border-box; outline: none;">
+                                        </div>
+                                    </div>
+
+                                    <div id="formProfesionGroup" style="grid-column: span 2;">
+                                        <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                            Profesión / Título Académico * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Prefijo: Abog., Ing., T.S.U., Lic.)</span>
+                                        </label>
+                                        <select id="formProfesion" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white;">
+                                            <option value="Abogado">Abogado (Prefijo: Abog. Nombre)</option>
+                                            <option value="Ingeniero">Ingeniero (Prefijo: Ing. Nombre)</option>
+                                            <option value="Licenciado">Licenciado (Prefijo: Lic. Nombre)</option>
+                                            <option value="Técnico Superior">Técnico Superior (Prefijo: T.S.U. Nombre)</option>
+                                            <option value="Profesor">Profesor (Prefijo: Prof. Nombre)</option>
+                                            <option value="Doctor">Doctor (Prefijo: Dr. Nombre)</option>
+                                            <option value="Bachiller">Bachiller (Sin prefijo)</option>
+                                            <option value="Otro">Otro</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Sección 3: Datos Laborales y Planilla ARC (Oculta para rol Administrador) -->
+                                    <div id="formLaboralSection" style="grid-column: span 2; display: contents;">
+                                        <div style="grid-column: span 2; margin-top: 15px;">
+                                            <h4 style="color: #6A0D25; font-size: 1.05rem; margin-bottom: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
+                                                <i class="fas fa-briefcase"></i> 3. Datos Laborales y Administrativos
+                                            </h4>
+                                        </div>
+
+                                        <!-- Cargo Institucional con Buscador y Desplegable -->
+                                        <div>
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                                                <label style="font-weight: 700; font-size: 0.85rem; color: #334155; margin: 0;">Cargo Institucional *</label>
+                                                <button type="button" onclick="window.openManageCargosModal()" style="background: none; border: none; color: #0284c7; font-size: 0.8rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 0;">
+                                                    <i class="fas fa-plus-circle"></i> Gestionar Cargos
+                                                </button>
+                                            </div>
+                                            <div style="position: relative;">
+                                                <input type="text" id="formCargo" required autocomplete="off" placeholder="Escriba para buscar o seleccione un cargo..." style="width: 100%; padding: 11px 36px 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; text-transform: uppercase;">
+                                                <button type="button" id="toggleCargoDropdownBtn" style="position: absolute; right: 0; top: 0; bottom: 0; width: 36px; background: transparent; border: none; cursor: pointer; color: #64748b; font-size: 0.85rem; display: flex; align-items: center; justify-content: center;" title="Ver todos los cargos">
+                                                    <i class="fas fa-chevron-down"></i>
+                                                </button>
+                                                <div id="cargoDropdownList" class="cargo-dropdown-list"></div>
+                                            </div>
+                                            <small style="color: #64748b; font-size: 0.78rem;">Escriba para buscar o use la flecha para ver el listado de cargos</small>
+                                        </div>
+
+                                        <div>
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                Condición Laboral * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Define su modelo de constancia)</span>
+                                            </label>
+                                            <select id="formCondicion" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; font-weight: 600;">
+                                                <option value="FIJO">FIJO (Constancia de Trabajo - Personal Fijo)</option>
+                                                <option value="CONTRATADO">CONTRATADO (Constancia de Trabajo - Personal Contratado)</option>
+                                                <option value="JUBILADO">JUBILADO (Constancia de Jubilación - Personal Jubilado)</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                Salario / Remuneración Mensual * <span style="font-weight: 400; color: #64748b; font-size: 0.8rem;">(Ej. 1.000,00)</span>
+                                            </label>
+                                            <div style="display: flex; align-items: stretch; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: white; box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);">
+                                                <span style="background: #f1f5f9; color: #6A0D25; font-weight: 700; font-size: 0.92rem; padding: 11px 14px; border-right: 1px solid #cbd5e1; display: flex; align-items: center; user-select: none;">
+                                                    Bs.
+                                                </span>
+                                                <input type="text" id="formSalario" required placeholder="1.000,00" value="1.000,00" style="flex: 1; border: none; padding: 11px 14px; font-size: 0.92rem; outline: none; box-sizing: border-box; color: #1e293b; font-weight: 600;">
+                                            </div>
+                                            <small style="color: #64748b; font-size: 0.78rem;">El prefijo "Bs." es fijo e inamovible; escriba únicamente el monto numérico.</small>
+                                        </div>
+
+                                        <!-- Fecha de Ingreso con Selector Calendario Interactivo -->
+                                        <div>
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                <i class="fas fa-calendar-alt" style="color: #6A0D25;"></i> Fecha de Ingreso * <span style="font-weight: 400; color: #64748b; font-size: 0.8rem;">(Seleccionar en el calendario)</span>
+                                            </label>
+                                            <input type="date" id="formFechaIngreso" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; color: #1e293b; cursor: pointer;">
+                                            <small style="color: #64748b; font-size: 0.78rem;">Haga clic para abrir el calendario y seleccionar la fecha exacta</small>
+                                        </div>
+
+                                        <div style="grid-column: span 2;">
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                Años de Servicio <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Cálculo Automático según Fecha de Ingreso)</span>
+                                            </label>
+                                            <div style="position: relative; display: flex; align-items: stretch;">
+                                                <input type="number" id="formAnos" min="0" max="60" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px 0 0 8px; font-size: 0.92rem; box-sizing: border-box; background: white; color: #6A0D25; font-weight: 700;" placeholder="0">
+                                                <button type="button" id="btnRecalcularAnos" title="Recalcular automáticamente según la fecha de ingreso seleccionada" style="padding: 0 16px; background: #f8fafc; border: 1px solid #cbd5e1; border-left: none; border-radius: 0 8px 8px 0; color: #6A0D25; font-size: 0.85rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                                                    <i class="fas fa-calculator"></i> Calcular
+                                                </button>
+                                            </div>
+                                            <small style="color: #64748b; font-size: 0.78rem; font-weight: 500; display: block; margin-top: 3px;">
+                                                <i class="fas fa-info-circle" style="color: #6A0D25;"></i> Se calcula automáticamente según la fecha de ingreso (o puede ajustarse manualmente si el trabajador tiene años previos reconocidos).
+                                            </small>
+                                        </div>
+
+                                        <!-- Dependencia Administrativa como Ventana Desplegable con Valor Fijo -->
+                                        <div style="grid-column: span 2;">
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                <i class="fas fa-landmark" style="color: #6A0D25;"></i> Dependencia Administrativa *
+                                            </label>
+                                            <select id="formDependencia" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; font-weight: 600; color: #1e293b; cursor: pointer;">
+                                                <option value="PROCURADURÍA GENERAL DEL ESTADO TRUJILLO" selected>PROCURADURÍA GENERAL DEL ESTADO TRUJILLO</option>
+                                            </select>
+                                        </div>
+
+                                        <div style="grid-column: span 2;">
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Dirección / Oficina Adscrita *</label>
+                                            <select id="formDireccion" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white;">
+                                                <option value="DESPACHO DEL PROCURADOR GENERAL">Despacho del Procurador o Procuradora General</option>
+                                                <option value="DIRECCIÓN GENERAL">Dirección General</option>
+                                                <option value="DIRECCIÓN DE RECURSOS HUMANOS">Dirección de Recursos Humanos</option>
+                                                <option value="DIRECCIÓN DE ASUNTOS JURÍDICOS">Dirección de Asuntos Jurídicos</option>
+                                                <option value="DIRECCIÓN DE ADMINISTRACIÓN">Dirección de Administración</option>
+                                                <option value="DIRECCIÓN DE BIENES Y SERVICIOS">Dirección de Bienes y Servicios</option>
+                                                <option value="UNIDAD DE AUDITORÍA INTERNA">Unidad de Auditoría Interna</option>
+                                                <option value="OFICINA DE ATENCIÓN AL CIUDADANO">Oficina de Atención al Ciudadano</option>
+                                            </select>
+                                        </div>
+
+                                        <!-- Datos Bancarios: Banco y Número de Cuenta (El administrador ve completo) -->
+                                        <div>
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                <i class="fas fa-university" style="color: #6A0D25;"></i> Banco / Entidad Financiera *
+                                            </label>
+                                            <select id="formBanco" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: #f8fafc; font-weight: 700; color: #6A0D25; pointer-events: none;" tabindex="-1">
+                                                <option value="Banco de Venezuela" selected>Banco de Venezuela (0102)</option>
+                                            </select>
+                                            <small style="color: #64748b; font-size: 0.78rem;">Entidad bancaria institucional exclusiva de la nómina PGET (código 0102).</small>
+                                        </div>
+
+                                        <div>
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                <i class="fas fa-credit-card" style="color: #6A0D25;"></i> Número de Cuenta Bancaria * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(20 dígitos, inicia con 0102)</span>
+                                            </label>
+                                            <div style="position: relative; display: flex; align-items: stretch;">
+                                                <span style="display: flex; align-items: center; padding: 0 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-right: none; border-radius: 8px 0 0 8px; color: #6A0D25; font-weight: 700; font-family: monospace; font-size: 0.95rem;">0102</span>
+                                                <input type="text" id="formCuenta" required maxlength="16" inputmode="numeric" pattern="[0-9]*" placeholder="16 dígitos restantes (ej. 0373220000419109)" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 0 8px 8px 0; font-size: 0.92rem; box-sizing: border-box; font-family: monospace; letter-spacing: 0.8px;">
+                                            </div>
+                                            <small style="color: #64748b; font-size: 0.78rem;">Prefijo 0102 fijo (Banco de Venezuela). Escriba o pegue los 16 dígitos restantes.</small>
+                                        </div>
+
+                                        <!-- Planilla de ARC en el formulario de usuario -->
+                                        <div style="grid-column: span 2; background: #fdfaf6; border: 1.5px dashed #D4AF37; border-radius: 12px; padding: 20px; margin-top: 10px; box-shadow: 0 2px 10px rgba(106,13,37,0.03);">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 10px;">
+                                                <label style="font-weight: 700; font-size: 0.92rem; color: #6A0D25; display: flex; align-items: center; gap: 8px; margin: 0;">
+                                                    <i class="fas fa-file-invoice" style="color: #D4AF37;"></i> Planilla de ARC (Comprobante de Retención Anual)
+                                                </label>
+                                                <span id="formArcStatusBadge" style="font-size: 0.78rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1;">
+                                                    Sin archivo
+                                                </span>
+                                            </div>
+                                            <div id="formArcFileInfo" style="font-size: 0.85rem; color: #334155; margin-bottom: 12px;">
+                                                Cargue la Planilla ARC (en formato PDF o Imagen) para que el trabajador pueda consultarla y descargarla por año fiscal desde su perfil.
+                                            </div>
+                                            <!-- Selector de año fiscal de la planilla -->
+                                            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 14px; flex-wrap: wrap;">
+                                                <label style="font-weight: 700; font-size: 0.85rem; color: #334155; margin: 0;">Año Fiscal de la Planilla ARC:</label>
+                                                <select id="formArcYear" style="padding: 7px 14px; border: 1.5px solid #D4AF37; border-radius: 6px; font-weight: 700; font-size: 0.9rem; background: white; color: #6A0D25; cursor: pointer;">
+                                                    <option value="2026">2026</option>
+                                                    <option value="2025" selected>2025</option>
+                                                    <option value="2024">2024</option>
+                                                    <option value="2023">2023</option>
+                                                    <option value="2022">2022</option>
+                                                </select>
+                                            </div>
+                                            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                                                <input type="file" id="formArcFileInput" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" style="display: none;">
+                                                <button type="button" id="formArcSelectBtn" style="background: white; border: 1.5px solid #6A0D25; color: #6A0D25; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s;">
+                                                    <i class="fas fa-upload"></i> Seleccionar PDF o Imagen
+                                                </button>
+                                                <button type="button" id="formArcPreviewBtn" style="display: none; background: linear-gradient(135deg, #6A0D25, #83122F); border: 1px solid #D4AF37; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                                    <i class="fas fa-eye"></i> Ver Archivo Actual
+                                                </button>
+                                                <button type="button" id="formArcDeleteBtn" style="display: none; background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                                    <i class="fas fa-trash"></i> Quitar Planilla ARC
+                                                </button>
+                                            </div>
+                                            <div id="formArcSelectedNotice" style="margin-top: 8px; font-size: 0.82rem; color: #6A0D25; font-weight: 600;"></div>
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                                <div id="formUserError" style="display: none; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 12px; border-radius: 8px; margin-bottom: 18px; font-size: 0.9rem; text-align: center;"></div>
+
+                                <div style="display: flex; justify-content: flex-end; gap: 15px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+                                    <button type="button" onclick="window.backToAdminView()" style="background: #e2e8f0; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; color: #475569;">
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" id="saveUserSubmitBtn" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 12px 30px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.3);">
+                                        <i class="fas fa-save"></i> Guardar Usuario
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                </div>
+            </div>`;
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+            modal = document.getElementById('loginModal');
+            attachModalEvents(modal);
+        }
+
+        // Si no hay sesión activa, garantizar que sólo se muestre el formulario de login
+        if (!currentUser && modal) {
+            const mainContent = modal.querySelector('#mainModalContent');
+            if (mainContent) {
+                mainContent.classList.remove('portal-fullscreen');
+                mainContent.classList.remove('admin-modal-size');
+            }
+            const lv = modal.querySelector('#loginView');
+            const wv = modal.querySelector('#workerView');
+            const av = modal.querySelector('#adminView');
+            const uf = modal.querySelector('#userFormView');
+            if (lv) lv.style.display = 'block';
+            if (wv) wv.style.display = 'none';
+            if (av) av.style.display = 'none';
+            if (uf) uf.style.display = 'none';
+        }
+        return modal;
+    }
+
+    // Attach interaction events
+    function attachModalEvents(modal) {
+        if (!modal) return;
+        const closeBtn = modal.querySelector('#modalCloseBtn') || modal.querySelector('.close-btn');
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                modal.classList.remove('show');
+                localStorage.setItem('pget_session_open', 'false');
+            };
+        }
+
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                modal.classList.remove('show');
+                localStorage.setItem('pget_session_open', 'false');
+            }
+        };
+
+        const fechaInput = modal.querySelector('#formFechaIngreso');
+        const anosInput = modal.querySelector('#formAnos');
+        const recalcBtn = modal.querySelector('#btnRecalcularAnos');
+        if (fechaInput && anosInput) {
+            const handleDateCalc = () => {
+                if (fechaInput.value) {
+                    anosInput.value = calculateYearsOfService(fechaInput.value).toString();
+                }
+            };
+            fechaInput.addEventListener('input', handleDateCalc);
+            fechaInput.addEventListener('change', handleDateCalc);
+            if (recalcBtn) {
+                recalcBtn.addEventListener('click', handleDateCalc);
+            }
+        }
+
+        const cuentaInput = modal.querySelector('#formCuenta');
+        if (cuentaInput) {
+            cuentaInput.addEventListener('input', function() {
+                let clean = this.value.replace(/\D/g, '');
+                if (clean.startsWith('0102')) {
+                    clean = clean.slice(4);
+                }
+                this.value = clean.slice(0, 16);
+            });
+        }
+
+        // Inicializar dropdown interactivo y buscador de cargos
+        setupCargoSearchableDropdown(modal);
+
+        // Control de archivo ARC en el formulario de usuario
+        const formArcSelectBtn = modal.querySelector('#formArcSelectBtn');
+        const formArcFileInput = modal.querySelector('#formArcFileInput');
+        const formArcPreviewBtn = modal.querySelector('#formArcPreviewBtn');
+        const formArcDeleteBtn = modal.querySelector('#formArcDeleteBtn');
+        const formArcSelectedNotice = modal.querySelector('#formArcSelectedNotice');
+
+        if (formArcSelectBtn && formArcFileInput) {
+            formArcSelectBtn.onclick = () => formArcFileInput.click();
+            formArcFileInput.onchange = () => {
+                if (formArcFileInput.files && formArcFileInput.files[0]) {
+                    const f = formArcFileInput.files[0];
+                    if (f.size > 10 * 1024 * 1024) {
+                        window.pgetAlert('El archivo excede el tamaño máximo permitido de 10 MB.', 'Archivo Muy Grande', 'Aceptar', 'warning');
+                        formArcFileInput.value = '';
+                        return;
+                    }
+                    const r = new FileReader();
+                    r.onload = (ev) => {
+                        formSelectedArcFile = {
+                            name: f.name,
+                            type: f.type || (f.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+                            data: ev.target.result,
+                            size: f.size,
+                            uploaded_at: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        };
+                        if (formArcSelectedNotice) {
+                            formArcSelectedNotice.textContent = `Archivo seleccionado: ${f.name} (${(f.size/1024).toFixed(1)} KB)`;
+                        }
+                        if (formArcDeleteBtn) formArcDeleteBtn.style.display = 'inline-flex';
+                    };
+                    r.readAsDataURL(f);
+                }
+            };
+        }
+
+        if (formArcDeleteBtn) {
+            formArcDeleteBtn.onclick = () => {
+                formSelectedArcFile = null;
+                if (formArcFileInput) formArcFileInput.value = '';
+                if (formArcSelectedNotice) formArcSelectedNotice.textContent = 'Planilla ARC marcada para eliminar al guardar.';
+                const badge = modal.querySelector('#formArcStatusBadge');
+                if (badge) {
+                    badge.textContent = 'Eliminada';
+                    badge.style.background = '#fee2e2';
+                    badge.style.color = '#dc2626';
+                    badge.style.borderColor = '#fca5a5';
+                }
+                formArcDeleteBtn.style.display = 'none';
+                if (formArcPreviewBtn) formArcPreviewBtn.style.display = 'none';
+            };
+        }
+
+        if (formArcPreviewBtn) {
+            formArcPreviewBtn.onclick = () => {
+                const user = allUsersCache.find(u => u.username.toLowerCase() === (editingUsername || '').toLowerCase());
+                const arc = formSelectedArcFile || (user && user.arc_file);
+                if (arc && arc.data) {
+                    window.showArcViewerModal(arc, user || { nombre: 'Trabajador' });
+                }
+            };
+        }
+
+        const genderRadios = modal.querySelectorAll('input[name="formGenero"]');
+        const formProf = modal.querySelector('#formProfesion');
+        genderRadios.forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (radio.checked && formProf) {
+                    updateFormProfesionOptions(radio.value, formProf.value);
+                }
+            });
+        });
+
+        const formRoleSelect = modal.querySelector('#formRole');
+        if (formRoleSelect) {
+            formRoleSelect.addEventListener('change', () => {
+                if (typeof updateAdminFormVisibility === 'function') {
+                    updateAdminFormVisibility(modal);
+                }
+            });
+        }
+
+        const cedulaInput = modal.querySelector('#formCedula');
+        if (cedulaInput) {
+            cedulaInput.addEventListener('input', () => {
+                cedulaInput.value = cedulaInput.value.replace(/[^0-9]/g, '');
+            });
+        }
+
+        const salarioInput = modal.querySelector('#formSalario');
+        if (salarioInput) {
+            salarioInput.addEventListener('input', () => {
+                const cleaned = salarioInput.value.replace(/^[bB][sS]\.?\s*/, '');
+                if (cleaned !== salarioInput.value) {
+                    salarioInput.value = cleaned;
+                }
+            });
+        }
+
+        const togglePassword = modal.querySelector('#togglePassword');
+        const passwordInput = modal.querySelector('#password');
+        if (togglePassword && passwordInput) {
+            togglePassword.onclick = () => {
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+                if (type === 'text') {
+                    togglePassword.classList.remove('fa-eye');
+                    togglePassword.classList.add('fa-eye-slash');
+                } else {
+                    togglePassword.classList.remove('fa-eye-slash');
+                    togglePassword.classList.add('fa-eye');
+                }
+            };
+        }
+
+        // Login Form Handler
+        const loginForm = modal.querySelector('#loginForm');
+        const errorMsg = modal.querySelector('#loginError');
+        const submitBtn = modal.querySelector('#submitLoginBtn');
+
+        if (loginForm) {
+            loginForm.onsubmit = async (e) => {
+                e.preventDefault();
+                const username = modal.querySelector('#username').value.trim();
+                const password = passwordInput ? passwordInput.value.trim() : '';
+
+                try {
+                    if (submitBtn) {
+                        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Validando credenciales...';
+                        submitBtn.disabled = true;
+                    }
+                    if (errorMsg) {
+                        errorMsg.style.display = 'none';
+                        errorMsg.textContent = '';
+                    }
+
+                    // Petición al backend
+                    const response = await fetch(`${API_URL}/login`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password })
+                    });
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        currentToken = data.token;
+                        currentUser = data.user;
+                        localStorage.setItem('pget_auth_token', currentToken);
+                        localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+                        handlePostLogin(currentUser);
+                    } else {
+                        // Fallback offline en caso de que el backend no esté encendido
+                        const offlineMatch = checkOfflineAuth(username, password);
+                        if (offlineMatch) {
+                            currentToken = `offline-token-${offlineMatch.username}`;
+                            currentUser = offlineMatch;
+                            localStorage.setItem('pget_auth_token', currentToken);
+                            localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+                            handlePostLogin(currentUser);
+                        } else {
+                            if (errorMsg) {
+                                errorMsg.style.display = 'block';
+                                errorMsg.textContent = data.detail || 'Usuario o contraseña incorrectos.';
+                            }
+                        }
+                    }
+                } catch (error) {
+                    // Fallback offline cuando el servidor FastAPI no está corriendo
+                    const offlineMatch = checkOfflineAuth(username, password);
+                    if (offlineMatch) {
+                        currentToken = `offline-token-${offlineMatch.username}`;
+                        currentUser = offlineMatch;
+                        localStorage.setItem('pget_auth_token', currentToken);
+                        localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+                        handlePostLogin(currentUser);
+                    } else {
+                        if (errorMsg) {
+                            errorMsg.style.display = 'block';
+                            errorMsg.textContent = 'Error de conexión con el servidor. Verifica las credenciales.';
+                        }
+                    }
+                } finally {
+                    if (submitBtn) {
+                        submitBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Iniciar Sesión';
+                        submitBtn.disabled = false;
+                    }
+                }
+            };
+        }
+
+        // Formulario Guardar Usuario (Crear / Editar)
+        const saveForm = modal.querySelector('#saveUserForm');
+        if (saveForm) {
+            saveForm.onsubmit = async (e) => {
+                e.preventDefault();
+                await handleSaveUser();
+            };
+        }
+
+        // Generar Constancia (Trabajador)
+        const certBtn = modal.querySelector('#requestCertBtn');
+        if (certBtn) {
+            certBtn.onclick = async () => {
+                await handleRequestCert();
+            };
+        }
+    }
+
+    // Navegación post-login según el rol (Modo Pantalla Completa)
+    function handlePostLogin(user) {
+        const modal = document.getElementById('loginModal');
+        const mainContent = document.getElementById('mainModalContent');
+        const loginView = modal.querySelector('#loginView');
+        const workerView = modal.querySelector('#workerView');
+        const adminView = modal.querySelector('#adminView');
+        const userFormView = modal.querySelector('#userFormView');
+        const loginBtn = document.getElementById('loginBtn');
+
+        if (loginView) loginView.style.display = 'none';
+        if (userFormView) userFormView.style.display = 'none';
+
+        if (loginBtn) {
+            const displayName = user.role === 'admin' 
+                ? 'ADMINISTRADOR' 
+                : (user.nombre ? user.nombre.split(' ')[0] : user.username);
+            loginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${displayName}`;
+        }
+
+        if (currentUser) localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+
+        const closeBtn = modal.querySelector('#modalCloseBtn');
+        if (closeBtn) closeBtn.style.display = 'none';
+
+        if (mainContent) {
+            mainContent.classList.add('portal-fullscreen');
+        }
+
+        if (user.role === 'admin') {
+            // MOSTRAR PANEL ADMINISTRADOR
+            if (mainContent) mainContent.classList.add('admin-modal-size');
+            if (workerView) workerView.style.display = 'none';
+            if (adminView) adminView.style.display = 'flex';
+            loadAdminUsers();
+        } else {
+            // MOSTRAR VISTA TRABAJADOR
+            if (mainContent) mainContent.classList.remove('admin-modal-size');
+            if (adminView) adminView.style.display = 'none';
+            if (workerView) workerView.style.display = 'flex';
+            populateWorkerData(user);
+        }
+    }
+
+    let selectedWorkerArcYear = '2026';
+
+    function getArcAvailableYears(user = null) {
+        const START_YEAR = 2026;
+        const currentYear = new Date().getFullYear();
+        const maxYear = Math.max(START_YEAR, currentYear);
+        const yearsSet = new Set();
+        for (let y = START_YEAR; y <= maxYear; y++) {
+            yearsSet.add(String(y));
+        }
+        if (user && user.arc_files) {
+            Object.keys(user.arc_files).forEach(y => {
+                const yNum = parseInt(y, 10);
+                if (!isNaN(yNum) && yNum >= START_YEAR) {
+                    yearsSet.add(String(y));
+                }
+            });
+        }
+        // Ordenados ascendentemente desde 2026 en adelante
+        return Array.from(yearsSet).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+    }
+
+    function renderWorkerArcYearTabs(user) {
+        const modal = document.getElementById('loginModal');
+        if (!modal) return;
+        const container = modal.querySelector('#workerArcYearTabsContainer');
+        if (!container) return;
+
+        const years = getArcAvailableYears(user);
+        if (!years.includes(selectedWorkerArcYear)) {
+            selectedWorkerArcYear = years[0] || '2026';
+        }
+
+        container.innerHTML = `
+            <span style="font-size: 0.88rem; font-weight: 700; color: #475569; margin-right: 4px;">Año Fiscal:</span>
+            ${years.map(y => `
+                <button type="button" class="arc-year-tab-btn ${y === selectedWorkerArcYear ? 'active' : ''}" data-year="${y}" onclick="window.setWorkerArcYear('${y}')">${y}</button>
+            `).join('')}
+        `;
+    }
+
+    window.setWorkerArcYear = (year) => {
+        selectedWorkerArcYear = String(year);
+        const modal = document.getElementById('loginModal');
+        if (!modal) return;
+        const displayYear = modal.querySelector('#workerArcDisplayYear');
+        if (displayYear) displayYear.textContent = selectedWorkerArcYear;
+
+        // Actualizar botones de pestañas de año con color Vinotinto Institucional (no verde)
+        const tabBtns = modal.querySelectorAll('.arc-year-tab-btn');
+        tabBtns.forEach(btn => {
+            if (btn.getAttribute('data-year') === selectedWorkerArcYear) {
+                btn.classList.add('active');
+                btn.style.border = '1.5px solid #D4AF37';
+                btn.style.background = 'linear-gradient(135deg, #6A0D25 0%, #83122F 100%)';
+                btn.style.color = '#ffffff';
+                btn.style.fontWeight = '700';
+                btn.style.boxShadow = '0 2px 8px rgba(106, 13, 37, 0.3)';
+            } else {
+                btn.classList.remove('active');
+                btn.style.border = '1px solid #cbd5e1';
+                btn.style.background = '#f8fafc';
+                btn.style.color = '#475569';
+                btn.style.fontWeight = '600';
+                btn.style.boxShadow = 'none';
+            }
+        });
+    };
+
+    window.downloadWorkerArcSelectedYear = () => {
+        const targetUser = (allUsersCache && currentUser && allUsersCache.find(u => u.username.toLowerCase() === currentUser.username.toLowerCase())) || currentUser;
+        if (!targetUser) return;
+
+        const year = selectedWorkerArcYear || '2026';
+        let arcFile = null;
+
+        if (targetUser.arc_files && targetUser.arc_files[year]) {
+            arcFile = targetUser.arc_files[year];
+        } else if (targetUser.arc_file && (String(targetUser.arc_file.year) === String(year) || (!targetUser.arc_file.year && year === '2026'))) {
+            arcFile = targetUser.arc_file;
+        }
+
+        if (arcFile && arcFile.data) {
+            window.downloadArcFile(arcFile, targetUser);
+        } else {
+            window.pgetAlert(
+                `<div style="font-size: 1.05rem; font-weight: 700; color: #6A0D25; margin-bottom: 12px;"><i class="fas fa-exclamation-circle"></i> Planilla ARC ${year} no disponible</div>` +
+                `Estimado(a) <strong>${escapeHtml(targetUser.nombre || 'Trabajador')}</strong>:<br><br>` +
+                `Su <strong>Planilla de ARC para el ejercicio fiscal ${year}</strong> aún no ha sido cargada en el sistema por la <strong>Dirección de Recursos Humanos</strong>.<br><br>` +
+                `Por favor, comuníquese con Recursos Humanos para mayor información.`,
+                `Planilla ARC ${year} no disponible`,
+                'Aceptar',
+                'info'
+            );
+        }
+    };
+
+    function populateWorkerData(user) {
+        const modal = document.getElementById('loginModal');
+        const cond = (user.condicion || 'FIJO').toUpperCase();
+        const genero = (user.genero || 'masculino').toLowerCase();
+        const prof = formatProfessionByGender(user.profesion || '', genero);
+        
+        modal.querySelector('#workerName').textContent = formatFullNameWithTitle(user.nombre, prof, genero) || 'No registrado';
+        modal.querySelector('#workerCedula').textContent = formatCedulaOficial(user.cedula) || 'No registrada';
+        
+        const racEl = modal.querySelector('#workerCodigoRac');
+        if (racEl) racEl.textContent = user.codigo_rac || 'No registrado';
+
+        const tlfEl = modal.querySelector('#workerTelefono');
+        if (tlfEl) tlfEl.textContent = formatTelefono(user.telefono_codigo, user.telefono_numero) || user.telefono || 'No registrado';
+
+        const bancoEl = modal.querySelector('#workerBanco');
+        if (bancoEl) bancoEl.textContent = user.banco || 'Banco de Venezuela';
+
+        const cuentaEl = modal.querySelector('#workerCuenta');
+        if (cuentaEl) cuentaEl.textContent = formatMaskedAccount(user.cuenta);
+
+        const profEl = modal.querySelector('#workerProfesion');
+        if (profEl) profEl.textContent = prof || 'No especificada';
+
+        const condTextEl = modal.querySelector('#workerCondicionText');
+        if (condTextEl) condTextEl.textContent = `PERSONAL ${cond}`;
+
+        const condBadgeEl = modal.querySelector('#workerCondicionBadge');
+        if (condBadgeEl) {
+            condBadgeEl.textContent = cond;
+            condBadgeEl.className = `condicion-badge ${cond.toLowerCase()}`;
+        }
+
+        modal.querySelector('#workerCargo').textContent = user.cargo || 'No registrado';
+        
+        const fechaIngresoEl = modal.querySelector('#workerFechaIngreso');
+        if (fechaIngresoEl) fechaIngresoEl.textContent = user.fecha_ingreso || 'No registrada';
+
+        const salarioEl = modal.querySelector('#workerSalario');
+        if (salarioEl) salarioEl.textContent = user.salario || 'Bs. 1.000,00';
+
+        const autoYears = getCalculatedYearsOfService(user.fecha_ingreso, user.anos_servicio);
+        modal.querySelector('#workerYears').textContent = autoYears + (autoYears === '1' ? ' año' : ' años');
+
+        modal.querySelector('#workerDep').textContent = user.dependencia || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO';
+        
+        const dirEl = modal.querySelector('#workerDireccion');
+        if (dirEl) {
+            dirEl.textContent = user.direccion || 'DIRECCIÓN GENERAL';
+        }
+        
+        // Adaptar encabezado y descripción de la constancia según la condición
+        const certBadge = modal.querySelector('#workerCertModelBadge');
+        const certDesc = modal.querySelector('#workerCertDesc');
+        if (certBadge && certDesc) {
+            if (cond === 'JUBILADO') {
+                certBadge.textContent = 'Personal Jubilado';
+                certDesc.textContent = 'Modelo oficial de Constancia de Jubilación asignado conforme a su condición de personal jubilado.';
+            } else if (cond === 'CONTRATADO') {
+                certBadge.textContent = 'Personal Contratado';
+                certDesc.textContent = 'Modelo oficial de Constancia de Trabajo asignado conforme a su modalidad de contrato de servicios.';
+            } else {
+                certBadge.textContent = 'Personal Fijo';
+                certDesc.textContent = 'Modelo oficial de Constancia de Trabajo asignado conforme a su condición de personal fijo / ordinario.';
+            }
+        }
+
+        const certMsg = modal.querySelector('#certMessage');
+        if (certMsg) certMsg.textContent = '';
+
+        // Inicializar sección ARC en año 2026 y renderizar pestañas ordenadas
+        renderWorkerArcYearTabs(user);
+        window.setWorkerArcYear('2026');
+    }
+
+    // Cargar Usuarios en el Panel de Administrador
+    async function loadAdminUsers() {
+        const tbody = document.getElementById('adminUsersListBody');
+        const countBadge = document.getElementById('adminUsersCount');
+        
+        try {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px;"><i class="fas fa-spinner fa-spin"></i> Cargando usuarios desde la base de datos...</td></tr>';
+            
+            let users = null;
+            try {
+                const res = await fetch(`${API_URL}/users?_t=${Date.now()}`, { cache: 'no-store' });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        users = data.filter(u => u.username.toLowerCase() !== 'admin' && u.username.toLowerCase() !== 'trabajador1');
+                    }
+                }
+            } catch (err) {
+                console.warn('API warning al cargar usuarios:', err);
+            }
+
+            // Si la API no respondió por fallo de red, usar el cache persistente local
+            if (!users) {
+                const cached = localStorage.getItem('pget_cached_users');
+                if (cached) {
+                    try {
+                        users = JSON.parse(cached);
+                    } catch (e) {}
+                }
+            } else {
+                // Fusión inteligente: preservar campos modificados localmente si vinieran vacíos
+                const cached = localStorage.getItem('pget_cached_users');
+                if (cached) {
+                    try {
+                        const localArr = JSON.parse(cached);
+                        if (Array.isArray(localArr)) {
+                            const localMap = new Map();
+                            localArr.forEach(lu => {
+                                if (lu && lu.username) localMap.set(lu.username.toLowerCase(), lu);
+                            });
+                            users = users.map(u => {
+                                const localU = localMap.get(u.username.toLowerCase());
+                                if (!localU) return u;
+                                return {
+                                    ...localU,
+                                    ...u,
+                                    codigo_rac: u.codigo_rac || localU.codigo_rac || '',
+                                    telefono: u.telefono || localU.telefono || '',
+                                    telefono_codigo: u.telefono_codigo || localU.telefono_codigo || '',
+                                    telefono_numero: u.telefono_numero || localU.telefono_numero || '',
+                                    banco: u.banco || localU.banco || 'Banco de Venezuela',
+                                    cuenta: u.cuenta || localU.cuenta || ''
+                                };
+                            });
+                        }
+                    } catch (e) {}
+                }
+                localStorage.setItem('pget_cached_users', JSON.stringify(users));
+            }
+
+            // Fallback de inicialización exclusiva si no hay datos en BD ni en caché
+            if (!users || users.length === 0) {
+                users = defaultAccounts.map(a => {
+                    const c = { ...a };
+                    delete c.password;
+                    return c;
+                });
+            }
+
+            // Garantizar siempre que no aparezca el duplicado 'admin' o 'trabajador1'
+            users = users.filter(u => u.username.toLowerCase() !== 'admin' && u.username.toLowerCase() !== 'trabajador1');
+
+            allUsersCache = users;
+            renderAdminUsersTable(users);
+
+        } catch (error) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:20px; color:#dc2626;">Error al cargar la lista de usuarios.</td></tr>';
+        }
+    }
+
+    function renderAdminUsersTable(users) {
+        const tbody = document.getElementById('adminUsersListBody');
+        const countBadge = document.getElementById('adminUsersCount');
+        const condLabel = currentCondicionFilter ? ` (${currentCondicionFilter})` : '';
+        countBadge.textContent = `${users.length} Usuarios Registrados${condLabel}`;
+
+        if (users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:25px; color:#64748b;">No hay usuarios registrados bajo el filtro seleccionado.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = users.map(u => {
+            const cond = (u.condicion || 'FIJO').toUpperCase();
+            const gen = (u.genero || 'masculino').toLowerCase();
+            const prof = formatProfessionByGender(u.profesion, gen);
+            const fullNameWithTitle = formatFullNameWithTitle(u.nombre, prof, gen);
+            const cedulaOficial = formatCedulaOficial(u.cedula);
+            const safeUsername = escapeHtml(u.username);
+            const safeFullName = escapeHtml(fullNameWithTitle || 'Sin nombre');
+            const safeCargo = escapeHtml(u.cargo || 'Sin cargo asignado');
+            const safeDireccion = escapeHtml(u.direccion || 'DIRECCIÓN GENERAL');
+            const safeSalario = escapeHtml(u.salario || 'Bs. 1.000,00');
+            const safeCedula = escapeHtml(cedulaOficial || 'N/A');
+            const safeCond = escapeHtml(cond);
+            const safeNameRaw = escapeHtml(u.nombre || u.username);
+
+            return `
+            <tr>
+                <td>
+                    <strong style="color: #1e293b; display: block; font-size: 0.95rem;">${safeFullName}</strong>
+                    <div style="display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap;">
+                        <span style="color: #64748b; font-size: 0.82rem; font-weight: 600;"><i class="fas fa-id-card"></i> ${safeCedula}</span>
+                        ${u.role !== 'admin' && safeCond ? `<span class="condicion-badge ${safeCond.toLowerCase()}">${safeCond}</span>` : ''}
+                        <span style="font-size: 0.78rem; color: #475569; background: #e2e8f0; padding: 2px 7px; border-radius: 4px; font-weight: 600;">
+                            <i class="fas ${gen === 'femenino' ? 'fa-venus' : 'fa-mars'}" style="color: ${gen === 'femenino' ? '#db2777' : '#0284c7'};"></i> ${gen === 'femenino' ? 'Femenino' : 'Masculino'}
+                        </span>
+                    </div>
+                    ${u.role !== 'admin' && (u.banco || u.cuenta) ? `
+                    <div style="margin-top: 5px; font-size: 0.8rem; color: #1e293b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; font-family: monospace;">
+                        <i class="fas fa-university" style="color: #6A0D25;"></i> ${escapeHtml(u.banco || 'Banco')}: <strong style="color: #0369a1; letter-spacing: 0.5px;">${escapeHtml(u.cuenta || 'Sin cuenta')}</strong>
+                    </div>` : ''}
+                    ${u.role !== 'admin' && (u.codigo_rac || u.telefono || u.telefono_numero) ? `
+                    <div style="margin-top: 3px; font-size: 0.78rem; color: #475569; display: flex; gap: 8px; flex-wrap: wrap;">
+                        ${u.codigo_rac ? `<span><strong style="color: #6A0D25;">RAC:</strong> ${escapeHtml(u.codigo_rac)}</span>` : ''}
+                        ${(u.telefono || u.telefono_numero) ? `<span><i class="fas fa-phone-alt" style="color: #6A0D25; font-size: 0.72rem;"></i> ${escapeHtml(formatTelefono(u.telefono_codigo, u.telefono_numero) || u.telefono)}</span>` : ''}
+                    </div>` : ''}
+                </td>
+                <td>
+                    <span style="color: #0369a1; font-weight: 600;">${safeUsername}</span>
+                </td>
+                <td>
+                    ${u.role === 'admin' ? `
+                    <strong style="color: #6A0D25; display: block;">ADMINISTRADOR DEL SISTEMA</strong>
+                    <span style="color: #64748b; font-size: 0.82rem; font-weight: 600;">Gestión de Personal y Seguridad</span>
+                    ` : `
+                    <strong style="color: #6A0D25; display: block;">${safeCargo}</strong>
+                    <span style="color: #1e293b; font-size: 0.82rem; font-weight: 600; display: block;">${safeDireccion}</span>
+                    <span style="color: #83122F; font-size: 0.82rem; font-weight: 700; display: block;">${safeSalario}</span>
+                    `}
+                </td>
+                <td>
+                    <span class="role-badge ${u.role === 'admin' ? 'admin' : 'trabajador'}">
+                        ${u.role === 'admin' ? '<i class="fas fa-shield-alt"></i> Admin' : '<i class="fas fa-user"></i> Trabajador'}
+                    </span>
+                </td>
+                <td style="text-align: right; white-space: nowrap;">
+                    ${u.role !== 'admin' && !u.username.startsWith('admin') ? `
+                    <button type="button" class="btn-action arc ${u.arc_file && u.arc_file.data ? 'has-arc' : ''}" onclick="window.openAdminArcModal('${safeUsername}')" data-user="${safeUsername}" title="${u.arc_file && u.arc_file.data ? 'Planilla ARC Cargada (Clic para ver/gestionar)' : 'Subir Planilla ARC para este trabajador'}">
+                        <i class="fas ${u.arc_file && u.arc_file.data ? 'fa-file-invoice' : 'fa-upload'}"></i> ARC ${u.arc_file && u.arc_file.data ? '<i class="fas fa-check" style="font-size:0.75rem;"></i>' : ''}
+                    </button>
+                    ` : ''}
+                    <button class="btn-action edit" data-user="${safeUsername}" title="Editar Información del Usuario">
+                        <i class="fas fa-edit"></i> Editar
+                    </button>
+                    ${!u.username.startsWith('admin') ? `
+                    <button class="btn-action delete" data-user="${safeUsername}" data-name="${safeNameRaw}" title="Eliminar Usuario">
+                        <i class="fas fa-trash"></i> Eliminar
+                    </button>
+                    ` : '<span style="color:#94a3b8; font-size:0.75rem; padding: 0 5px;">Protegido</span>'}
+                </td>
+            </tr>
+            `;
+        }).join('');
+
+        // Delegación de eventos segura (previene inyección en atributos onclick)
+        tbody.onclick = (e) => {
+            const arcBtn = e.target.closest('.btn-action.arc');
+            if (arcBtn) {
+                const u = arcBtn.getAttribute('data-user');
+                if (u) window.openAdminArcModal(u);
+                return;
+            }
+            const editBtn = e.target.closest('.btn-action.edit');
+            if (editBtn) {
+                const u = editBtn.getAttribute('data-user');
+                if (u) window.openEditUserForm(u);
+                return;
+            }
+            const delBtn = e.target.closest('.btn-action.delete');
+            if (delBtn) {
+                const u = delBtn.getAttribute('data-user');
+                const n = delBtn.getAttribute('data-name');
+                if (u) window.confirmDeleteUser(u, n);
+                return;
+            }
+        };
+    }
+
+    // Activar filtro rápido por condición (Fijos, Contratados, Jubilados, Todos)
+    window.setCondicionFilter = (cond) => {
+        currentCondicionFilter = cond ? cond.toUpperCase() : '';
+        const buttons = document.querySelectorAll('.cond-filter-btn');
+        buttons.forEach(btn => {
+            const btnCond = btn.getAttribute('data-cond') || '';
+            if (btnCond === currentCondicionFilter) {
+                btn.classList.add('active');
+                if (btnCond === 'FIJO') {
+                    btn.style.background = '#6A0D25';
+                    btn.style.color = 'white';
+                    btn.style.border = '1px solid #D4AF37';
+                } else if (btnCond === 'CONTRATADO') {
+                    btn.style.background = '#0284c7';
+                    btn.style.color = 'white';
+                    btn.style.border = '1px solid #38bdf8';
+                } else if (btnCond === 'JUBILADO') {
+                    btn.style.background = '#7e22ce';
+                    btn.style.color = 'white';
+                    btn.style.border = '1px solid #c084fc';
+                } else {
+                    btn.style.background = '#6A0D25';
+                    btn.style.color = 'white';
+                    btn.style.border = '1px solid #D4AF37';
+                }
+            } else {
+                btn.classList.remove('active');
+                btn.style.background = 'transparent';
+                btn.style.border = 'none';
+                if (btnCond === 'FIJO') btn.style.color = '#6A0D25';
+                else if (btnCond === 'CONTRATADO') btn.style.color = '#0284c7';
+                else if (btnCond === 'JUBILADO') btn.style.color = '#7e22ce';
+                else btn.style.color = '#475569';
+            }
+        });
+        window.filterAdminUsers();
+    };
+
+    // Filtrar usuarios en la tabla admin por texto y condición laboral
+    window.filterAdminUsers = () => {
+        const queryEl = document.getElementById('adminUserFilter');
+        const query = queryEl ? queryEl.value.toLowerCase().trim() : '';
+
+        const filtered = allUsersCache.filter(u => {
+            const cond = (u.condicion || 'FIJO').toUpperCase();
+            if (currentCondicionFilter && cond !== currentCondicionFilter) {
+                return false;
+            }
+            if (!query) return true;
+
+            return (
+                (u.nombre && u.nombre.toLowerCase().includes(query)) ||
+                (u.nombres && u.nombres.toLowerCase().includes(query)) ||
+                (u.apellidos && u.apellidos.toLowerCase().includes(query)) ||
+                (u.username && u.username.toLowerCase().includes(query)) ||
+                (u.cargo && u.cargo.toLowerCase().includes(query)) ||
+                (u.cedula && cleanCedula(u.cedula).toLowerCase().includes(query)) ||
+                (u.direccion && u.direccion.toLowerCase().includes(query)) ||
+                (u.dependencia && u.dependencia.toLowerCase().includes(query)) ||
+                (u.condicion && u.condicion.toLowerCase().includes(query)) ||
+                (u.profesion && u.profesion.toLowerCase().includes(query)) ||
+                (u.genero && u.genero.toLowerCase().includes(query)) ||
+                (u.salario && u.salario.toLowerCase().includes(query))
+            );
+        });
+        renderAdminUsersTable(filtered);
+    };
+
+    // Conmutar campos visibles según rol (Administrador no debe tener profesión, datos laborales ni Planilla ARC)
+    function updateAdminFormVisibility(modal) {
+        if (!modal) modal = document.getElementById('loginModal');
+        if (!modal) return;
+        const roleSelect = modal.querySelector('#formRole');
+        const isAdmin = roleSelect && roleSelect.value === 'admin';
+
+        const profGroup = modal.querySelector('#formProfesionGroup');
+        const laboralSection = modal.querySelector('#formLaboralSection');
+        const racGroup = modal.querySelector('#formCodigoRacGroup');
+        const tlfGroup = modal.querySelector('#formTelefonoGroup');
+
+        const profSelect = modal.querySelector('#formProfesion');
+        const cargoInput = modal.querySelector('#formCargo');
+        const condSelect = modal.querySelector('#formCondicion');
+        const salInput = modal.querySelector('#formSalario');
+        const fechaInput = modal.querySelector('#formFechaIngreso');
+        const depSelect = modal.querySelector('#formDependencia');
+        const dirSelect = modal.querySelector('#formDireccion');
+        const racInput = modal.querySelector('#formCodigoRac');
+        const tlfNumInput = modal.querySelector('#formTelefonoNumero');
+        const bancoSelect = modal.querySelector('#formBanco');
+        const cuentaInput = modal.querySelector('#formCuenta');
+
+        if (isAdmin) {
+            if (profGroup) profGroup.style.display = 'none';
+            if (laboralSection) laboralSection.style.display = 'none';
+            if (racGroup) racGroup.style.display = 'none';
+            if (tlfGroup) tlfGroup.style.display = 'none';
+            if (profSelect) profSelect.required = false;
+            if (cargoInput) cargoInput.required = false;
+            if (condSelect) condSelect.required = false;
+            if (salInput) salInput.required = false;
+            if (fechaInput) fechaInput.required = false;
+            if (depSelect) depSelect.required = false;
+            if (dirSelect) dirSelect.required = false;
+            if (racInput) racInput.required = false;
+            if (tlfNumInput) tlfNumInput.required = false;
+            if (bancoSelect) bancoSelect.required = false;
+            if (cuentaInput) cuentaInput.required = false;
+        } else {
+            if (profGroup) profGroup.style.display = '';
+            if (laboralSection) laboralSection.style.display = 'contents';
+            if (racGroup) racGroup.style.display = '';
+            if (tlfGroup) tlfGroup.style.display = '';
+            if (profSelect) profSelect.required = true;
+            if (cargoInput) cargoInput.required = true;
+            if (condSelect) condSelect.required = true;
+            if (salInput) salInput.required = true;
+            if (fechaInput) fechaInput.required = true;
+            if (depSelect) depSelect.required = true;
+            if (dirSelect) dirSelect.required = true;
+            if (racInput) racInput.required = true;
+            if (tlfNumInput) tlfNumInput.required = true;
+            if (bancoSelect) bancoSelect.required = true;
+            if (cuentaInput) cuentaInput.required = true;
+        }
+    }
+
+    // Abrir Formulario para Crear Usuario (Pantalla Completa)
+    window.openCreateUserForm = () => {
+        editingUsername = null;
+        const modal = document.getElementById('loginModal');
+        const mainContent = document.getElementById('mainModalContent');
+        const closeBtn = modal.querySelector('#modalCloseBtn');
+        if (closeBtn) closeBtn.style.display = 'none';
+        if (mainContent) mainContent.classList.add('portal-fullscreen');
+
+        modal.querySelector('#adminView').style.display = 'none';
+        const userForm = modal.querySelector('#userFormView');
+        userForm.style.display = 'flex';
+
+        modal.querySelector('#userFormTitle').innerHTML = '<i class="fas fa-user-plus"></i> Registrar Nuevo Usuario / Trabajador';
+        modal.querySelector('#formUsername').disabled = false;
+        modal.querySelector('#formUsername').value = '';
+
+        // Contraseñas para nuevo usuario (siempre visibles y obligatorias)
+        const passBtnWrapper = modal.querySelector('#changePasswordBtnWrapper');
+        if (passBtnWrapper) passBtnWrapper.style.display = 'none';
+        const passContainer = modal.querySelector('#passwordFieldsContainer');
+        if (passContainer) passContainer.style.display = 'grid';
+        modal.querySelector('#formPassLabel').textContent = 'Contraseña *';
+        modal.querySelector('#formPassConfirmLabel').textContent = 'Confirmar Contraseña *';
+        modal.querySelector('#formPassword').value = '';
+        modal.querySelector('#formPassword').placeholder = 'Contraseña para el nuevo usuario';
+        modal.querySelector('#formPasswordConfirm').value = '';
+        modal.querySelector('#formPasswordConfirm').placeholder = 'Repita la contraseña para confirmar';
+
+        modal.querySelector('#formRole').value = 'trabajador';
+        updateAdminFormVisibility(modal);
+        modal.querySelector('#formNombres').value = '';
+        modal.querySelector('#formApellidos').value = '';
+        setFormGender('masculino');
+        updateFormProfesionOptions('masculino', 'Abogado');
+        modal.querySelector('#formCedula').value = '';
+        modal.querySelector('#formCodigoRac').value = '';
+        modal.querySelector('#formTelefonoCodigo').value = '0414';
+        modal.querySelector('#formTelefonoNumero').value = '';
+        modal.querySelector('#formBanco').value = 'Banco de Venezuela';
+        modal.querySelector('#formCuenta').value = '';
+        const formArcYear = modal.querySelector('#formArcYear');
+        if (formArcYear) formArcYear.value = '2025';
+        modal.querySelector('#formCargo').value = '';
+        modal.querySelector('#formCondicion').value = 'FIJO';
+        modal.querySelector('#formSalario').value = '1.000,00';
+        modal.querySelector('#formDependencia').value = 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO';
+        modal.querySelector('#formDireccion').value = 'DIRECCIÓN DE RECURSOS HUMANOS';
+        modal.querySelector('#formFechaIngreso').value = '';
+        modal.querySelector('#formAnos').value = '0';
+        
+        formSelectedArcFile = undefined;
+        const formArcNotice = modal.querySelector('#formArcSelectedNotice');
+        if (formArcNotice) formArcNotice.textContent = '';
+        const formArcBadge = modal.querySelector('#formArcStatusBadge');
+        if (formArcBadge) {
+            formArcBadge.textContent = 'Sin archivo';
+            formArcBadge.style.background = '#f1f5f9';
+            formArcBadge.style.color = '#64748b';
+            formArcBadge.style.borderColor = '#cbd5e1';
+        }
+        const prevBtn = modal.querySelector('#formArcPreviewBtn');
+        if (prevBtn) prevBtn.style.display = 'none';
+        const delBtn = modal.querySelector('#formArcDeleteBtn');
+        if (delBtn) delBtn.style.display = 'none';
+        const fileIn = modal.querySelector('#formArcFileInput');
+        if (fileIn) fileIn.value = '';
+
+        const err = modal.querySelector('#formUserError');
+        if (err) err.style.display = 'none';
+    };
+
+    // Abrir Formulario para Editar Usuario (Pantalla Completa)
+    window.openEditUserForm = (username) => {
+        let user = allUsersCache && allUsersCache.find(u => u && u.username && u.username.toLowerCase() === String(username).toLowerCase());
+        if (!user) {
+            const cached = localStorage.getItem('pget_cached_users');
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed)) {
+                        user = parsed.find(u => u && u.username && u.username.toLowerCase() === String(username).toLowerCase());
+                    }
+                } catch (e) {}
+            }
+        }
+        if (!user && typeof defaultAccounts !== 'undefined') {
+            user = defaultAccounts.find(u => u && u.username && u.username.toLowerCase() === String(username).toLowerCase());
+        }
+        if (!user) return;
+
+        editingUsername = username;
+        const modal = document.getElementById('loginModal');
+        const mainContent = document.getElementById('mainModalContent');
+        const closeBtn = modal.querySelector('#modalCloseBtn');
+        if (closeBtn) closeBtn.style.display = 'none';
+        if (mainContent) mainContent.classList.add('portal-fullscreen');
+
+        modal.querySelector('#adminView').style.display = 'none';
+        const userForm = modal.querySelector('#userFormView');
+        userForm.style.display = 'flex';
+
+        const gen = (user.genero || 'masculino').toLowerCase();
+        modal.querySelector('#userFormTitle').innerHTML = `<i class="fas fa-user-edit"></i> Modificar Datos: ${user.nombre || username}`;
+        modal.querySelector('#formUsername').value = user.username;
+        modal.querySelector('#formUsername').disabled = false;
+
+        // Botón Cambiar Contraseña en edición (oculto por defecto hasta pulsar botón)
+        const passBtnWrapper = modal.querySelector('#changePasswordBtnWrapper');
+        if (passBtnWrapper) passBtnWrapper.style.display = 'inline-flex';
+        const passBtn = modal.querySelector('#btnToggleChangePass');
+        if (passBtn) {
+            passBtn.innerHTML = '<i class="fas fa-key" style="color: #D4AF37;"></i> Cambiar Contraseña';
+            passBtn.style.background = '#f1f5f9';
+            passBtn.style.borderColor = '#cbd5e1';
+        }
+        const passContainer = modal.querySelector('#passwordFieldsContainer');
+        if (passContainer) passContainer.style.display = 'none';
+        modal.querySelector('#formPassLabel').textContent = 'Nueva Contraseña *';
+        modal.querySelector('#formPassConfirmLabel').textContent = 'Confirmar Nueva Contraseña *';
+        modal.querySelector('#formPassword').value = '';
+        modal.querySelector('#formPassword').placeholder = 'Escriba la nueva contraseña';
+        modal.querySelector('#formPasswordConfirm').value = '';
+        modal.querySelector('#formPasswordConfirm').placeholder = 'Confirme la nueva contraseña';
+
+        modal.querySelector('#formRole').value = user.role || 'trabajador';
+        updateAdminFormVisibility(modal);
+        
+        // Cargar nombres y apellidos por separado
+        const userNombres = user.nombres || '';
+        const userApellidos = user.apellidos || '';
+        if (!userNombres && !userApellidos && user.nombre) {
+            const split = splitNombreApellidos(user.nombre);
+            modal.querySelector('#formNombres').value = split.nombres;
+            modal.querySelector('#formApellidos').value = split.apellidos;
+        } else {
+            modal.querySelector('#formNombres').value = userNombres;
+            modal.querySelector('#formApellidos').value = userApellidos;
+        }
+
+        setFormGender(gen);
+        updateFormProfesionOptions(gen, user.profesion || 'Abogado');
+        modal.querySelector('#formCedula').value = cleanCedula(user.cedula);
+        modal.querySelector('#formCodigoRac').value = (user.codigo_rac || '').replace(/\D/g, '').slice(0, 10);
+
+        // Teléfono: código y número
+        let telCod = user.telefono_codigo || '';
+        let telNum = user.telefono_numero || '';
+        if (!telCod && user.telefono) {
+            const m = String(user.telefono).match(/^(0416|0426|0414|0424|0412|0422)[-\s]?(\d{7})$/);
+            if (m) {
+                telCod = m[1];
+                telNum = m[2];
+            } else {
+                telNum = String(user.telefono).replace(/\D/g, '').slice(-7);
+            }
+        }
+        modal.querySelector('#formTelefonoCodigo').value = telCod || '0414';
+        modal.querySelector('#formTelefonoNumero').value = (telNum || '').replace(/\D/g, '').slice(0, 7);
+
+        // Banco y Cuenta (Exclusivo Banco de Venezuela 0102)
+        modal.querySelector('#formBanco').value = 'Banco de Venezuela';
+        let rawCuentaVal = (user.cuenta || '').replace(/\D/g, '');
+        if (rawCuentaVal.startsWith('0102')) {
+            rawCuentaVal = rawCuentaVal.slice(4);
+        }
+        modal.querySelector('#formCuenta').value = rawCuentaVal.slice(0, 16);
+
+        const formArcYear = modal.querySelector('#formArcYear');
+        if (formArcYear) formArcYear.value = (user.arc_file && user.arc_file.year) ? String(user.arc_file.year) : '2025';
+
+        modal.querySelector('#formCargo').value = user.cargo || '';
+        modal.querySelector('#formCondicion').value = (user.condicion || 'FIJO').toUpperCase();
+        modal.querySelector('#formSalario').value = cleanSalarioAmount(user.salario);
+        modal.querySelector('#formDependencia').value = user.dependencia || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO';
+        modal.querySelector('#formDireccion').value = user.direccion || 'DIRECCIÓN DE RECURSOS HUMANOS';
+        modal.querySelector('#formFechaIngreso').value = toInputDateValue(user.fecha_ingreso);
+        
+        // Calcular años de servicio: cálculo exacto según fecha_ingreso
+        const autoYears = getCalculatedYearsOfService(user.fecha_ingreso, user.anos_servicio);
+        modal.querySelector('#formAnos').value = autoYears;
+
+        formSelectedArcFile = undefined;
+        const formArcNoticeEdit = modal.querySelector('#formArcSelectedNotice');
+        if (formArcNoticeEdit) formArcNoticeEdit.textContent = '';
+        const formArcBadgeEdit = modal.querySelector('#formArcStatusBadge');
+        const prevBtnEdit = modal.querySelector('#formArcPreviewBtn');
+        const delBtnEdit = modal.querySelector('#formArcDeleteBtn');
+        const fileInEdit = modal.querySelector('#formArcFileInput');
+        if (fileInEdit) fileInEdit.value = '';
+
+        if (user.arc_file && user.arc_file.data) {
+            if (formArcBadgeEdit) {
+                formArcBadgeEdit.textContent = 'Cargada ✓';
+                formArcBadgeEdit.style.background = '#dcfce7';
+                formArcBadgeEdit.style.color = '#166534';
+                formArcBadgeEdit.style.borderColor = '#86efac';
+            }
+            if (formArcNoticeEdit) {
+                formArcNoticeEdit.textContent = `Archivo actual: ${user.arc_file.name || 'Planilla ARC'} (${user.arc_file.uploaded_at || ''})`;
+            }
+            if (prevBtnEdit) prevBtnEdit.style.display = 'inline-flex';
+            if (delBtnEdit) delBtnEdit.style.display = 'inline-flex';
+        } else {
+            if (formArcBadgeEdit) {
+                formArcBadgeEdit.textContent = 'Sin archivo';
+                formArcBadgeEdit.style.background = '#f1f5f9';
+                formArcBadgeEdit.style.color = '#64748b';
+                formArcBadgeEdit.style.borderColor = '#cbd5e1';
+            }
+            if (prevBtnEdit) prevBtnEdit.style.display = 'none';
+            if (delBtnEdit) delBtnEdit.style.display = 'none';
+        }
+
+        const err = modal.querySelector('#formUserError');
+        if (err) err.style.display = 'none';
+    };
+
+    window.backToAdminView = () => {
+        const modal = document.getElementById('loginModal');
+        const mainContent = document.getElementById('mainModalContent');
+        const closeBtn = modal.querySelector('#modalCloseBtn');
+        if (closeBtn) closeBtn.style.display = 'none';
+        if (mainContent) {
+            mainContent.classList.add('portal-fullscreen');
+            mainContent.classList.add('admin-modal-size');
+        }
+        modal.querySelector('#userFormView').style.display = 'none';
+        modal.querySelector('#adminView').style.display = 'flex';
+    };
+
+    // Guardar Usuario (Crear o Editar)
+    async function handleSaveUser() {
+        const modal = document.getElementById('loginModal');
+        const errDiv = modal.querySelector('#formUserError');
+        const submitBtn = modal.querySelector('#saveUserSubmitBtn');
+
+        const username = modal.querySelector('#formUsername').value.trim().toLowerCase();
+        const role = modal.querySelector('#formRole').value;
+        const isAdmin = role === 'admin';
+        const nombres = modal.querySelector('#formNombres').value.trim().toUpperCase();
+        const apellidos = modal.querySelector('#formApellidos').value.trim().toUpperCase();
+        const cedula = cleanCedula(modal.querySelector('#formCedula').value);
+        const gen = getFormGender();
+
+        let profNormalized = '';
+        let cargo = '';
+        let condicion = '';
+        let salario = '';
+        let dependencia = '';
+        let direccion = '';
+        let fechaIng = '';
+        let autoYears = '0';
+        let codigoRac = '';
+        let telCodigo = '';
+        let telNumero = '';
+        let telefonoCompleto = '';
+        let banco = '';
+        let cuenta = '';
+
+        if (!isAdmin) {
+            const rawFechaIng = modal.querySelector('#formFechaIngreso').value.trim();
+            fechaIng = toDisplayDateValue(rawFechaIng);
+            const userTypedAnos = (modal.querySelector('#formAnos').value || '').trim();
+            if (userTypedAnos !== '' && !isNaN(parseInt(userTypedAnos, 10))) {
+                autoYears = String(Math.max(0, parseInt(userTypedAnos, 10)));
+            } else {
+                autoYears = getCalculatedYearsOfService(rawFechaIng || fechaIng, '0');
+            }
+            modal.querySelector('#formAnos').value = autoYears;
+            const profVal = modal.querySelector('#formProfesion').value;
+            profNormalized = formatProfessionByGender(profVal, gen);
+
+            cargo = modal.querySelector('#formCargo').value.trim().toUpperCase();
+            condicion = modal.querySelector('#formCondicion').value;
+            salario = formatSalarioBs(modal.querySelector('#formSalario').value);
+            dependencia = (modal.querySelector('#formDependencia').value || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO').trim().toUpperCase();
+            direccion = modal.querySelector('#formDireccion').value;
+
+            codigoRac = (modal.querySelector('#formCodigoRac').value || '').trim().replace(/\D/g, '').slice(0, 10);
+            telCodigo = (modal.querySelector('#formTelefonoCodigo').value || '0414').trim();
+            telNumero = (modal.querySelector('#formTelefonoNumero').value || '').trim().replace(/\D/g, '').slice(0, 7);
+            banco = 'Banco de Venezuela';
+            const rawRestoCuenta = (modal.querySelector('#formCuenta').value || '').trim().replace(/\D/g, '').slice(0, 16);
+            cuenta = rawRestoCuenta ? `0102${rawRestoCuenta}` : '';
+
+            if (telCodigo && telNumero) {
+                telefonoCompleto = `${telCodigo}-${telNumero}`;
+            }
+
+            if (cargo) {
+                addCargoToCatalog(cargo);
+            }
+
+            // Validación: Todos los campos deben ser obligatorios para trabajador
+            if (!username || !nombres || !apellidos || !cedula || !cargo || !condicion || !salario || !fechaIng || !dependencia || !direccion || !profVal) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'Todos los campos son obligatorios. Por favor complete toda la información requerida.';
+                return;
+            }
+
+            if (!codigoRac) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'El Código RAC es obligatorio (máximo 10 dígitos numéricos).';
+                return;
+            }
+
+            if (!telNumero || telNumero.length !== 7) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'El Número de Teléfono debe contener exactamente 7 dígitos numéricos tras el código seleccionado.';
+                return;
+            }
+
+            if (!banco) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'Debe seleccionar una Entidad Bancaria.';
+                return;
+            }
+
+            if (!cuenta) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'El Número de Cuenta Bancaria es obligatorio (máximo 20 dígitos numéricos).';
+                return;
+            }
+        } else {
+            // Perfil Administrador: No debe tener esos datos ni profesion ni planilla ARC
+            if (!username || !nombres || !apellidos || !cedula) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'Todos los campos de acceso y datos personales son obligatorios: Correo, Nombres, Apellidos y Cédula.';
+                return;
+            }
+            profNormalized = '';
+            cargo = 'ADMINISTRADOR DEL SISTEMA';
+            condicion = '';
+            salario = '';
+            dependencia = 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO';
+            direccion = 'DIRECCIÓN GENERAL';
+            fechaIng = '';
+            autoYears = '0';
+            codigoRac = '';
+            telCodigo = '';
+            telNumero = '';
+            telefonoCompleto = '';
+            banco = '';
+            cuenta = '';
+        }
+
+        // Validación de cédula: admite solo números
+        if (!/^\d+$/.test(cedula)) {
+            errDiv.style.display = 'block';
+            errDiv.textContent = 'La cédula de identidad debe contener solo números.';
+            return;
+        }
+
+        const nombreCompleto = `${nombres} ${apellidos}`.trim();
+
+        const userData = {
+            username: username,
+            role: role,
+            nombres: nombres,
+            apellidos: apellidos,
+            nombre: nombreCompleto,
+            genero: gen,
+            profesion: profNormalized,
+            cedula: cedula,
+            codigo_rac: codigoRac,
+            telefono_codigo: telCodigo,
+            telefono_numero: telNumero,
+            telefono: telefonoCompleto,
+            banco: banco,
+            cuenta: cuenta,
+            cargo: cargo,
+            condicion: condicion,
+            salario: salario,
+            dependencia: dependencia,
+            direccion: direccion,
+            fecha_ingreso: fechaIng,
+            anos_servicio: autoYears
+        };
+
+        const formArcYearSelect = modal.querySelector('#formArcYear');
+        const selectedYear = formArcYearSelect ? formArcYearSelect.value : '2025';
+
+        if (isAdmin) {
+            userData.arc_file = null;
+        } else if (formSelectedArcFile !== undefined) {
+            if (formSelectedArcFile) {
+                formSelectedArcFile.year = selectedYear;
+                userData.arc_file = formSelectedArcFile;
+                if (!userData.arc_files) userData.arc_files = {};
+                userData.arc_files[selectedYear] = formSelectedArcFile;
+            } else {
+                userData.arc_file = null;
+            }
+        }
+
+        // Validación de Contraseña
+        const pass = modal.querySelector('#formPassword').value.trim();
+        const passConfirm = modal.querySelector('#formPasswordConfirm').value.trim();
+
+        if (!editingUsername) {
+            // Al crear nuevo usuario, la contraseña y confirmación son obligatorias
+            if (!pass || !passConfirm) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'Todos los campos son obligatorios: ingrese y confirme la contraseña.';
+                return;
+            }
+            if (pass !== passConfirm) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = 'Las contraseñas no coinciden. Por favor verifique.';
+                return;
+            }
+            userData.password = pass;
+        } else {
+            // Al editar usuario existente
+            const passContainer = modal.querySelector('#passwordFieldsContainer');
+            const isChangingPass = passContainer && passContainer.style.display !== 'none';
+            if (isChangingPass || pass || passConfirm) {
+                if (!pass || !passConfirm) {
+                    errDiv.style.display = 'block';
+                    errDiv.textContent = 'Para cambiar la contraseña debe ingresar la nueva clave y confirmarla.';
+                    return;
+                }
+                if (pass !== passConfirm) {
+                    errDiv.style.display = 'block';
+                    errDiv.textContent = 'Las contraseñas no coinciden. Por favor verifique.';
+                    return;
+                }
+                userData.password = pass;
+            }
+        }
+
+        try {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+            errDiv.style.display = 'none';
+
+            let response;
+            if (editingUsername) {
+                // Si se marcó explícitamente para quitar la Planilla ARC o el usuario es Administrador, eliminar en backend
+                if (formSelectedArcFile === null || isAdmin) {
+                    try {
+                        await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}/arc`, {
+                            method: 'DELETE'
+                        });
+                    } catch (eArcDel) {}
+                }
+
+                // Actualizar usuario existente: enviar a /users/update con username objetivo y new_username
+                const updatePayload = {
+                    ...userData,
+                    username: editingUsername,
+                    new_username: username
+                };
+                try {
+                    response = await fetch(`${API_URL}/users/update`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updatePayload)
+                    });
+                } catch (e) {
+                    response = null;
+                }
+
+                // Fallback 1: POST /users/{username}/update
+                if (!response || !response.ok) {
+                    try {
+                        const fallbackRes = await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}/update`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(updatePayload)
+                        });
+                        if (fallbackRes.ok || !response) response = fallbackRes;
+                    } catch (e2) {}
+                }
+
+                // Fallback 2: PUT /users/{username}
+                if (!response || !response.ok) {
+                    try {
+                        const fallbackRes2 = await fetch(`${API_URL}/users/${encodeURIComponent(editingUsername)}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(updatePayload)
+                        });
+                        if (fallbackRes2.ok || !response) response = fallbackRes2;
+                    } catch (e3) {}
+                }
+            } else {
+                // Crear nuevo usuario
+                response = await fetch(`${API_URL}/users`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+            }
+
+            if (response && response.ok) {
+                const resData = await response.json().catch(() => ({}));
+                const updatedFromBackend = (resData && resData.user) ? resData.user : {};
+                const finalUserData = { ...userData, ...updatedFromBackend };
+                const finalUsername = finalUserData.username || username || editingUsername;
+                const successMsg = editingUsername ? '¡Usuario actualizado exitosamente!' : '¡Usuario creado exitosamente!';
+
+                if (editingUsername) {
+                    const idx = allUsersCache.findIndex(u => u.username.toLowerCase() === editingUsername.toLowerCase() || u.username.toLowerCase() === finalUsername.toLowerCase());
+                    if (idx !== -1) {
+                        allUsersCache[idx] = { ...allUsersCache[idx], ...finalUserData, username: finalUsername };
+                        if (formSelectedArcFile === null || isAdmin) {
+                            delete allUsersCache[idx].arc_file;
+                            allUsersCache[idx].arc_file = null;
+                        }
+                    } else {
+                        allUsersCache.push({ ...finalUserData, username: finalUsername });
+                    }
+                    if (currentUser && (currentUser.username.toLowerCase() === editingUsername.toLowerCase() || currentUser.username.toLowerCase() === finalUsername.toLowerCase())) {
+                        currentUser = { ...currentUser, ...finalUserData, username: finalUsername };
+                        if (formSelectedArcFile === null || isAdmin) {
+                            delete currentUser.arc_file;
+                            currentUser.arc_file = null;
+                        }
+                        localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+                    }
+                } else {
+                    allUsersCache.push(finalUserData);
+                }
+                localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
+                window.backToAdminView();
+                renderAdminUsersTable(allUsersCache);
+                await window.showFloatingDialog({
+                    title: editingUsername ? 'Usuario Modificado' : 'Usuario Registrado',
+                    message: successMsg,
+                    type: 'success',
+                    confirmText: 'Aceptar'
+                });
+                await loadAdminUsers();
+            } else {
+                const data = response ? await response.json().catch(() => ({})) : {};
+                errDiv.style.display = 'block';
+                errDiv.textContent = data.detail || 'Error al guardar los datos del usuario en el servidor.';
+                await window.showFloatingDialog({
+                    title: 'Error al Guardar',
+                    message: data.detail || 'Error al guardar los datos del usuario en el servidor.',
+                    type: 'danger',
+                    confirmText: 'Aceptar'
+                });
+            }
+        } catch (error) {
+            // Guardado en memoria si la API estuviera offline
+            if (editingUsername) {
+                const idx = allUsersCache.findIndex(u => u.username.toLowerCase() === editingUsername.toLowerCase());
+                if (idx !== -1) {
+                    allUsersCache[idx] = { ...allUsersCache[idx], ...userData };
+                    if (formSelectedArcFile === null || isAdmin) {
+                        delete allUsersCache[idx].arc_file;
+                        allUsersCache[idx].arc_file = null;
+                    }
+                }
+            } else {
+                allUsersCache.push(userData);
+            }
+            localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
+            window.backToAdminView();
+            renderAdminUsersTable(allUsersCache);
+            await window.showFloatingDialog({
+                title: 'Almacenamiento Local',
+                message: '¡Usuario guardado localmente!',
+                type: 'warning',
+                confirmText: 'Aceptar'
+            });
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-save"></i> Guardar Usuario';
+        }
+    }
+
+    // Eliminar Usuario con Ventana Flotante Centrada
+    window.confirmDeleteUser = async (username, nombre) => {
+        const confirmed = await window.showFloatingDialog({
+            title: 'Confirmar Eliminación de Usuario',
+            message: `¿Está seguro de que desea eliminar al usuario "${nombre || username}"?\n\nEsta acción no se puede deshacer y removerá permanentemente al trabajador del sistema.`,
+            type: 'delete',
+            confirmText: 'Sí, Eliminar Usuario',
+            cancelText: 'Cancelar',
+            isConfirm: true
+        });
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            let res;
+            try {
+                res = await fetch(`${API_URL}/users/delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username })
+                });
+            } catch (e) {
+                res = null;
+            }
+
+            // Fallback 1: POST /users/{username}/delete
+            if (!res || !res.ok) {
+                try {
+                    const fallbackRes = await fetch(`${API_URL}/users/${encodeURIComponent(username)}/delete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: username })
+                    });
+                    if (fallbackRes.ok || !res) res = fallbackRes;
+                } catch (e2) {}
+            }
+
+            // Fallback 2: DELETE /users/{username}
+            if (!res || !res.ok) {
+                try {
+                    const fallbackRes2 = await fetch(`${API_URL}/users/${encodeURIComponent(username)}`, {
+                        method: 'DELETE'
+                    });
+                    if (fallbackRes2.ok || !res) res = fallbackRes2;
+                } catch (e3) {}
+            }
+
+            if (res && res.ok) {
+                allUsersCache = allUsersCache.filter(u => u.username.toLowerCase() !== username.toLowerCase());
+                localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
+                renderAdminUsersTable(allUsersCache);
+                await window.showFloatingDialog({
+                    title: 'Usuario Eliminado',
+                    message: `El usuario ${username} ha sido eliminado exitosamente del sistema.`,
+                    type: 'success',
+                    confirmText: 'Aceptar'
+                });
+                loadAdminUsers();
+            } else {
+                const data = res ? await res.json().catch(() => ({})) : {};
+                await window.showFloatingDialog({
+                    title: 'Error al Eliminar',
+                    message: data.detail || 'No se pudo eliminar el usuario en el servidor.',
+                    type: 'danger',
+                    confirmText: 'Aceptar'
+                });
+            }
+        } catch (error) {
+            // Eliminar de cache local
+            allUsersCache = allUsersCache.filter(u => u.username.toLowerCase() !== username.toLowerCase());
+            localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
+            renderAdminUsersTable(allUsersCache);
+            await window.showFloatingDialog({
+                title: 'Eliminación Local',
+                message: `El usuario ${username} ha sido eliminado localmente.`,
+                type: 'warning',
+                confirmText: 'Aceptar'
+            });
+        }
+    };
+
+    // Funciones auxiliares para formato en cliente (Cédula, Salario en Letras, Fecha en Letras)
+    function formatCedulaConPuntos(val) {
+        if (!val) return '';
+        const clean = String(val).replace(/[^0-9]/g, '');
+        if (!clean) return String(val);
+        return Number(clean).toLocaleString('es-VE').replace(/,/g, '.');
+    }
+
+    function _seccionCentenasJS(n) {
+        if (n === 0) return '';
+        if (n === 100) return 'CIEN';
+        const centenas = ['', 'CIENTO', 'DOSCIENTOS', 'TRESCIENTOS', 'CUATROCIENTOS', 'QUINIENTOS', 'SEISCIENTOS', 'SETECIENTOS', 'OCHOCIENTOS', 'NOVECIENTOS'];
+        const decenas = ['', 'DIEZ', 'VEINTE', 'TREINTA', 'CUARENTA', 'CINCUENTA', 'SESENTA', 'SETENTA', 'OCHENTA', 'NOVENTA'];
+        const diezY = ['DIEZ', 'ONCE', 'DOCE', 'TRECE', 'CATORCE', 'QUINCE', 'DIECISÉIS', 'DIECISIETE', 'DIECIOCHO', 'DIECINUEVE'];
+        const veinti = ['VEINTE', 'VEINTIÚN', 'VEINTIDÓS', 'VEINTITRÉS', 'VEINTICUATRO', 'VEINTICINCO', 'VEINTISÉIS', 'VEINTISIETE', 'VEINTIOCHO', 'VEINTINUEVE'];
+        const unidades = ['', 'UN', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
+
+        const c = Math.floor(n / 100);
+        const resto = n % 100;
+        const txtC = centenas[c] || '';
+        if (resto === 0) return txtC;
+        let txtD = '';
+        if (resto < 10) txtD = unidades[resto];
+        else if (resto < 20) txtD = diezY[resto - 10];
+        else if (resto < 30) txtD = veinti[resto - 20];
+        else {
+            const d = Math.floor(resto / 10);
+            const u = resto % 10;
+            txtD = decenas[d] + (u > 0 ? ` Y ${unidades[u]}` : '');
+        }
+        return `${txtC} ${txtD}`.trim();
+    }
+
+    function numeroALetrasEnteroJS(n) {
+        if (n === 0) return 'CERO';
+        const millones = Math.floor(n / 1000000);
+        const restoM = n % 1000000;
+        const miles = Math.floor(restoM / 1000);
+        const unidades = restoM % 1000;
+        const partes = [];
+        if (millones === 1) partes.push('UN MILLÓN');
+        else if (millones > 1) partes.push(`${_seccionCentenasJS(millones)} MILLONES`);
+        if (miles === 1) partes.push('UN MIL');
+        else if (miles > 1) partes.push(`${_seccionCentenasJS(miles)} MIL`);
+        if (unidades > 0) partes.push(_seccionCentenasJS(unidades));
+        return partes.join(' ').trim();
+    }
+
+    function formatearSalarioLetrasJS(salarioRaw) {
+        let clean = String(salarioRaw || '1000').replace(/Bs\.?/g, '').trim();
+        clean = clean.replace(/\./g, '').replace(/,/g, '.');
+        let val = parseFloat(clean);
+        if (isNaN(val)) val = 1000.0;
+        const entero = Math.floor(val);
+        const centimos = Math.round((val - entero) * 100);
+        const letrasEntero = numeroALetrasEnteroJS(entero);
+        const letrasCentimos = numeroALetrasEnteroJS(centimos);
+        const textoCompleto = centimos === 0 ? `${letrasEntero} CON CERO CÉNTIMOS` : `${letrasEntero} CON ${letrasCentimos} CÉNTIMOS`;
+        const formatoNum = `Bs. ${entero.toLocaleString('es-VE').replace(/,/g, '.')},${String(centimos).padStart(2, '0')}`;
+        return { textoCompleto, formatoNum };
+    }
+
+    function fechaALetrasExpedicionJS(dt) {
+        const diasLetras = {
+            1: 'un (1)', 2: 'dos (2)', 3: 'tres (3)', 4: 'cuatro (4)', 5: 'cinco (5)',
+            6: 'seis (6)', 7: 'siete (7)', 8: 'ocho (8)', 9: 'nueve (9)', 10: 'diez (10)',
+            11: 'once (11)', 12: 'doce (12)', 13: 'trece (13)', 14: 'catorce (14)', 15: 'quince (15)',
+            16: 'dieciséis (16)', 17: 'diecisiete (17)', 18: 'dieciocho (18)', 19: 'diecinueve (19)',
+            20: 'veinte (20)', 21: 'veintiún (21)', 22: 'veintidós (22)', 23: 'veintitrés (23)',
+            24: 'veinticuatro (24)', 25: 'veinticinco (25)', 26: 'veintiséis (26)', 27: 'veintisiete (27)',
+            28: 'veintiocho (28)', 29: 'veintinueve (29)', 30: 'treinta (30)', 31: 'treinta y un (31)'
+        };
+        const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+        const anosLetras = {
+            2024: 'dos mil veinticuatro (2024)',
+            2025: 'dos mil veinticinco (2025)',
+            2026: 'dos mil veintiséis (2026)',
+            2027: 'dos mil veintisiete (2027)',
+            2028: 'dos mil veintiocho (2028)'
+        };
+        const dia = dt.getDate();
+        const diaTxt = diasLetras[dia] || `${dia} (${dia})`;
+        const mesTxt = meses[dt.getMonth()];
+        const ano = dt.getFullYear();
+        const anoTxt = anosLetras[ano] || `dos mil veintiséis (${ano})`;
+        return `los ${diaTxt} días del mes de ${mesTxt} del año ${anoTxt}`;
+    }
+
+    // Helper para construir la constancia en el cliente (idéntico a las 3 imágenes reales)
+    function buildClientCertificate(user, conSalario = true, motivo = 'Trámites personales') {
+        const cond = (user.condicion || 'FIJO').toUpperCase();
+        const genero = (user.genero || 'masculino').toLowerCase();
+        const esFemenino = genero === 'femenino';
+        const prof = formatProfessionByGender(user.profesion || '', genero);
+        const nombreConTitulo = formatFullNameWithTitle(user.nombre, prof, genero);
+        const cedulaOficial = formatCedulaOficial(user.cedula);
+        const cargo = user.cargo || 'FUNCIONARIO';
+        const dir = user.direccion || 'DIRECCIÓN GENERAL';
+        const fIngreso = user.fecha_ingreso || 'N/D';
+        const anos = getCalculatedYearsOfService(fIngreso, user.anos_servicio);
+        const incluirSalario = conSalario === true || conSalario === 'true' || conSalario === 1;
+        const { textoCompleto: salarioLetras, formatoNum: salarioBs } = formatearSalarioLetrasJS(user.salario || 'Bs. 1.000,00');
+
+        const now = new Date();
+        const fechaExpedicion = fechaALetrasExpedicionJS(now);
+        const correlativo = `PGET  ${now.getFullYear()} Nº S/N`;
+
+        const tratamiento = esFemenino ? 'la ciudadana:' : 'el ciudadano:';
+        const nacionalidad = esFemenino ? 'venezolana' : 'venezolano';
+        const adscritoTxt = esFemenino ? 'adscrita' : 'adscrito';
+        const jubiladoTxt = esFemenino ? 'jubilada' : 'jubilado';
+
+        // Preposición correcta para dirección (Despacho es masculino -> "al Despacho", otras -> "a la")
+        const prepAdscrito = (dir || '').trim().toUpperCase().startsWith('DESPACHO') ? 'al' : 'a la';
+
+        // Verificación de si la constancia es para la Directora de Recursos Humanos (la suscribe la Procuradora)
+        const cleanUserCedula = String(user.cedula || '').replace(/[^0-9]/g, '').trim();
+        const cleanCargo = String(user.cargo || '').toUpperCase();
+        const isDirectoraRRHH = (
+            cleanUserCedula === '14780947' ||
+            String(user.username || '').toLowerCase().includes('elvimar') ||
+            (cleanCargo.includes('RECURSOS HUMANOS') && cleanCargo.includes('DIRECTOR'))
+        );
+
+        let firmanteNombre = 'ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.';
+        let firmanteCargo = 'DIRECTORA (E) DE RECURSOS HUMANOS DE LA\nPROCURADURÍA GENERAL DEL ESTADO TRUJILLO.';
+        let firmanteSuscripcion = 'Quien suscribe, **Abog. ELVIMAR CAROLINA LÓPEZ ARAUJO**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 14.780.947**, en mi condición de **DIRECTORA (E) DE RECURSOS HUMANOS DE LA PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ';
+        let inicialesSuscribe = 'EL';
+
+        if (isDirectoraRRHH) {
+            firmanteNombre = 'ABG. DORA ALICIA MATHEUS.';
+            firmanteCargo = 'PROCURADORA GENERAL DEL ESTADO TRUJILLO.';
+            firmanteSuscripcion = 'Quien suscribe, **Abog. DORA ALICIA MATHEUS**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 10.035.929**, en mi condición de **PROCURADORA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ';
+            inicialesSuscribe = 'DM';
+        }
+
+        let cuerpo = '';
+        if (cond === 'JUBILADO') {
+            const clausulaSal = incluirSalario ? `, devengando una asignación mensual por jubilación de Bolívares **${salarioLetras} (${salarioBs})**.` : '.';
+            cuerpo = `${firmanteSuscripcion}${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **${cedulaOficial}**, prestó sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** actualmente es ${jubiladoTxt} de este organismo${clausulaSal}`;
+        } else if (cond === 'CONTRATADO') {
+            const clausulaSal = incluirSalario ? `, con una Asignación Mensual de Bolívares **${salarioLetras} (${salarioBs})**.` : '.';
+            cuerpo = `${firmanteSuscripcion}${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la cédula de Identidad Nº. **${cedulaOficial}**, presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO** desde el **${fIngreso}**, desempeñándose en la actualidad como **${cargo} (CONTRATADO)**, ${adscritoTxt} ${prepAdscrito} ${dir} de la Procuraduría General del Estado Trujillo${clausulaSal}`;
+        } else { // FIJO
+            const clausulaSal = incluirSalario ? `, con una Asignación Mensual de Bolívares **${salarioLetras} (${salarioBs})**.` : '.';
+            cuerpo = `${firmanteSuscripcion}${tratamiento} **${nombreConTitulo}**, ${nacionalidad}, mayor de edad, titular de la Cédula de Identidad Nº. **${cedulaOficial}** presta sus servicios en la **PROCURADURÍA GENERAL DEL ESTADO TRUJILLO**, desde el **${fIngreso}** desempeñándose como **${cargo}**, ${adscritoTxt} ${prepAdscrito} ${dir} P.G.E.T.${clausulaSal}`;
+        }
+
+        const mesesMayusculas = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+        const diaExpedicion = now.getDate();
+        const mesExpedicion = mesesMayusculas[now.getMonth()];
+        const anoExpedicion = now.getFullYear();
+
+        const inicialesTrabajador = (getWorkerInitials(user) || 'xx').toLowerCase();
+        const iniciales = `${inicialesSuscribe}/${inicialesTrabajador}`;
+
+        return {
+            titulo: 'C O N S T A N C I A .',
+            correlativo,
+            cuerpo,
+            motivo: motivo || 'Trámites personales',
+            dia_expedicion: diaExpedicion,
+            mes_expedicion: mesExpedicion,
+            ano_expedicion: anoExpedicion,
+            beneficiario: nombreConTitulo,
+            cedula: cedulaOficial,
+            cargo,
+            condicion: cond,
+            direccion: dir,
+            dependencia: user.dependencia || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO',
+            con_salario: incluirSalario,
+            salario: incluirSalario ? salarioBs : null,
+            salario_en_letras: incluirSalario ? salarioLetras : null,
+            fecha_emision: fechaExpedicion,
+            rif: 'G-20000417-7',
+            firmante_nombre: firmanteNombre,
+            firmante_cargo: firmanteCargo,
+            iniciales: iniciales
+        };
+    }
+
+    // Helper para generar el nombre de archivo al descargar/imprimir:
+    // Formato exacto requerido: Constancia, fecha y nombre y apellido del trabajador
+    // Ej: Constancia - 15-10-2026 - Lorenzo Fabian Giulliano Avila Gonzalez
+    function getConstanciaDownloadFileName(cert) {
+        const today = new Date();
+        const dd = String(today.getDate()).padStart(2, '0');
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const yyyy = today.getFullYear();
+        const fechaStr = `${dd}-${mm}-${yyyy}`;
+
+        let rawName = '';
+        if (currentUser) {
+            if (currentUser.nombres && currentUser.apellidos) {
+                rawName = `${currentUser.nombres} ${currentUser.apellidos}`.trim();
+            } else if (currentUser.nombre) {
+                rawName = currentUser.nombre.trim();
+            }
+        }
+        if (!rawName && cert && cert.beneficiario) {
+            rawName = cert.beneficiario.trim();
+        }
+        if (!rawName) rawName = 'Trabajador';
+
+        // Quitar prefijos académicos si vinieran pegados (ABG., ING., LIC., etc.)
+        const cleanName = rawName
+            .replace(/^(ABG\.|ING\.|LIC\.|SOC\.|ECON\.|TSU\.|PROF\.|DR\.|DRA\.)\s+/i, '')
+            .replace(/[\/\\:*?"<>|]/g, '')
+            .trim();
+
+        return `Constancia - ${fechaStr} - ${cleanName}`;
+    }
+
+    // Cerrar modal de visualización de la constancia y restaurar el título del navegador
+    window.closeConstanciaModal = () => {
+        const modal = document.getElementById('constanciaPrintModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+        document.body.style.overflow = '';
+        if (window._originalPageTitle) {
+            document.title = window._originalPageTitle;
+        } else {
+            document.title = 'Procuraduría General del Estado Trujillo - Portal Oficial';
+        }
+    };
+
+    // Imprimir garantizando el nombre de descarga del archivo PDF
+    window.printConstancia = () => {
+        if (window._constanciaFileName) {
+            document.title = window._constanciaFileName;
+        }
+        window.print();
+    };
+
+    // Escuchar evento de fin de impresión para restaurar el título si el modal se cerró
+    window.addEventListener('afterprint', () => {
+        const modal = document.getElementById('constanciaPrintModal');
+        if (!modal || modal.style.display === 'none') {
+            if (window._originalPageTitle) {
+                document.title = window._originalPageTitle;
+            }
+        }
+    });
+
+    // Escuchar Escape para cerrar modal de constancia si está abierto
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const modal = document.getElementById('constanciaPrintModal');
+            if (modal && modal.style.display !== 'none') {
+                window.closeConstanciaModal();
+            }
+        }
+    });
+
+    // Modal oficial para visualización e impresión de la constancia (100% fiel a las imágenes oficiales)
+    window.showConstanciaDocument = (cert) => {
+        let modal = document.getElementById('constanciaPrintModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'constanciaPrintModal';
+            modal.className = 'constancia-modal-backdrop';
+            document.body.appendChild(modal);
+        }
+        
+        // Guardar título original de la página y fijar el título exacto para la descarga del PDF
+        if (!window._originalPageTitle) {
+            window._originalPageTitle = document.title;
+        }
+        const downloadFileName = getConstanciaDownloadFileName(cert);
+        window._constanciaFileName = downloadFileName;
+        document.title = downloadFileName;
+
+        // Formatear iniciales asegurando: Suscribe en MAYÚSCULAS (EL) / Trabajador en minúsculas (ej. la)
+        let displayInitials = cert.iniciales || 'EL/xx';
+        if (displayInitials.includes('/')) {
+            const parts = displayInitials.split('/');
+            const sus = (parts[0] || 'EL').trim().toUpperCase();
+            const trab = (parts.slice(1).join('/') || 'xx').trim().toLowerCase();
+            displayInitials = `${sus}/${trab}`;
+        }
+
+        const rawParagraphs = (cert.cuerpo || '').split('\n\n').filter(p => p.trim());
+        const mainParagraphs = rawParagraphs.filter(p => !p.toLowerCase().includes('constancia que se expide'));
+        const cuerpoHTML = (mainParagraphs.length > 0 ? mainParagraphs : rawParagraphs.slice(0, 1)).map(p => `
+            <p class="constancia-paragraph">
+                ${p.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}
+            </p>
+        `).join('');
+
+        const mesesMayus = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+        const nowObj = new Date();
+        const diaCierre = cert.dia_expedicion || nowObj.getDate();
+        const mesCierre = cert.mes_expedicion || mesesMayus[nowObj.getMonth()];
+        const anoCierre = cert.ano_expedicion || nowObj.getFullYear();
+        const motivoOficial = (cert.motivo || 'Trámites personales').trim().toUpperCase();
+
+        modal.innerHTML = `
+            <!-- Barra superior de control FLOTANTE / STICKY (no imprimible) -->
+            <div class="constancia-controls-bar no-print">
+                <div style="display: flex; flex-direction: column; gap: 3px;">
+                    <span style="font-size: 0.95rem; color: #1e293b; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-file-contract" style="color: #6A0D25; font-size: 1.1rem;"></i> 
+                        <span>Constancia Oficial Generada Exitosamente</span>
+                    </span>
+                    <span style="font-size: 0.82rem; color: #64748b; font-weight: 600;">
+                        Archivo al guardar como PDF: <strong style="color: #6A0D25;">${downloadFileName}.pdf</strong>
+                    </span>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <button type="button" onclick="window.printConstancia()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(106,13,37,0.3); transition: all 0.2s ease;">
+                        <i class="fas fa-print"></i> Imprimir / Guardar como PDF
+                    </button>
+                    <button type="button" onclick="window.closeConstanciaModal()" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 18px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease;">
+                        <i class="fas fa-times"></i> Cerrar
+                    </button>
+                </div>
+            </div>
+
+            <div class="constancia-paper" id="constanciaPaperSheet">
+                <!-- 1. Encabezado Oficial a 0.7cm desde el borde -->
+                <div class="constancia-header">
+                    <img class="constancia-logo" src="assets/logo.png" alt="Escudo Oficial PGET" onerror="this.src='https://via.placeholder.com/75?text=PGET'">
+                    <div class="constancia-rif">G-20000417-7</div>
+                </div>
+
+                <!-- 2. Cuerpo Principal (Margen superior 3.95cm, Margen inferior 3cm) -->
+                <div class="constancia-body">
+                    <!-- Correlativo Oficial al margen izquierdo -->
+                    <div class="constancia-correlativo">
+                        ${cert.correlativo || ('PGET  ' + new Date().getFullYear() + ' Nº S/N')}
+                    </div>
+
+                    <!-- Título Centrado Oficial con Espaciado -->
+                    <div class="constancia-title-wrap">
+                        <h2 class="constancia-title">
+                            C O N S T A N C I A .
+                        </h2>
+                    </div>
+
+                    <!-- Cuerpo de la Constancia Justificado con Indentación -->
+                    <div class="constancia-paragraphs">
+                        ${cuerpoHTML}
+                    </div>
+
+                    <!-- Bloque Oficial de Motivo (Fiel a img 2: en caja amarilla institucional, tipografía Arial) -->
+                    <div class="constancia-motivo-box" style="background: #fff9db; border: 1.5px solid #facc15; border-radius: 4px; padding: 8px 18px; margin: 22px 0 16px 0; text-align: center; font-family: Arial, Helvetica, sans-serif !important; font-weight: 700; font-size: 11.5pt; color: #1e293b; letter-spacing: 0.5px; text-transform: uppercase;">
+                        MOTIVO: ${escapeHtml(motivoOficial)}
+                    </div>
+
+                    <!-- Párrafo de Cierre y Fecha (Fiel a img 2: cursiva con negritas) -->
+                    <p class="constancia-paragraph constancia-cierre-italic" style="font-style: italic; text-indent: 0; margin-top: 0; line-height: 1.8;">
+                        Constancia que se expide en la ciudad de Trujillo, a los <strong>${diaCierre}</strong> días del mes de <strong>${mesCierre}</strong> de <strong>${anoCierre}</strong>. Válida por <strong>un (1) mes</strong>.
+                    </p>
+
+                    <!-- Bloque de Firma Centrado Oficial -->
+                    <div class="constancia-firma">
+                        <strong>${cert.firmante_nombre || 'ABG. ELVIMAR CAROLINA LÓPEZ ARAUJO.'}</strong><br>
+                        ${(cert.firmante_cargo || 'DIRECTORA (E) DE RECURSOS HUMANOS DE LA\nPROCURADURÍA GENERAL DEL ESTADO TRUJILLO.')
+                            .split('\n')
+                            .map(line => `<strong>${escapeHtml(line.trim())}</strong>`)
+                            .join('<br>')}
+                    </div>
+
+                    <!-- Iniciales de Transcripción al margen izquierdo -->
+                    <div class="constancia-iniciales">
+                        ${displayInitials}
+                    </div>
+                </div>
+
+                <!-- 3. Pie de Página Oficial a 2.38cm desde el borde -->
+                <div class="constancia-footer">
+                    <hr class="constancia-footer-line">
+                    <div class="constancia-footer-text">
+                        <div class="constancia-footer-address">
+                            Av. Independencia frente a la Plaza Bolívar, Palacio de Gobierno, 2do piso, Trujillo, edo. Trujillo<br>
+                            TELEFAX. (0272) 2365126, CORREO ELECTRÓNICO: procuraduríageneraltrujillo@gmail.com
+                        </div>
+                        <div class="constancia-footer-legal">
+                            <strong>Documentación Oficial de Uso Restringido:</strong><br>
+                            <strong>Ley Contra la Corrupción: Art. 66:</strong> El funcionario público que utilice, para sí o para otro, informaciones o datos de carácter reservado de los cuales tenga conocimiento en razón de su cargo, será penado con prisión de uno (1) a seis (6) años y multa de hasta el cincuenta por ciento (50%) del beneficio perseguido u obtenido, siempre que el hecho no constituya otro delito. Si del hecho resultare algún perjuicio a la Administración Pública, la pena será aumentada de un tercio (1/3) a la mitad (1/2).
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barra inferior adicional de control (no imprimible) para facilidad al llegar al final del documento -->
+                <div class="no-print" style="margin-top: 25px; padding-top: 15px; border-top: 1px dashed #cbd5e1; display: flex; justify-content: flex-end; gap: 12px; align-items: center;">
+                    <button type="button" onclick="window.printConstancia()" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; color: white; padding: 10px 22px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 10px rgba(106,13,37,0.25);">
+                        <i class="fas fa-print"></i> Imprimir / Guardar como PDF
+                    </button>
+                    <button type="button" onclick="window.closeConstanciaModal()" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 10px 18px; border-radius: 6px; font-weight: 700; font-size: 0.92rem; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fas fa-times"></i> Cerrar
+                    </button>
+                </div>
+            </div>
+        `;
+
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                window.closeConstanciaModal();
+            }
+        };
+
+        modal.style.display = 'flex';
+        modal.scrollTop = 0;
+        document.body.style.overflow = 'hidden';
+    };
+
+    // ==========================================
+    // SISTEMA DE GESTIÓN Y VISOR DE PLANILLAS ARC
+    // ==========================================
+
+    window.downloadArcFile = (arcFile, user) => {
+        if (!arcFile || !arcFile.data) return;
+        const cleanName = (user.nombre || user.username || 'Trabajador').replace(/[^a-zA-Z0-9_\-]/g, '_');
+        const ext = arcFile.name ? (arcFile.name.split('.').pop() || 'pdf') : (arcFile.type && arcFile.type.includes('pdf') ? 'pdf' : 'jpg');
+        const filename = `Planilla_ARC_${cleanName}.${ext}`;
+
+        const a = document.createElement('a');
+        a.href = arcFile.data;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    };
+
+    window.printArcFile = (arcFile, user) => {
+        if (!arcFile || !arcFile.data) return;
+        const isPdf = (arcFile.type && arcFile.type.includes('pdf')) || (arcFile.name && arcFile.name.toLowerCase().endsWith('.pdf')) || (arcFile.data && arcFile.data.startsWith('data:application/pdf'));
+
+        if (isPdf) {
+            const iframe = document.getElementById('arcViewerIframe');
+            if (iframe && iframe.contentWindow) {
+                try {
+                    iframe.contentWindow.focus();
+                    iframe.contentWindow.print();
+                    return;
+                } catch (e) {
+                    console.log('Iframe print error', e);
+                }
+            }
+            const printWindow = window.open(arcFile.data, '_blank');
+            if (printWindow) {
+                printWindow.focus();
+            }
+        } else {
+            const printWindow = window.open('', '_blank');
+            if (printWindow) {
+                printWindow.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Planilla ARC - ${escapeHtml(user.nombre || '')}</title>
+                        <style>
+                            @page { size: letter portrait; margin: 0.8cm; }
+                            body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: white; }
+                            img { max-width: 100%; max-height: 100%; object-fit: contain; }
+                        </style>
+                    </head>
+                    <body>
+                        <img src="${arcFile.data}" onload="setTimeout(() => { window.print(); window.close(); }, 300);" />
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+            }
+        }
+    };
+
+    window.showArcViewerModal = (arcFile, user) => {
+        let modal = document.getElementById('arcViewerModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'arcViewerModal';
+            modal.className = 'arc-viewer-backdrop';
+            document.body.appendChild(modal);
+        }
+
+        const isPdf = (arcFile.type && arcFile.type.includes('pdf')) || (arcFile.name && arcFile.name.toLowerCase().endsWith('.pdf')) || (arcFile.data && arcFile.data.startsWith('data:application/pdf'));
+
+        const userName = escapeHtml(user.nombre || user.username || 'Trabajador');
+        const fileName = escapeHtml(arcFile.name || 'Documento ARC');
+        const uploadDate = escapeHtml(arcFile.uploaded_at || 'Oficial');
+
+        modal.innerHTML = `
+            <div class="arc-viewer-container">
+                <!-- Header -->
+                <div style="background: linear-gradient(135deg, #6A0D25 0%, #83122F 100%); color: white; padding: 14px 22px; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #D4AF37; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="background: white; border-radius: 50%; width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; color: #6A0D25; box-shadow: 0 2px 6px rgba(0,0,0,0.15); border: 1px solid #D4AF37;">
+                            <i class="fas fa-file-invoice" style="font-size: 1.15rem;"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: white;">Planilla de ARC &bull; ${userName}</h3>
+                            <span style="font-size: 0.82rem; color: #F7E7B4;">${fileName} &bull; ${uploadDate}</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button type="button" id="arcViewerPrintBtn" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.2s;">
+                            <i class="fas fa-print"></i> Imprimir
+                        </button>
+                        <button type="button" id="arcViewerDownloadBtn" style="background: #D4AF37; border: none; color: #1e293b; padding: 8px 16px; border-radius: 6px; font-weight: 800; font-size: 0.88rem; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); transition: all 0.2s;">
+                            <i class="fas fa-download"></i> Descargar
+                        </button>
+                        <button type="button" onclick="window.closeArcViewerModal()" style="background: rgba(0,0,0,0.25); border: none; color: white; width: 34px; height: 34px; border-radius: 50%; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-left: 5px;">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Body Viewer -->
+                <div style="flex: 1; min-height: 450px; max-height: 78vh; overflow: auto; background: #334155; padding: 15px; display: flex; align-items: center; justify-content: center;">
+                    ${isPdf ? `
+                        <iframe id="arcViewerIframe" src="${arcFile.data}" style="width: 100%; height: 75vh; border: none; background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);"></iframe>
+                    ` : `
+                        <div style="width: 100%; height: 75vh; display: flex; align-items: center; justify-content: center; overflow: auto;">
+                            <img id="arcViewerImage" src="${arcFile.data}" alt="Planilla ARC" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); background: white;">
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+
+        modal.querySelector('#arcViewerPrintBtn').onclick = () => window.printArcFile(arcFile, user);
+        modal.querySelector('#arcViewerDownloadBtn').onclick = () => window.downloadArcFile(arcFile, user);
+
+        modal.onclick = (e) => {
+            if (e.target === modal) window.closeArcViewerModal();
+        };
+
+        modal.style.display = 'flex';
+    };
+
+    window.closeArcViewerModal = () => {
+        const modal = document.getElementById('arcViewerModal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    window.openAdminArcModal = (username, targetYear = '2026') => {
+        const user = (allUsersCache && allUsersCache.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()))
+            || (typeof defaultAccounts !== 'undefined' && defaultAccounts.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()));
+        if (!user) {
+            console.warn('Usuario no encontrado para modal ARC:', username);
+            if (typeof window.pgetAlert === 'function') {
+                window.pgetAlert(`No se pudo encontrar al usuario ${username}.`, 'Usuario No Encontrado', 'Aceptar', 'warning');
+            }
+            return;
+        }
+
+        let modal = document.getElementById('adminArcManagementModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'adminArcManagementModal';
+            document.body.appendChild(modal);
+        }
+        modal.className = 'admin-arc-management-backdrop';
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = '100vw';
+        modal.style.height = '100vh';
+        modal.style.zIndex = '99999999';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        modal.style.background = 'rgba(15, 23, 42, 0.75)';
+        modal.style.backdropFilter = 'blur(6px)';
+        modal.style.webkitBackdropFilter = 'blur(6px)';
+        modal.style.padding = '15px';
+        modal.style.boxSizing = 'border-box';
+
+        const safeName = escapeHtml(user.nombre || user.username);
+        const safeCargo = escapeHtml(user.cargo || 'Sin cargo');
+        const safeCedula = escapeHtml(formatCedulaOficial(user.cedula) || user.cedula || 'N/A');
+        
+        const availableYearsAdmin = getArcAvailableYears(user);
+        const yearArc = (user.arc_files && user.arc_files[targetYear]) || (String(targetYear) === '2026' && user.arc_file && (!user.arc_file.year || String(user.arc_file.year) === '2026') ? user.arc_file : null);
+        const hasArc = yearArc && yearArc.data;
+
+        modal.innerHTML = `
+            <div style="background: white; width: 100%; max-width: 620px; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3); border: 1px solid #e2e8f0; display: flex; flex-direction: column;">
+                <!-- Header Vinotinto Institucional -->
+                <div style="background: linear-gradient(135deg, #6A0D25 0%, #83122F 100%); border-bottom: 2px solid #D4AF37; color: white; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="background: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: #6A0D25; box-shadow: 0 2px 6px rgba(0,0,0,0.15); border: 1.5px solid #D4AF37;">
+                            <i class="fas fa-file-invoice" style="font-size: 1.2rem;"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 800; color: white;">Planilla de ARC por Año</h3>
+                            <span style="font-size: 0.8rem; opacity: 0.95; color: #F7E7B4;">Comprobante de Retención Anual del Trabajador</span>
+                        </div>
+                    </div>
+                    <button type="button" onclick="window.closeAdminArcModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.9rem;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- Info Usuario -->
+                <div style="background: #fdfaf6; border-bottom: 1px solid #e2e8f0; padding: 14px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <div>
+                        <strong style="color: #1e293b; font-size: 0.95rem; display: block;">${safeName}</strong>
+                        <span style="font-size: 0.82rem; color: #64748b;">${safeCargo} &bull; ${safeCedula}</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <span style="font-size: 0.78rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; ${hasArc ? 'background: #fdf2f4; color: #6A0D25; border: 1.5px solid #D4AF37;' : 'background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1;'}">
+                            ${hasArc ? `<i class="fas fa-check-circle" style="color: #D4AF37;"></i> ARC ${targetYear} Asignada` : `<i class="fas fa-clock"></i> Pendiente para ${targetYear}`}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Selector de Año Fiscal de la Planilla -->
+                <div style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-weight: 700; font-size: 0.88rem; color: #334155;">Seleccionar Año Fiscal:</span>
+                        <select id="adminArcYearSelect" style="padding: 6px 14px; border: 1.5px solid #D4AF37; border-radius: 6px; font-weight: 700; color: #6A0D25; background: white; cursor: pointer; font-size: 0.9rem;">
+                            ${availableYearsAdmin.map(y => `<option value="${y}" ${String(targetYear) === String(y) ? 'selected' : ''}>${y}</option>`).join('')}
+                        </select>
+                    </div>
+                    <span style="font-size: 0.8rem; color: #64748b; font-weight: 600;">
+                        Consolidado anual de asignaciones y deducciones
+                    </span>
+                </div>
+
+                <div style="padding: 24px; overflow-y: auto; max-height: 70vh;">
+                    ${hasArc ? `
+                    <!-- Detalle de la Planilla ARC del Año Seleccionado -->
+                    <div style="background: #fdfaf6; border: 1.5px solid #D4AF37; border-radius: 12px; padding: 18px; margin-bottom: 22px; box-shadow: 0 2px 8px rgba(106,13,37,0.04);">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                            <span style="font-weight: 700; font-size: 0.9rem; color: #6A0D25; display: flex; align-items: center; gap: 8px;">
+                                <i class="fas ${yearArc.type && yearArc.type.includes('pdf') ? 'fa-file-pdf' : 'fa-file-image'}" style="font-size: 1.2rem; color: #83122F;"></i>
+                                ${escapeHtml(yearArc.name || `Planilla_ARC_${targetYear}`)} <span style="font-size: 0.8rem; color: #15803d; font-weight: 700;">(Año ${targetYear})</span>
+                            </span>
+                            <span style="font-size: 0.78rem; color: #64748b; font-weight: 600;">
+                                ${yearArc.uploaded_at ? `Subida: ${yearArc.uploaded_at}` : ''}
+                            </span>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <button type="button" id="adminPreviewArcBtn" style="background: linear-gradient(135deg, #6A0D25, #83122F); border: 1px solid #D4AF37; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.2s;">
+                                <i class="fas fa-eye" style="color: #F7E7B4;"></i> Ver / Imprimir
+                            </button>
+                            <button type="button" id="adminDownloadArcBtn" style="background: #D4AF37; border: 1px solid #c59b27; color: #1e293b; padding: 8px 16px; border-radius: 6px; font-weight: 800; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                                <i class="fas fa-download"></i> Descargar
+                            </button>
+                            <button type="button" onclick="window.deleteUserArc('${user.username}', '${targetYear}')" style="background: #fee2e2; border: 1px solid #fca5a5; color: #dc2626; padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; gap: 6px; margin-left: auto;">
+                                <i class="fas fa-trash"></i> Eliminar (${targetYear})
+                            </button>
+                        </div>
+                    </div>
+                    ` : ''}
+
+                    <!-- Subir o Reemplazar Documento para el Año Seleccionado -->
+                    <div>
+                        <h4 style="margin: 0 0 10px 0; color: #1e293b; font-size: 0.95rem; font-weight: 700;">
+                            ${hasArc ? `<i class="fas fa-sync-alt" style="color:#6A0D25;"></i> Reemplazar Planilla ARC para el Año ${targetYear}:` : `<i class="fas fa-upload" style="color:#6A0D25;"></i> Subir Planilla ARC para el Año ${targetYear}:`}
+                        </h4>
+                        
+                        <!-- Input File fuera del dropzone para evitar doble click / bloqueo del selector nativo -->
+                        <input type="file" id="adminArcFileInput" accept=".pdf,image/png,image/jpeg,image/jpg,image/webp" style="display: none;">
+                        
+                        <div id="adminArcDropzone" style="border: 2px dashed #D4AF37; border-radius: 12px; padding: 25px; text-align: center; background: #fdfaf6; cursor: pointer; transition: all 0.2s;">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 2.4rem; color: #6A0D25; margin-bottom: 8px;"></i>
+                            <div style="font-weight: 700; color: #1e293b; font-size: 0.95rem; margin-bottom: 4px;">
+                                Haga clic para seleccionar archivo o arrástrelo aquí
+                            </div>
+                            <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 12px;">
+                                Formatos aceptados: Documentos PDF o Imágenes (JPG, PNG, WEBP) &bull; Máx. 10 MB
+                            </div>
+                            <button type="button" id="adminArcBrowseBtn" style="background: white; border: 1.5px solid #6A0D25; color: #6A0D25; padding: 8px 18px; border-radius: 6px; font-weight: 700; font-size: 0.88rem; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
+                                <i class="fas fa-folder-open" style="color: #83122F;"></i> Explorar Archivo
+                            </button>
+                        </div>
+
+                        <div id="adminArcSelectedFileBox" style="display: none; margin-top: 15px; background: #fdf2f4; border: 1px solid #fecdd3; border-radius: 8px; padding: 12px 16px; align-items: center; justify-content: space-between;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <i class="fas fa-check-circle" style="color: #6A0D25; font-size: 1.2rem;"></i>
+                                <div>
+                                    <strong id="adminArcSelectedName" style="color: #6A0D25; font-size: 0.88rem; display: block;">archivo.pdf</strong>
+                                    <span id="adminArcSelectedSize" style="font-size: 0.78rem; color: #64748b;">0 KB</span>
+                                </div>
+                            </div>
+                            <button type="button" id="adminArcClearFileBtn" style="background: transparent; border: none; color: #dc2626; cursor: pointer; font-size: 0.9rem;" title="Cancelar selección">
+                                <i class="fas fa-times-circle"></i>
+                            </button>
+                        </div>
+
+                        <div id="adminArcUploadMsg" style="display: none; margin-top: 12px; font-size: 0.85rem; text-align: center; font-weight: 600;"></div>
+
+                        <button type="button" id="adminUploadArcBtn" disabled style="width: 100%; margin-top: 18px; background: linear-gradient(135deg, #6A0D25, #83122F); border: 1.5px solid #D4AF37; opacity: 0.6; color: white; padding: 13px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: not-allowed; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; box-shadow: 0 4px 12px rgba(106,13,37,0.2);">
+                            <i class="fas fa-cloud-upload-alt"></i> Subir y Asignar Planilla ARC (${targetYear})
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div style="background: #f8fafc; border-top: 1px solid #e2e8f0; padding: 12px 24px; display: flex; justify-content: flex-end;">
+                    <button type="button" onclick="window.closeAdminArcModal()" style="background: #e2e8f0; border: none; color: #475569; padding: 8px 18px; border-radius: 6px; font-weight: 600; font-size: 0.88rem; cursor: pointer;">
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // Conectar selector de año fiscal
+        const yearSelectEl = modal.querySelector('#adminArcYearSelect');
+        if (yearSelectEl) {
+            yearSelectEl.onchange = (e) => {
+                window.openAdminArcModal(username, e.target.value);
+            };
+        }
+
+        if (hasArc) {
+            const previewBtn = modal.querySelector('#adminPreviewArcBtn');
+            if (previewBtn) previewBtn.onclick = () => window.showArcViewerModal(yearArc, user);
+            const downloadBtn = modal.querySelector('#adminDownloadArcBtn');
+            if (downloadBtn) downloadBtn.onclick = () => window.downloadArcFile(yearArc, user);
+        }
+
+        const dropzone = modal.querySelector('#adminArcDropzone');
+        const fileInput = modal.querySelector('#adminArcFileInput');
+        const browseBtn = modal.querySelector('#adminArcBrowseBtn');
+        const selectedBox = modal.querySelector('#adminArcSelectedFileBox');
+        const selectedName = modal.querySelector('#adminArcSelectedName');
+        const selectedSize = modal.querySelector('#adminArcSelectedSize');
+        const clearBtn = modal.querySelector('#adminArcClearFileBtn');
+        const uploadBtn = modal.querySelector('#adminUploadArcBtn');
+
+        let pendingFile = null;
+
+        if (browseBtn) {
+            browseBtn.onclick = (e) => {
+                e.stopPropagation();
+                fileInput.click();
+            };
+        }
+
+        dropzone.onclick = (e) => {
+            if (e.target !== fileInput && e.target !== browseBtn) {
+                fileInput.click();
+            }
+        };
+
+        fileInput.onclick = (e) => {
+            e.stopPropagation();
+        };
+
+        dropzone.ondragover = (e) => { 
+            e.preventDefault(); 
+            dropzone.style.borderColor = '#6A0D25'; 
+            dropzone.style.background = '#fdf2f4'; 
+        };
+        dropzone.ondragleave = () => { 
+            dropzone.style.borderColor = '#D4AF37'; 
+            dropzone.style.background = '#fdfaf6'; 
+        };
+        dropzone.ondrop = (e) => {
+            e.preventDefault();
+            dropzone.style.borderColor = '#D4AF37';
+            dropzone.style.background = '#fdfaf6';
+            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                handleFileSelection(e.dataTransfer.files[0]);
+            }
+        };
+
+        fileInput.onchange = () => {
+            if (fileInput.files && fileInput.files[0]) {
+                handleFileSelection(fileInput.files[0]);
+            }
+        };
+
+        function handleFileSelection(file) {
+            if (file.size > 10 * 1024 * 1024) {
+                window.pgetAlert('El archivo excede el tamaño máximo permitido de 10 MB.', 'Archivo Muy Grande', 'Aceptar', 'warning');
+                return;
+            }
+            pendingFile = file;
+            selectedName.textContent = file.name;
+            selectedSize.textContent = `${(file.size / 1024).toFixed(1)} KB`;
+            selectedBox.style.display = 'flex';
+            uploadBtn.disabled = false;
+            uploadBtn.style.opacity = '1';
+            uploadBtn.style.cursor = 'pointer';
+        }
+
+        clearBtn.onclick = () => {
+            pendingFile = null;
+            fileInput.value = '';
+            selectedBox.style.display = 'none';
+            uploadBtn.disabled = true;
+            uploadBtn.style.opacity = '0.6';
+            uploadBtn.style.cursor = 'not-allowed';
+        };
+
+        uploadBtn.onclick = () => {
+            if (!pendingFile) return;
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo y procesando...';
+
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                const dataUrl = ev.target.result;
+                const arcPayload = {
+                    name: pendingFile.name,
+                    type: pendingFile.type || (pendingFile.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'),
+                    data: dataUrl,
+                    size: pendingFile.size,
+                    year: targetYear,
+                    uploaded_at: new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                };
+
+                try {
+                    const postRes = await fetch(`${API_URL}/users/${encodeURIComponent(username)}/arc`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(arcPayload)
+                    });
+                    if (!postRes.ok) throw new Error('Fallback update');
+                } catch (err) {
+                    try {
+                        await fetch(`${API_URL}/users/update`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username: username, arc_file: arcPayload })
+                        });
+                    } catch (e2) {}
+                }
+
+                if (!user.arc_files) user.arc_files = {};
+                user.arc_files[targetYear] = arcPayload;
+                if (String(targetYear) === '2025' || !user.arc_file) {
+                    user.arc_file = arcPayload;
+                }
+
+                const uIdx = allUsersCache.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
+                if (uIdx !== -1) {
+                    allUsersCache[uIdx] = { ...user };
+                }
+                localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
+                if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
+                    currentUser = { ...user };
+                    localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+                }
+
+                renderAdminUsersTable(allUsersCache);
+                window.openAdminArcModal(username, targetYear);
+                window.pgetAlert(
+                    `La Planilla ARC del año ${targetYear} (<strong>${escapeHtml(pendingFile.name)}</strong>) fue subida y asignada exitosamente al usuario <strong>${safeName}</strong>.`,
+                    'Planilla ARC Guardada',
+                    'Aceptar',
+                    'success'
+                );
+            };
+            reader.readAsDataURL(pendingFile);
+        };
+
+        modal.onclick = (e) => {
+            if (e.target === modal) window.closeAdminArcModal();
+        };
+
+        modal.style.setProperty('display', 'flex', 'important');
+    };
+
+    window.closeAdminArcModal = () => {
+        const modal = document.getElementById('adminArcManagementModal');
+        if (modal) {
+            modal.style.setProperty('display', 'none', 'important');
+        }
+    };
+
+    window.deleteUserArc = async (username, year = null) => {
+        const user = (allUsersCache && allUsersCache.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()))
+            || (typeof defaultAccounts !== 'undefined' && defaultAccounts.find(u => u && u.username && u.username.trim().toLowerCase() === String(username).trim().toLowerCase()));
+        if (!user) return;
+        const targetYear = year || (document.getElementById('adminArcYearSelect') ? document.getElementById('adminArcYearSelect').value : '2026');
+        const ok = await window.pgetConfirm(
+            `¿Está seguro de que desea eliminar la Planilla de ARC del año <strong>${targetYear}</strong> de <strong>${escapeHtml(user.nombre || user.username)}</strong>?<br><br>El trabajador ya no podrá verla ni descargarla en su perfil para ese año fiscal.`,
+            `Eliminar Planilla ARC ${targetYear}`,
+            'Sí, Eliminar',
+            'Cancelar',
+            'danger'
+        );
+        if (!ok) return;
+
+        try {
+            await fetch(`${API_URL}/users/${encodeURIComponent(username)}/arc?year=${encodeURIComponent(targetYear)}`, {
+                method: 'DELETE'
+            });
+        } catch (e) {}
+
+        try {
+            await fetch(`${API_URL}/users/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username, arc_file: null })
+            });
+        } catch (e2) {}
+
+        if (user.arc_files && user.arc_files[targetYear]) {
+            delete user.arc_files[targetYear];
+        }
+        if (String(targetYear) === '2026' || !user.arc_files || Object.keys(user.arc_files).length === 0) {
+            user.arc_file = null;
+            delete user.arc_file;
+        }
+        const uIdx = allUsersCache.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
+        if (uIdx !== -1) {
+            allUsersCache[uIdx] = { ...user };
+        }
+        localStorage.setItem('pget_cached_users', JSON.stringify(allUsersCache));
+        if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
+            currentUser = { ...user };
+            localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+        }
+        renderAdminUsersTable(allUsersCache);
+        window.openAdminArcModal(username, targetYear);
+        window.pgetAlert(`La Planilla de ARC del año ${targetYear} fue eliminada exitosamente.`, 'Operación Exitosa', 'Aceptar', 'success');
+    };
+
+    // Solicitar Constancia (Solo Trabajador)
+    async function handleRequestCert() {
+        const modal = document.getElementById('loginModal');
+        const certBtn = modal.querySelector('#requestCertBtn');
+        const certMsg = modal.querySelector('#certMessage');
+        const conSalarioSelect = modal.querySelector('#conSalarioSelect');
+        const conSalarioVal = conSalarioSelect ? conSalarioSelect.value : 'true';
+        const certMotivoSelect = modal.querySelector('#certMotivoSelect');
+        const motivoVal = certMotivoSelect ? certMotivoSelect.value : 'Trámites personales';
+
+        if (currentUser && currentUser.role === 'admin') {
+            certMsg.style.color = '#dc2626';
+            certMsg.innerHTML = '<i class="fas fa-ban"></i> Los administradores gestionan el personal y no emiten constancias de trabajo personales.';
+            return;
+        }
+
+        try {
+            certBtn.disabled = true;
+            certBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generando documento oficial...';
+
+            let certData = null;
+            try {
+                const response = await fetch(`${API_URL}/constancia?token=${currentToken}&username=${currentUser ? currentUser.username : ''}&con_salario=${encodeURIComponent(conSalarioVal)}&motivo=${encodeURIComponent(motivoVal)}`);
+                if (response.ok) {
+                    certData = await response.json();
+                }
+            } catch (apiErr) {
+                console.warn('API constancia offline, utilizando generador local:', apiErr);
+            }
+
+            if (!certData) {
+                // Fallback cliente garantizado
+                certData = buildClientCertificate(currentUser, conSalarioVal, motivoVal);
+            }
+
+            if (!certData.motivo) {
+                certData.motivo = motivoVal;
+            }
+
+            certMsg.style.color = '#6A0D25';
+            certMsg.innerHTML = `<i class="fas fa-check-circle" style="color: #D4AF37;"></i> ¡Constancia generada exitosamente! Se ha abierto el documento oficial.`;
+            
+            // Abrir documento para previsualización e impresión
+            window.showConstanciaDocument(certData);
+
+        } catch (error) {
+            certMsg.style.color = '#dc2626';
+            certMsg.innerHTML = '<i class="fas fa-times-circle"></i> Ocurrió un error al generar la constancia.';
+        } finally {
+            certBtn.disabled = false;
+            certBtn.innerHTML = '<i class="fas fa-file-alt"></i> Generar y Ver Constancia Oficial';
+        }
+    }
+
+    // Salir / Logout
+    window.pgetLogout = () => {
+        currentToken = null;
+        currentUser = null;
+        localStorage.removeItem('pget_auth_token');
+        localStorage.removeItem('pget_auth_user');
+        localStorage.removeItem('pget_session_open');
+
+        const modal = document.getElementById('loginModal');
+        const mainContent = document.getElementById('mainModalContent');
+        if (mainContent) {
+            mainContent.classList.remove('portal-fullscreen');
+            mainContent.classList.remove('admin-modal-size');
+        }
+
+        const closeBtn = modal.querySelector('#modalCloseBtn');
+        if (closeBtn) closeBtn.style.display = 'block';
+        
+        modal.querySelector('#loginView').style.display = 'block';
+        modal.querySelector('#workerView').style.display = 'none';
+        modal.querySelector('#adminView').style.display = 'none';
+        modal.querySelector('#userFormView').style.display = 'none';
+        
+        const loginBtn = document.getElementById('loginBtn');
+        if (loginBtn) {
+            loginBtn.innerHTML = '<i class="fas fa-user"></i> Iniciar Sesión';
+        }
+
+        const loginForm = modal.querySelector('#loginForm');
+        if (loginForm) loginForm.reset();
+    };
+
+    // Attach to existing modal if already in HTML
+    const initialModal = document.getElementById('loginModal');
+    if (initialModal) {
+        attachModalEvents(initialModal);
+    }
+
+    // Abrir Modal de Inicio de Sesión de forma limpia y confiable
+    window.openLoginModal = () => {
+        const modal = ensureLoginModal();
+        if (!modal) return;
+        const mainContent = document.getElementById('mainModalContent');
+        const closeBtn = modal.querySelector('#modalCloseBtn');
+
+        if (!currentUser) {
+            if (closeBtn) closeBtn.style.display = 'block';
+            if (mainContent) {
+                mainContent.classList.remove('portal-fullscreen');
+                mainContent.classList.remove('admin-modal-size');
+            }
+            const lv = modal.querySelector('#loginView');
+            const wv = modal.querySelector('#workerView');
+            const av = modal.querySelector('#adminView');
+            const uf = modal.querySelector('#userFormView');
+            if (lv) lv.style.display = 'block';
+            if (wv) wv.style.display = 'none';
+            if (av) av.style.display = 'none';
+            if (uf) uf.style.display = 'none';
+            const errDiv = modal.querySelector('#loginError');
+            if (errDiv) {
+                errDiv.style.display = 'none';
+                errDiv.textContent = '';
+            }
+        } else {
+            if (closeBtn) closeBtn.style.display = 'none';
+            handlePostLogin(currentUser);
+        }
+        modal.classList.add('show');
+    };
+
+    // Attach to loginBtn in navbar
+    const loginBtn = document.getElementById('loginBtn');
+    if (loginBtn) {
+        loginBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.openLoginModal();
+        });
+    }
+
+    // Navbar scroll effect
+    window.addEventListener('scroll', () => {
+        const navbar = document.querySelector('.navbar');
+        if (navbar) {
+            if (window.scrollY > 50) {
+                navbar.style.padding = '8px 0';
+                navbar.style.background = 'rgba(32, 34, 38, 0.96)';
+            } else {
+                navbar.style.padding = '12px 0';
+                navbar.style.background = 'rgba(38, 41, 46, 0.90)';
+            }
+        }
+    });
+
+    // Sistema Automático de Menú Móvil Responsive para todas las páginas
+    function setupResponsiveMobileNav() {
+        const navContainer = document.querySelector('.nav-container');
+        if (!navContainer) return;
+
+        // 1. Crear e insertar botón Hamburguesa si no existe
+        if (!document.getElementById('mobileMenuBtn')) {
+            const btn = document.createElement('button');
+            btn.id = 'mobileMenuBtn';
+            btn.className = 'mobile-menu-btn';
+            btn.setAttribute('aria-label', 'Abrir Menú de Navegación');
+            btn.innerHTML = '<i class="fas fa-bars"></i>';
+            navContainer.appendChild(btn);
+        }
+
+        // 2. Crear Drawer y Overlay si no existen
+        if (!document.getElementById('mobileNavDrawer')) {
+            const overlay = document.createElement('div');
+            overlay.id = 'mobileNavOverlay';
+            overlay.className = 'mobile-nav-overlay';
+            document.body.appendChild(overlay);
+
+            const drawer = document.createElement('div');
+            drawer.id = 'mobileNavDrawer';
+            drawer.className = 'mobile-nav-drawer';
+
+            const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+
+            drawer.innerHTML = `
+                <div class="mobile-drawer-header">
+                    <div class="mobile-drawer-logo">
+                        <img src="assets/logo.png" alt="Logo PGET" onerror="this.src='https://via.placeholder.com/40?text=PGET'">
+                        <div class="mobile-drawer-logo-text">
+                            <h3>PROCURADURÍA GENERAL</h3>
+                            <span>ESTADO TRUJILLO</span>
+                        </div>
+                    </div>
+                    <button id="mobileDrawerCloseBtn" class="mobile-drawer-close" aria-label="Cerrar Menú">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <div class="mobile-drawer-links">
+                    <a href="index.html" class="mobile-drawer-link ${currentPath === 'index.html' || currentPath === '' ? 'active' : ''}">
+                        <span><i class="fas fa-home" style="margin-right: 8px; color: #D4AF37;"></i> Inicio</span>
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                    
+                    <a href="quienes-somos.html" class="mobile-drawer-link ${currentPath === 'quienes-somos.html' ? 'active' : ''}">
+                        <span><i class="fas fa-landmark" style="margin-right: 8px; color: #D4AF37;"></i> ¿Quiénes Somos?</span>
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+
+                    <!-- Submenú Filosofía -->
+                    <div class="mobile-submenu-group">
+                        <div class="mobile-submenu-header" id="subFilosofiaHeader">
+                            <span><i class="fas fa-book-open" style="margin-right: 8px; color: #D4AF37;"></i> Filosofía Institucional</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="mobile-submenu-items" id="subFilosofiaItems">
+                            <a href="mision-vision.html" class="mobile-submenu-item ${currentPath === 'mision-vision.html' ? 'active' : ''}">
+                                &bull; Misión y Visión
+                            </a>
+                            <a href="valores.html" class="mobile-submenu-item ${currentPath === 'valores.html' ? 'active' : ''}">
+                                &bull; Valores y Principios
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Submenú Organización -->
+                    <div class="mobile-submenu-group">
+                        <div class="mobile-submenu-header" id="subOrgHeader">
+                            <span><i class="fas fa-sitemap" style="margin-right: 8px; color: #D4AF37;"></i> Organización</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                        <div class="mobile-submenu-items" id="subOrgItems">
+                            <a href="organigrama.html?v=3" class="mobile-submenu-item ${currentPath.includes('organigrama') ? 'active' : ''}">
+                                &bull; Organigrama Oficial
+                            </a>
+                            <a href="direcciones.html" class="mobile-submenu-item ${currentPath === 'direcciones.html' ? 'active' : ''}">
+                                &bull; Direcciones y Unidades
+                            </a>
+                        </div>
+                    </div>
+
+                    <a href="bases-juridicas.html" class="mobile-drawer-link ${currentPath === 'bases-juridicas.html' ? 'active' : ''}">
+                        <span><i class="fas fa-balance-scale" style="margin-right: 8px; color: #D4AF37;"></i> Bases Jurídicas</span>
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+
+                    <a href="contacto.html" class="mobile-drawer-link ${currentPath === 'contacto.html' ? 'active' : ''}">
+                        <span><i class="fas fa-map-marker-alt" style="margin-right: 8px; color: #D4AF37;"></i> Contacto y Ubicación</span>
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </div>
+
+                <div class="mobile-drawer-footer">
+                    <button id="mobileDrawerLoginBtn" class="mobile-drawer-login-btn">
+                        <i class="fas fa-user-shield"></i> Acceso al Sistema PGET
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(drawer);
+
+            // Toggle eventos
+            const menuBtn = document.getElementById('mobileMenuBtn');
+            const closeBtn = document.getElementById('mobileDrawerCloseBtn');
+            const drawerEl = document.getElementById('mobileNavDrawer');
+            const overlayEl = document.getElementById('mobileNavOverlay');
+
+            const openDrawer = () => {
+                drawerEl.classList.add('active');
+                overlayEl.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            };
+
+            const closeDrawer = () => {
+                drawerEl.classList.remove('active');
+                overlayEl.classList.remove('active');
+                document.body.style.overflow = '';
+            };
+
+            if (menuBtn) menuBtn.addEventListener('click', openDrawer);
+            if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
+            if (overlayEl) overlayEl.addEventListener('click', closeDrawer);
+
+            // Submenú Toggles
+            const toggleSubmenu = (headerId, itemsId) => {
+                const header = document.getElementById(headerId);
+                const items = document.getElementById(itemsId);
+                if (header && items) {
+                    header.addEventListener('click', () => {
+                        header.classList.toggle('active');
+                        items.classList.toggle('active');
+                    });
+                }
+            };
+            toggleSubmenu('subFilosofiaHeader', 'subFilosofiaItems');
+            toggleSubmenu('subOrgHeader', 'subOrgItems');
+
+            // Botón de login en el drawer
+            const drawerLoginBtn = document.getElementById('mobileDrawerLoginBtn');
+            if (drawerLoginBtn) {
+                if (currentUser) {
+                    drawerLoginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${currentUser.nombre ? currentUser.nombre.split(' ')[0] : currentUser.username}`;
+                }
+                drawerLoginBtn.addEventListener('click', () => {
+                    closeDrawer();
+                    window.openLoginModal();
+                });
+            }
+        }
+    }
+
+    // =========================================================================
+    // RESTAURACIÓN AUTOMÁTICA DE SESIÓN AL ACTUALIZAR LA PÁGINA (F5 / RECARGA)
+    // =========================================================================
+    // RESTAURACIÓN SILENCIOSA DE SESIÓN AL ACTUALIZAR LA PÁGINA (F5 / RECARGA)
+    // =========================================================================
+    async function restoreSavedSession() {
+        const savedToken = localStorage.getItem('pget_auth_token');
+        const savedUserRaw = localStorage.getItem('pget_auth_user');
+        localStorage.removeItem('pget_session_open'); // Prevenir que el modal se abra automáticamente
+        if (!savedToken || !savedUserRaw) return;
+
+        try {
+            const parsedUser = JSON.parse(savedUserRaw);
+            if (parsedUser && parsedUser.username) {
+                currentToken = savedToken;
+                currentUser = parsedUser;
+
+                const displayName = currentUser.role === 'admin' 
+                    ? 'ADMINISTRADOR' 
+                    : (currentUser.nombre ? currentUser.nombre.split(' ')[0] : currentUser.username);
+
+                // Actualizar botón de iniciar sesión en barra superior manteniendo la página actual
+                const loginBtn = document.getElementById('loginBtn');
+                if (loginBtn) {
+                    loginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${displayName}`;
+                }
+
+                // Actualizar botón en el menú móvil si existe
+                const drawerLoginBtn = document.getElementById('mobileDrawerLoginBtn');
+                if (drawerLoginBtn) {
+                    drawerLoginBtn.innerHTML = `<i class="fas fa-user-circle"></i> ${displayName}`;
+                }
+
+                // Sincronizar en segundo plano datos frescos del usuario desde el backend
+                try {
+                    fetch(`${API_URL}/users`)
+                        .then(r => r.ok ? r.json() : null)
+                        .then(users => {
+                            if (Array.isArray(users) && currentUser) {
+                                const fresh = users.find(u => u.username.toLowerCase() === currentUser.username.toLowerCase());
+                                if (fresh) {
+                                    currentUser = { ...currentUser, ...fresh };
+                                    localStorage.setItem('pget_auth_user', JSON.stringify(currentUser));
+                                }
+                            }
+                        })
+                        .catch(() => {});
+                } catch (e) {}
+            }
+        } catch (err) {
+            console.warn('Error al restaurar sesión previa:', err);
+        }
+    }
+
+    // Desplazamiento suave para el indicador de scroll en la portada
+    const heroScrollIndicator = document.getElementById('heroScrollIndicator');
+    if (heroScrollIndicator) {
+        heroScrollIndicator.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetSection = document.getElementById('instagram-feed') || document.getElementById('quienes-somos');
+            if (targetSection) {
+                targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    }
+
+    setupResponsiveMobileNav();
+    restoreSavedSession();
+});

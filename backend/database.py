@@ -20,7 +20,7 @@ _client = None
 def get_collections():
     global _client
     if _client is None:
-        _client = AsyncIOMotorClient(MONGO_URI, serverSelectionTimeoutMS=1500, connectTimeoutMS=1500)
+        _client = AsyncIOMotorClient(MONGO_URI, serverSelectionTimeoutMS=5000, connectTimeoutMS=5000)
     db = _client.pget_db
     return db.users, db.cargos
 
@@ -90,22 +90,40 @@ async def get_user_by_username(username: str):
     if not clean_name:
         return None
 
-    # Búsqueda instantánea en almacenamiento de memoria
+    clean_prefix = clean_name.split("@")[0]
+    clean_full = f"{clean_name}@pget.com" if "@" not in clean_name else clean_name
+
+    # 1. Priorizar MongoDB para obtener la información persistente más reciente
+    try:
+        users_col, _ = get_collections()
+        query = {
+            "$or": [
+                {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
+                {"username": {"$regex": f"^{re.escape(clean_full)}$", "$options": "i"}},
+                {"username": {"$regex": f"^{re.escape(clean_prefix)}@pget\\.(com|gob\\.ve)$", "$options": "i"}}
+            ]
+        }
+        if clean_name.isdigit():
+            query = {"cedula": clean_name}
+
+        user = await asyncio.wait_for(users_col.find_one(query), timeout=3.5)
+        if user:
+            doc = format_user_doc(user)
+            # Sincronizar en memory_users si está presente
+            for idx, u in enumerate(memory_users):
+                if u["username"].lower() == doc["username"].lower() or u["username"].split("@")[0].lower() == clean_prefix:
+                    memory_users[idx].update(doc)
+                    break
+            else:
+                memory_users.append(doc)
+            return doc
+    except Exception:
+        pass
+
+    # 2. Fallback a búsqueda instantánea en memoria
     mem_user = find_in_memory(clean_name)
     if mem_user:
         return mem_user
-
-    # Fallback opcional a MongoDB si se registró remotamente y no está en memoria
-    try:
-        users_col, _ = get_collections()
-        query = {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}}
-        if clean_name.isdigit():
-            query = {"cedula": clean_name}
-        user = await asyncio.wait_for(users_col.find_one(query), timeout=1.0)
-        if user:
-            return format_user_doc(user)
-    except Exception:
-        pass
 
     return None
 
@@ -129,6 +147,32 @@ async def authenticate_user(username: str, password: str):
     return None
 
 async def get_all_users():
+    """
+    Retorna la lista completa de usuarios vigentes desde MongoDB Atlas asegurando
+    que todas las modificaciones guardadas (teléfonos, RAC, cargos, etc.) se reflejen.
+    Si MongoDB no responde, recurre al almacenamiento local en memoria.
+    """
+    try:
+        users_col, _ = get_collections()
+        cursor = users_col.find({"username": {"$nin": ["admin", "trabajador1"]}})
+        mongo_users = await asyncio.wait_for(cursor.to_list(length=500), timeout=4.5)
+        if mongo_users:
+            formatted = [format_user_doc(u) for u in mongo_users]
+            # Sincronizar en memoria
+            user_map = {u["username"].lower(): u for u in formatted}
+            for idx, mu in enumerate(memory_users):
+                mu_name = mu["username"].lower()
+                if mu_name in user_map:
+                    memory_users[idx].update(user_map[mu_name])
+            # Agregar los que no estén en memoria
+            mem_names = {mu["username"].lower() for mu in memory_users}
+            for u in formatted:
+                if u["username"].lower() not in mem_names:
+                    memory_users.append(u)
+            return formatted
+    except Exception as e:
+        print(f"Información: get_all_users usando memoria ({e})")
+
     # Retornar usuarios vigentes (excluyendo alias deprecados)
     valid_users = [dict(u) for u in memory_users if u.get("username") not in ["admin", "trabajador1"]]
     return valid_users
@@ -152,12 +196,12 @@ async def create_user_record(user_data: dict):
     # Guardar en memoria inmediatamente
     memory_users.append(dict(user_data))
 
-    # Persistir asíncronamente en MongoDB si está disponible
+    # Persistir en MongoDB si está disponible
     try:
         users_col, _ = get_collections()
-        await asyncio.wait_for(users_col.insert_one(dict(user_data)), timeout=1.0)
-    except Exception:
-        pass
+        await asyncio.wait_for(users_col.insert_one(dict(user_data)), timeout=5.0)
+    except Exception as e:
+        print(f"Error insertando en MongoDB: {e}")
 
     return user_data, None
 
@@ -184,17 +228,25 @@ async def update_user_record(username: str, update_fields: dict):
         del update_fields["arc_file"]
 
     # Actualizar en memoria inmediatamente
+    clean_prefix = clean_name.split("@")[0]
+    matched_in_mem = False
     for idx, u in enumerate(memory_users):
         u_name = u["username"].lower()
-        if u_name == clean_name or u_name.split("@")[0] == clean_name:
+        if u_name == clean_name or u_name.split("@")[0] == clean_name or u_name.split("@")[0] == clean_prefix:
             if unset_fields:
                 for uf in unset_fields:
                     memory_users[idx].pop(uf, None)
             if update_fields:
                 memory_users[idx].update(update_fields)
+            matched_in_mem = True
             break
+    if not matched_in_mem and update_fields:
+        new_record = dict(update_fields)
+        if "username" not in new_record:
+            new_record["username"] = clean_name
+        memory_users.append(new_record)
 
-    # Persistir asíncronamente en MongoDB si está disponible
+    # Persistir en MongoDB si está disponible
     try:
         users_col, _ = get_collections()
         update_doc = {}
@@ -203,12 +255,21 @@ async def update_user_record(username: str, update_fields: dict):
         if unset_fields:
             update_doc["$unset"] = unset_fields
         if update_doc:
-            await asyncio.wait_for(users_col.update_one(
-                {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
-                update_doc
-            ), timeout=1.0)
-    except Exception:
-        pass
+            clean_full = f"{clean_name}@pget.com" if "@" not in clean_name else clean_name
+            query = {
+                "$or": [
+                    {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
+                    {"username": {"$regex": f"^{re.escape(clean_full)}$", "$options": "i"}},
+                    {"username": {"$regex": f"^{re.escape(clean_prefix)}@pget\\.(com|gob\\.ve)$", "$options": "i"}}
+                ]
+            }
+            res = await asyncio.wait_for(users_col.update_one(query, update_doc), timeout=5.0)
+            if res.matched_count == 0:
+                full_doc = dict(update_fields)
+                full_doc["username"] = clean_full
+                await asyncio.wait_for(users_col.update_one({"username": clean_full}, {"$set": full_doc}, upsert=True), timeout=5.0)
+    except Exception as e:
+        print(f"Error persistiendo actualización en MongoDB: {e}")
 
     return await get_user_by_username(new_clean_name)
 
@@ -217,48 +278,92 @@ async def delete_user_record(username: str):
     if not clean_name:
         return False
 
+    clean_prefix = clean_name.split("@")[0]
     initial_len = len(memory_users)
-    memory_users[:] = [u for u in memory_users if u["username"].lower() != clean_name and u["username"].split("@")[0].lower() != clean_name]
+    memory_users[:] = [u for u in memory_users if u["username"].lower() != clean_name and u["username"].split("@")[0].lower() != clean_prefix]
     deleted = len(memory_users) < initial_len
 
     try:
         users_col, _ = get_collections()
-        await asyncio.wait_for(users_col.delete_one({"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}}), timeout=1.0)
-    except Exception:
-        pass
+        clean_full = f"{clean_name}@pget.com" if "@" not in clean_name else clean_name
+        query = {
+            "$or": [
+                {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
+                {"username": {"$regex": f"^{re.escape(clean_full)}$", "$options": "i"}},
+                {"username": {"$regex": f"^{re.escape(clean_prefix)}@pget\\.(com|gob\\.ve)$", "$options": "i"}}
+            ]
+        }
+        res = await asyncio.wait_for(users_col.delete_one(query), timeout=5.0)
+        if res.deleted_count > 0:
+            deleted = True
+    except Exception as e:
+        print(f"Error eliminando de MongoDB: {e}")
 
     return deleted
 
 async def create_initial_users():
     """
     Inicializa y sincroniza en MongoDB Atlas todas las cuentas oficiales de la Procuraduría
-    extraídas de la nómina en Excel, asegurando que admin@pget.com y cada trabajador existan.
+    extraídas de la nómina en Excel, asegurando que admin@pget.com y cada trabajador existan
+    y cargando cualquier edición previa en el cache en memoria.
     """
     initial_accounts = INITIAL_USERS
 
     try:
         users_col, cargos_col = get_collections()
         # Eliminar alias redundantes antiguos
-        await asyncio.wait_for(users_col.delete_many({"username": {"$in": ["admin", "trabajador1"]}}), timeout=2.0)
+        try:
+            await asyncio.wait_for(users_col.delete_many({"username": {"$in": ["admin", "trabajador1"]}}), timeout=3.0)
+        except Exception:
+            pass
 
-        # Asegurar todos los usuarios oficiales sin sobreescribir modificaciones previas
-        for acc in initial_accounts:
-            existing = await asyncio.wait_for(users_col.find_one({"username": {"$regex": f"^{re.escape(acc['username'])}$", "$options": "i"}}), timeout=0.8)
-            if not existing:
-                await asyncio.wait_for(users_col.insert_one(dict(acc)), timeout=0.8)
+        # 1. Sincronizar usuarios faltantes en MongoDB en una sola verificación eficiente
+        existing_docs = await asyncio.wait_for(users_col.find({}, {"username": 1}).to_list(length=500), timeout=4.0)
+        existing_usernames = {d.get("username", "").strip().lower() for d in existing_docs if "username" in d}
 
-        # Asegurar catálogo completo de cargos institucionales
-        for cargo_name in INITIAL_CARGOS:
-            c_clean = cargo_name.strip().upper()
-            c_exist = await asyncio.wait_for(cargos_col.find_one({"nombre": c_clean}), timeout=0.8)
-            if not c_exist:
-                await asyncio.wait_for(cargos_col.insert_one({"nombre": c_clean}), timeout=0.8)
+        to_insert = [dict(acc) for acc in initial_accounts if acc.get("username", "").strip().lower() not in existing_usernames]
+        if to_insert:
+            await asyncio.wait_for(users_col.insert_many(to_insert), timeout=5.0)
+
+        # 2. Cargar la nómina más actualizada desde MongoDB a memory_users
+        all_docs = await asyncio.wait_for(users_col.find({"username": {"$nin": ["admin", "trabajador1"]}}).to_list(length=500), timeout=5.0)
+        if all_docs:
+            formatted = [format_user_doc(d) for d in all_docs]
+            user_map = {u["username"].lower(): u for u in formatted}
+            for idx, mu in enumerate(memory_users):
+                mu_name = mu["username"].lower()
+                if mu_name in user_map:
+                    memory_users[idx].update(user_map[mu_name])
+            mem_names = {mu["username"].lower() for mu in memory_users}
+            for u in formatted:
+                if u["username"].lower() not in mem_names:
+                    memory_users.append(u)
+
+        # 3. Sincronizar catálogo de cargos institucionales
+        existing_cargos = await asyncio.wait_for(cargos_col.find({}, {"nombre": 1}).to_list(length=500), timeout=3.0)
+        existing_cargo_names = {c.get("nombre", "").strip().upper() for c in existing_cargos if "nombre" in c}
+        cargos_to_insert = [{"nombre": c.strip().upper()} for c in INITIAL_CARGOS if c.strip().upper() not in existing_cargo_names]
+        if cargos_to_insert:
+            await asyncio.wait_for(cargos_col.insert_many(cargos_to_insert), timeout=4.0)
+
+        all_c_docs = await asyncio.wait_for(cargos_col.find({}).to_list(length=500), timeout=3.0)
+        if all_c_docs:
+            DEFAULT_CARGOS[:] = sorted(list({d["nombre"].strip().upper() for d in all_c_docs if d.get("nombre")}))
 
         print(f"Base de datos sincronizada: {len(initial_accounts)} cuentas oficiales y cargos PGET.")
     except Exception as e:
         print(f"Información: almacenamiento local activo con {len(memory_users)} usuarios listos. MongoDB Atlas en espera ({e}).")
 
 async def get_all_cargos():
+    try:
+        _, cargos_col = get_collections()
+        c_docs = await asyncio.wait_for(cargos_col.find({}).to_list(length=500), timeout=3.0)
+        if c_docs:
+            c_names = sorted(list({d["nombre"].strip().upper() for d in c_docs if d.get("nombre")}))
+            DEFAULT_CARGOS[:] = c_names
+            return c_names
+    except Exception:
+        pass
     return sorted(list(set(DEFAULT_CARGOS)))
 
 async def add_cargo_record(nombre: str):
@@ -269,7 +374,7 @@ async def add_cargo_record(nombre: str):
         DEFAULT_CARGOS.append(clean)
     try:
         _, cargos_col = get_collections()
-        await asyncio.wait_for(cargos_col.insert_one({"nombre": clean}), timeout=1.0)
+        await asyncio.wait_for(cargos_col.insert_one({"nombre": clean}), timeout=3.0)
     except Exception:
         pass
     return True, None
@@ -280,30 +385,6 @@ async def delete_cargo_record(nombre: str):
         DEFAULT_CARGOS.remove(clean)
     try:
         _, cargos_col = get_collections()
-        await asyncio.wait_for(cargos_col.delete_one({"nombre": clean}), timeout=1.0)
+        await asyncio.wait_for(cargos_col.delete_one({"nombre": clean}), timeout=3.0)
     except Exception:
-        pass
-    return True
-
-async def delete_user_arc(username: str, year: Optional[str] = None):
-    clean_name = unquote(str(username or "")).strip().lower()
-    for idx, u in enumerate(memory_users):
-        if u["username"].lower() == clean_name or u["username"].split("@")[0].lower() == clean_name:
-            memory_users[idx].pop("arc_file", None)
-            break
-    try:
-        users_col, _ = get_collections()
-        if year:
-            clean_year = str(year).strip()
-            await asyncio.wait_for(users_col.update_one(
-                {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
-                {"$unset": {f"arc_files.{clean_year}": ""}}
-            ), timeout=1.0)
-        else:
-            await asyncio.wait_for(users_col.update_one(
-                {"username": {"$regex": f"^{re.escape(clean_name)}$", "$options": "i"}},
-                {"$unset": {"arc_file": "", "arc_files": ""}}
-            ), timeout=1.0)
-    except Exception:
-        pass
-    return True
+        pass
