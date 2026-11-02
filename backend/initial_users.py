@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Usuarios institucionales y cargos iniciales para Procuraduría General del Estado Trujillo (PGET).
-Generado automáticamente a partir de la nómina oficial en 'assets/para lore.xlsx'.
-Total de trabajadores registrados: 67 + Cuentas Administrativas.
 """
 
 INITIAL_CARGOS = [
@@ -101,7 +99,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DESPACHO DEL PROCURADOR GENERAL",
         "fecha_ingreso": "21/01/2026",
-        "anos_servicio": "3",
+        "anos_servicio": "0",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020373220000419109"
     },
@@ -121,7 +119,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN GENERAL",
         "fecha_ingreso": "01/04/2024",
-        "anos_servicio": "1",
+        "anos_servicio": "2",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020369470100072126"
     },
@@ -141,7 +139,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
         "fecha_ingreso": "01/07/2014",
-        "anos_servicio": "13",
+        "anos_servicio": "12",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020494120000102429"
     },
@@ -161,7 +159,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
         "fecha_ingreso": "15/08/2012",
-        "anos_servicio": "18",
+        "anos_servicio": "14",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020119590000115076"
     },
@@ -201,7 +199,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
         "fecha_ingreso": "18/02/2025",
-        "anos_servicio": "0",
+        "anos_servicio": "1",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020102110000237695"
     },
@@ -221,7 +219,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
         "fecha_ingreso": "16/04/2018",
-        "anos_servicio": "7",
+        "anos_servicio": "8",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020102180000237747"
     },
@@ -241,7 +239,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
         "fecha_ingreso": "01/07/2005",
-        "anos_servicio": "20",
+        "anos_servicio": "21",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020102100000237679"
     },
@@ -261,7 +259,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
         "fecha_ingreso": "01/06/2023",
-        "anos_servicio": "2",
+        "anos_servicio": "3",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020369470000002354"
     },
@@ -281,7 +279,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
         "fecha_ingreso": "15/05/2006",
-        "anos_servicio": "19",
+        "anos_servicio": "20",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020102160000237815"
     },
@@ -301,7 +299,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
         "fecha_ingreso": "01/02/2021",
-        "anos_servicio": "17",
+        "anos_servicio": "5",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020369400000261108"
     },
@@ -321,7 +319,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
         "fecha_ingreso": "01/02/2021",
-        "anos_servicio": "7",
+        "anos_servicio": "5",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020485290100027238"
     },
@@ -361,7 +359,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
         "fecha_ingreso": "16/03/2020",
-        "anos_servicio": "5",
+        "anos_servicio": "6",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020369410100093868"
     },
@@ -381,7 +379,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
         "fecha_ingreso": "01/12/2013",
-        "anos_servicio": "15",
+        "anos_servicio": "12",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020494190000265777"
     },
@@ -401,7 +399,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
         "fecha_ingreso": "01/02/2014",
-        "anos_servicio": "11",
+        "anos_servicio": "12",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020369410000075446"
     },
@@ -421,7 +419,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
         "fecha_ingreso": "06/06/2013",
-        "anos_servicio": "14",
+        "anos_servicio": "13",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020102140000237718"
     },
@@ -441,7 +439,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
         "fecha_ingreso": "05/09/2019",
-        "anos_servicio": "6",
+        "anos_servicio": "7",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020369450100088022"
     },
@@ -461,7 +459,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
         "fecha_ingreso": "07/08/2017",
-        "anos_servicio": "8",
+        "anos_servicio": "9",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020102160000237734"
     },
@@ -1101,7 +1099,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
         "fecha_ingreso": "27/07/2009",
-        "anos_servicio": "16",
+        "anos_servicio": "17",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020286810100014597"
     },
@@ -1121,7 +1119,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
         "fecha_ingreso": "15/05/2016",
-        "anos_servicio": "9",
+        "anos_servicio": "10",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020102180000240132"
     },
@@ -1141,7 +1139,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
         "fecha_ingreso": "15/08/2021",
-        "anos_servicio": "4",
+        "anos_servicio": "5",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020369410100087416"
     },
@@ -1161,7 +1159,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
         "fecha_ingreso": "01/09/2021",
-        "anos_servicio": "4",
+        "anos_servicio": "5",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020369470000470410"
     },
@@ -1181,7 +1179,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
         "fecha_ingreso": "01/09/2022",
-        "anos_servicio": "3",
+        "anos_servicio": "4",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020369480000078812"
     },
@@ -1201,7 +1199,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
         "fecha_ingreso": "02/05/2025",
-        "anos_servicio": "5",
+        "anos_servicio": "1",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020369410100091742"
     },
@@ -1241,7 +1239,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
         "fecha_ingreso": "01/11/2022",
-        "anos_servicio": "2",
+        "anos_servicio": "4",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020369440000972523"
     },
@@ -1261,7 +1259,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
         "fecha_ingreso": "01/10/2023",
-        "anos_servicio": "2",
+        "anos_servicio": "3",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020102110000268347"
     },
@@ -1301,7 +1299,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
         "fecha_ingreso": "01/02/2023",
-        "anos_servicio": "2",
+        "anos_servicio": "3",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020369410000656713"
     },
@@ -1341,7 +1339,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
         "fecha_ingreso": "01/10/2021",
-        "anos_servicio": "4",
+        "anos_servicio": "5",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020102180000237828"
     },
@@ -1361,7 +1359,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
         "fecha_ingreso": "01/08/2023",
-        "anos_servicio": "2",
+        "anos_servicio": "3",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020369490000818852"
     },
@@ -1381,7 +1379,7 @@ INITIAL_USERS = [
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
         "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
         "fecha_ingreso": "01/08/2025",
-        "anos_servicio": "0",
+        "anos_servicio": "1",
         "banco": "BANCO DE VENEZUELA",
         "cuenta": "01020493300100021880"
     },

@@ -257,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DESPACHO DEL PROCURADOR GENERAL",
                 "fecha_ingreso": "21/01/2026",
-                "anos_servicio": "3",
+                "anos_servicio": "0",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020373220000419109"
         },
@@ -277,7 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN GENERAL",
                 "fecha_ingreso": "01/04/2024",
-                "anos_servicio": "1",
+                "anos_servicio": "2",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020369470100072126"
         },
@@ -297,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
                 "fecha_ingreso": "01/07/2014",
-                "anos_servicio": "13",
+                "anos_servicio": "12",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020494120000102429"
         },
@@ -317,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
                 "fecha_ingreso": "15/08/2012",
-                "anos_servicio": "18",
+                "anos_servicio": "14",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020119590000115076"
         },
@@ -357,7 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
                 "fecha_ingreso": "18/02/2025",
-                "anos_servicio": "0",
+                "anos_servicio": "1",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020102110000237695"
         },
@@ -377,7 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
                 "fecha_ingreso": "16/04/2018",
-                "anos_servicio": "7",
+                "anos_servicio": "8",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020102180000237747"
         },
@@ -397,7 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
                 "fecha_ingreso": "01/07/2005",
-                "anos_servicio": "20",
+                "anos_servicio": "21",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020102100000237679"
         },
@@ -417,7 +417,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
                 "fecha_ingreso": "01/06/2023",
-                "anos_servicio": "2",
+                "anos_servicio": "3",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020369470000002354"
         },
@@ -437,7 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
                 "fecha_ingreso": "15/05/2006",
-                "anos_servicio": "19",
+                "anos_servicio": "20",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020102160000237815"
         },
@@ -457,7 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
                 "fecha_ingreso": "01/02/2021",
-                "anos_servicio": "17",
+                "anos_servicio": "5",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020369400000261108"
         },
@@ -477,7 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
                 "fecha_ingreso": "01/02/2021",
-                "anos_servicio": "7",
+                "anos_servicio": "5",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020485290100027238"
         },
@@ -517,7 +517,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE RECURSOS HUMANOS",
                 "fecha_ingreso": "16/03/2020",
-                "anos_servicio": "5",
+                "anos_servicio": "6",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020369410100093868"
         },
@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
                 "fecha_ingreso": "01/12/2013",
-                "anos_servicio": "15",
+                "anos_servicio": "12",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020494190000265777"
         },
@@ -557,7 +557,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ADMINISTRACIÓN",
                 "fecha_ingreso": "01/02/2014",
-                "anos_servicio": "11",
+                "anos_servicio": "12",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020369410000075446"
         },
@@ -577,7 +577,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
                 "fecha_ingreso": "06/06/2013",
-                "anos_servicio": "14",
+                "anos_servicio": "13",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020102140000237718"
         },
@@ -597,7 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
                 "fecha_ingreso": "05/09/2019",
-                "anos_servicio": "6",
+                "anos_servicio": "7",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020369450100088022"
         },
@@ -617,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
                 "fecha_ingreso": "07/08/2017",
-                "anos_servicio": "8",
+                "anos_servicio": "9",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020102160000237734"
         },
@@ -1257,7 +1257,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
                 "fecha_ingreso": "27/07/2009",
-                "anos_servicio": "16",
+                "anos_servicio": "17",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020286810100014597"
         },
@@ -1277,7 +1277,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
                 "fecha_ingreso": "15/05/2016",
-                "anos_servicio": "9",
+                "anos_servicio": "10",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020102180000240132"
         },
@@ -1297,7 +1297,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
                 "fecha_ingreso": "15/08/2021",
-                "anos_servicio": "4",
+                "anos_servicio": "5",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020369410100087416"
         },
@@ -1317,7 +1317,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
                 "fecha_ingreso": "01/09/2021",
-                "anos_servicio": "4",
+                "anos_servicio": "5",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020369470000470410"
         },
@@ -1337,7 +1337,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
                 "fecha_ingreso": "01/09/2022",
-                "anos_servicio": "3",
+                "anos_servicio": "4",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020369480000078812"
         },
@@ -1357,7 +1357,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
                 "fecha_ingreso": "02/05/2025",
-                "anos_servicio": "5",
+                "anos_servicio": "1",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020369410100091742"
         },
@@ -1397,7 +1397,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
                 "fecha_ingreso": "01/11/2022",
-                "anos_servicio": "2",
+                "anos_servicio": "4",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020369440000972523"
         },
@@ -1417,7 +1417,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE ASUNTOS JURÍDICOS",
                 "fecha_ingreso": "01/10/2023",
-                "anos_servicio": "2",
+                "anos_servicio": "3",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020102110000268347"
         },
@@ -1457,7 +1457,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
                 "fecha_ingreso": "01/02/2023",
-                "anos_servicio": "2",
+                "anos_servicio": "3",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020369410000656713"
         },
@@ -1497,7 +1497,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
                 "fecha_ingreso": "01/10/2021",
-                "anos_servicio": "4",
+                "anos_servicio": "5",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020102180000237828"
         },
@@ -1517,7 +1517,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
                 "fecha_ingreso": "01/08/2023",
-                "anos_servicio": "2",
+                "anos_servicio": "3",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020369490000818852"
         },
@@ -1537,7 +1537,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
                 "direccion": "DIRECCIÓN DE BIENES Y SERVICIOS",
                 "fecha_ingreso": "01/08/2025",
-                "anos_servicio": "0",
+                "anos_servicio": "1",
                 "banco": "BANCO DE VENEZUELA",
                 "cuenta": "01020493300100021880"
         },
@@ -1644,6 +1644,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return Math.max(0, years);
     }
+    // Helper oficial para obtener los años de servicio calculados según fecha de ingreso
+    function getCalculatedYearsOfService(fechaIngreso, fallbackAnos) {
+        const cleanFecha = String(fechaIngreso || '').trim();
+        if (cleanFecha && cleanFecha !== 'N/D') {
+            const calc = calculateYearsOfService(cleanFecha);
+            if (typeof calc === 'number' && !isNaN(calc)) {
+                return calc.toString();
+            }
+        }
+        if (fallbackAnos !== undefined && fallbackAnos !== null && String(fallbackAnos).trim() !== '') {
+            return String(fallbackAnos);
+        }
+        return '0';
+    }
+
 
     // Helper para garantizar el formato estricto oficial de cédula: V- 12.345.678
     function formatCedulaOficial(cedula) {
@@ -2756,9 +2771,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                         </div>
 
                                         <div style="grid-column: span 2;">
-                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">Años de Servicio <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Cálculo Automático)</span></label>
-                                            <input type="text" id="formAnos" readonly style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: #f1f5f9; color: #6A0D25; font-weight: 700; cursor: not-allowed;" placeholder="0">
-                                            <small style="color: #83122F; font-size: 0.78rem; font-weight: 600; display: block; margin-top: 2px;"><i class="fas fa-calculator"></i> Se calcula automáticamente según la fecha de ingreso</small>
+                                            <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
+                                                Años de Servicio <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Cálculo Automático según Fecha de Ingreso)</span>
+                                            </label>
+                                            <div style="position: relative; display: flex; align-items: stretch;">
+                                                <input type="number" id="formAnos" min="0" max="60" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px 0 0 8px; font-size: 0.92rem; box-sizing: border-box; background: white; color: #6A0D25; font-weight: 700;" placeholder="0">
+                                                <button type="button" id="btnRecalcularAnos" title="Recalcular automáticamente según la fecha de ingreso seleccionada" style="padding: 0 16px; background: #f8fafc; border: 1px solid #cbd5e1; border-left: none; border-radius: 0 8px 8px 0; color: #6A0D25; font-size: 0.85rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                                                    <i class="fas fa-calculator"></i> Calcular
+                                                </button>
+                                            </div>
+                                            <small style="color: #64748b; font-size: 0.78rem; font-weight: 500; display: block; margin-top: 3px;">
+                                                <i class="fas fa-info-circle" style="color: #6A0D25;"></i> Se calcula automáticamente según la fecha de ingreso (o puede ajustarse manualmente si el trabajador tiene años previos reconocidos).
+                                            </small>
                                         </div>
 
                                         <!-- Dependencia Administrativa como Ventana Desplegable con Valor Fijo -->
@@ -2790,35 +2814,21 @@ document.addEventListener('DOMContentLoaded', () => {
                                             <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
                                                 <i class="fas fa-university" style="color: #6A0D25;"></i> Banco / Entidad Financiera *
                                             </label>
-                                            <select id="formBanco" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: white; font-weight: 600; color: #1e293b;">
+                                            <select id="formBanco" required style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; background: #f8fafc; font-weight: 700; color: #6A0D25; pointer-events: none;" tabindex="-1">
                                                 <option value="Banco de Venezuela" selected>Banco de Venezuela (0102)</option>
-                                                <option value="Banesco">Banesco (0134)</option>
-                                                <option value="Banco Mercantil">Banco Mercantil (0105)</option>
-                                                <option value="Banco Provincial">Banco Provincial - BBVA (0108)</option>
-                                                <option value="Banco Bicentenario">Banco Bicentenario (0175)</option>
-                                                <option value="Banco del Tesoro">Banco del Tesoro (0163)</option>
-                                                <option value="Banco Nacional de Crédito">Banco Nacional de Crédito - BNC (0191)</option>
-                                                <option value="Bancaribe">Bancaribe (0114)</option>
-                                                <option value="Bancamiga">Bancamiga (0172)</option>
-                                                <option value="Banco Exterior">Banco Exterior (0115)</option>
-                                                <option value="Banco Fondo Común">Banco Fondo Común - BFC (0151)</option>
-                                                <option value="100% Banco">100% Banco (0156)</option>
-                                                <option value="Banplus">Banplus (0174)</option>
-                                                <option value="Banco Activo">Banco Activo (0171)</option>
-                                                <option value="Banco Agrícola de Venezuela">Banco Agrícola de Venezuela (0166)</option>
-                                                <option value="Banco Plaza">Banco Plaza (0138)</option>
-                                                <option value="Banco Caroní">Banco Caroní (0128)</option>
-                                                <option value="Banco Venezolano de Crédito">Banco Venezolano de Crédito (0104)</option>
-                                                <option value="Otro Banco">Otro Banco</option>
                                             </select>
+                                            <small style="color: #64748b; font-size: 0.78rem;">Entidad bancaria institucional exclusiva de la nómina PGET (código 0102).</small>
                                         </div>
 
                                         <div>
                                             <label style="display: block; font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 5px;">
-                                                <i class="fas fa-credit-card" style="color: #6A0D25;"></i> Número de Cuenta Bancaria * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(Máx. 20 dígitos numéricos)</span>
+                                                <i class="fas fa-credit-card" style="color: #6A0D25;"></i> Número de Cuenta Bancaria * <span style="font-weight: 400; color: #6A0D25; font-size: 0.8rem;">(20 dígitos, inicia con 0102)</span>
                                             </label>
-                                            <input type="text" id="formCuenta" required maxlength="20" inputmode="numeric" pattern="[0-9]*" placeholder="20 dígitos numéricos (ej. 01020000000000001267)" oninput="this.value = this.value.replace(/[^0-9]/g, '')" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.92rem; box-sizing: border-box; font-family: monospace; letter-spacing: 0.8px;">
-                                            <small style="color: #64748b; font-size: 0.78rem;">El Administrador ve los 20 dígitos completos; el trabajador verá los 4 primeros y 4 últimos enmascarados.</small>
+                                            <div style="position: relative; display: flex; align-items: stretch;">
+                                                <span style="display: flex; align-items: center; padding: 0 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-right: none; border-radius: 8px 0 0 8px; color: #6A0D25; font-weight: 700; font-family: monospace; font-size: 0.95rem;">0102</span>
+                                                <input type="text" id="formCuenta" required maxlength="16" inputmode="numeric" pattern="[0-9]*" placeholder="16 dígitos restantes (ej. 0373220000419109)" style="width: 100%; padding: 11px 14px; border: 1px solid #cbd5e1; border-radius: 0 8px 8px 0; font-size: 0.92rem; box-sizing: border-box; font-family: monospace; letter-spacing: 0.8px;">
+                                            </div>
+                                            <small style="color: #64748b; font-size: 0.78rem;">Prefijo 0102 fijo (Banco de Venezuela). Escriba o pegue los 16 dígitos restantes.</small>
                                         </div>
 
                                         <!-- Planilla de ARC en el formulario de usuario -->
@@ -2923,12 +2933,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const fechaInput = modal.querySelector('#formFechaIngreso');
         const anosInput = modal.querySelector('#formAnos');
+        const recalcBtn = modal.querySelector('#btnRecalcularAnos');
         if (fechaInput && anosInput) {
             const handleDateCalc = () => {
-                anosInput.value = calculateYearsOfService(fechaInput.value).toString();
+                if (fechaInput.value) {
+                    anosInput.value = calculateYearsOfService(fechaInput.value).toString();
+                }
             };
             fechaInput.addEventListener('input', handleDateCalc);
             fechaInput.addEventListener('change', handleDateCalc);
+            if (recalcBtn) {
+                recalcBtn.addEventListener('click', handleDateCalc);
+            }
+        }
+
+        const cuentaInput = modal.querySelector('#formCuenta');
+        if (cuentaInput) {
+            cuentaInput.addEventListener('input', function() {
+                let clean = this.value.replace(/\D/g, '');
+                if (clean.startsWith('0102')) {
+                    clean = clean.slice(4);
+                }
+                this.value = clean.slice(0, 16);
+            });
         }
 
         // Inicializar dropdown interactivo y buscador de cargos
@@ -3324,8 +3351,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const salarioEl = modal.querySelector('#workerSalario');
         if (salarioEl) salarioEl.textContent = user.salario || 'Bs. 1.000,00';
 
-        const autoYears = calculateYearsOfService(user.fecha_ingreso || '') || user.anos_servicio || '0';
-        modal.querySelector('#workerYears').textContent = autoYears + ' años';
+        const autoYears = getCalculatedYearsOfService(user.fecha_ingreso, user.anos_servicio);
+        modal.querySelector('#workerYears').textContent = autoYears + (autoYears === '1' ? ' año' : ' años');
 
         modal.querySelector('#workerDep').textContent = user.dependencia || 'PROCURADURÍA GENERAL DEL ESTADO TRUJILLO';
         
@@ -3791,9 +3818,13 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.querySelector('#formTelefonoCodigo').value = telCod || '0414';
         modal.querySelector('#formTelefonoNumero').value = (telNum || '').replace(/\D/g, '').slice(0, 7);
 
-        // Banco y Cuenta
-        modal.querySelector('#formBanco').value = user.banco || 'Banco de Venezuela';
-        modal.querySelector('#formCuenta').value = (user.cuenta || '').replace(/\D/g, '').slice(0, 20);
+        // Banco y Cuenta (Exclusivo Banco de Venezuela 0102)
+        modal.querySelector('#formBanco').value = 'Banco de Venezuela';
+        let rawCuentaVal = (user.cuenta || '').replace(/\D/g, '');
+        if (rawCuentaVal.startsWith('0102')) {
+            rawCuentaVal = rawCuentaVal.slice(4);
+        }
+        modal.querySelector('#formCuenta').value = rawCuentaVal.slice(0, 16);
 
         const formArcYear = modal.querySelector('#formArcYear');
         if (formArcYear) formArcYear.value = (user.arc_file && user.arc_file.year) ? String(user.arc_file.year) : '2025';
@@ -3805,9 +3836,9 @@ document.addEventListener('DOMContentLoaded', () => {
         modal.querySelector('#formDireccion').value = user.direccion || 'DIRECCIÓN DE RECURSOS HUMANOS';
         modal.querySelector('#formFechaIngreso').value = toInputDateValue(user.fecha_ingreso);
         
-        // Auto-calcular años de servicio al abrir
-        const autoYears = calculateYearsOfService(user.fecha_ingreso || '') || user.anos_servicio || '0';
-        modal.querySelector('#formAnos').value = autoYears.toString();
+        // Calcular años de servicio: cálculo exacto según fecha_ingreso
+        const autoYears = getCalculatedYearsOfService(user.fecha_ingreso, user.anos_servicio);
+        modal.querySelector('#formAnos').value = autoYears;
 
         formSelectedArcFile = undefined;
         const formArcNoticeEdit = modal.querySelector('#formArcSelectedNotice');
@@ -3890,7 +3921,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!isAdmin) {
             const rawFechaIng = modal.querySelector('#formFechaIngreso').value.trim();
             fechaIng = toDisplayDateValue(rawFechaIng);
-            autoYears = calculateYearsOfService(rawFechaIng || fechaIng).toString();
+            const userTypedAnos = (modal.querySelector('#formAnos').value || '').trim();
+            if (userTypedAnos !== '' && !isNaN(parseInt(userTypedAnos, 10))) {
+                autoYears = String(Math.max(0, parseInt(userTypedAnos, 10)));
+            } else {
+                autoYears = getCalculatedYearsOfService(rawFechaIng || fechaIng, '0');
+            }
             modal.querySelector('#formAnos').value = autoYears;
             const profVal = modal.querySelector('#formProfesion').value;
             profNormalized = formatProfessionByGender(profVal, gen);
@@ -3904,8 +3940,9 @@ document.addEventListener('DOMContentLoaded', () => {
             codigoRac = (modal.querySelector('#formCodigoRac').value || '').trim().replace(/\D/g, '').slice(0, 10);
             telCodigo = (modal.querySelector('#formTelefonoCodigo').value || '0414').trim();
             telNumero = (modal.querySelector('#formTelefonoNumero').value || '').trim().replace(/\D/g, '').slice(0, 7);
-            banco = (modal.querySelector('#formBanco').value || 'Banco de Venezuela').trim();
-            cuenta = (modal.querySelector('#formCuenta').value || '').trim().replace(/\D/g, '').slice(0, 20);
+            banco = 'Banco de Venezuela';
+            const rawRestoCuenta = (modal.querySelector('#formCuenta').value || '').trim().replace(/\D/g, '').slice(0, 16);
+            cuenta = rawRestoCuenta ? `0102${rawRestoCuenta}` : '';
 
             if (telCodigo && telNumero) {
                 telefonoCompleto = `${telCodigo}-${telNumero}`;
@@ -4372,7 +4409,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const cargo = user.cargo || 'FUNCIONARIO';
         const dir = user.direccion || 'DIRECCIÓN GENERAL';
         const fIngreso = user.fecha_ingreso || 'N/D';
-        const anos = calculateYearsOfService(fIngreso) || user.anos_servicio || '0';
+        const anos = getCalculatedYearsOfService(fIngreso, user.anos_servicio);
         const incluirSalario = conSalario === true || conSalario === 'true' || conSalario === 1;
         const { textoCompleto: salarioLetras, formatoNum: salarioBs } = formatearSalarioLetrasJS(user.salario || 'Bs. 1.000,00');
 
