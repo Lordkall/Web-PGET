@@ -4508,8 +4508,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isDirectoraRRHH) {
             firmanteNombre = 'ABG. DORA ALICIA MATHEUS.';
-            firmanteCargo = 'PROCURADORA GENERAL DEL ESTADO TRUJILLO.';
-            firmanteSuscripcion = 'Quien suscribe, **Abog. DORA ALICIA MATHEUS**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 10.035.929**, en mi condición de **PROCURADORA GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ';
+            firmanteCargo = 'PROCURADORA (E) GENERAL DEL ESTADO TRUJILLO.';
+            firmanteSuscripcion = 'Quien suscribe, **Abog. DORA ALICIA MATHEUS**, venezolana, mayor de edad, titular de la cédula de identidad Nº. **V- 10.035.929**, en mi condición de **PROCURADORA (E) GENERAL DEL ESTADO TRUJILLO**, por medio de la presente hago constar que ';
             inicialesSuscribe = 'DM';
         }
 

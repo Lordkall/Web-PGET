@@ -93,7 +93,7 @@ INITIAL_USERS = [
         "profesion": "Abogado",
         "genero": "femenino",
         "cedula": "10035929",
-        "cargo": "PROCURADORA",
+        "cargo": "PROCURADORA (E)",
         "condicion": "FIJO",
         "salario": "Bs. 961,51",
         "dependencia": "PROCURADURÍA GENERAL DEL ESTADO TRUJILLO",
